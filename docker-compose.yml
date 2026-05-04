@@ -1,0 +1,67 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: showroom-soundcheck-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-soundcheck}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soundcheck_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-soundcheck}
+      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}
+      BABYLON_CLUSTERS: "${BABYLON_CLUSTERS:-}"
+      CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-10}
+      VERIFY_SSL: ${VERIFY_SSL:-false}
+      REFLEX_ENV: dev
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: 1
+    working_dir: /app
+    command: ["bash", "/app/entrypoint.sh"]
+    volumes:
+      - ./:/app:Z
+      - ${BABYLON_KUBECONFIG_DIR:-./secrets}:/secrets:ro,Z
+    tmpfs:
+      - /app/.web
+      - /app/.states
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    container_name: showroom-soundcheck-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-soundcheck}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soundcheck_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-soundcheck}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro,Z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-soundcheck} -d ${POSTGRES_DB:-soundcheck}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile.cli
+    restart: "no"
+    volumes:
+      - ./soundcheck:/app/soundcheck:Z
+    environment:
+      VERIFY_SSL: ${VERIFY_SSL:-false}
+      CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-10}
+
+volumes:
+  postgres_data:
