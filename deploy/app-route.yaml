@@ -11,10 +11,10 @@ metadata:
 spec:
   to:
     kind: Service
-    name: showroom-soundcheck-app
+    name: oauth-proxy-service
     weight: 100
   port:
-    targetPort: proxy
+    targetPort: http
   tls:
-    termination: reencrypt
+    termination: edge
     insecureEdgeTerminationPolicy: Redirect

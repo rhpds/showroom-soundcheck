@@ -6,7 +6,7 @@ metadata:
   namespace: showroom-soundcheck
   labels:
     app.kubernetes.io/name: showroom-soundcheck-app
-    app.kubernetes.io/version: v1.0.5
+    app.kubernetes.io/version: v1.0.7
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: web
 spec:
@@ -23,66 +23,17 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: showroom-soundcheck-app
-        app.kubernetes.io/version: v1.0.5
+        app.kubernetes.io/version: v1.0.7
         app.kubernetes.io/part-of: showroom-soundcheck
         app.kubernetes.io/component: web
     spec:
-      serviceAccountName: showroom-soundcheck-proxy
-      automountServiceAccountToken: true
       containers:
-        - name: oauth-proxy
-          image: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9:v4.17
-          imagePullPolicy: IfNotPresent
-          ports:
-            - name: proxy
-              containerPort: 4180
-          args:
-            - --https-address=:4180
-            - --provider=openshift
-            - --openshift-service-account=showroom-soundcheck-proxy
-            - --upstream=http://localhost:3000
-            - --tls-cert=/etc/tls/private/tls.crt
-            - --tls-key=/etc/tls/private/tls.key
-            - --cookie-secret-file=/etc/proxy/secrets/session-secret
-            - --cookie-secure=true
-            - --email-domain=*
-            - --skip-provider-button=true
-          volumeMounts:
-            - name: proxy-tls
-              mountPath: /etc/tls/private
-              readOnly: true
-            - name: proxy-secret
-              mountPath: /etc/proxy/secrets
-              readOnly: true
-          resources:
-            requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
-              memory: 128Mi
-          readinessProbe:
-            httpGet:
-              path: /oauth/healthz
-              port: proxy
-              scheme: HTTPS
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /oauth/healthz
-              port: proxy
-              scheme: HTTPS
-            initialDelaySeconds: 10
-            periodSeconds: 15
-
         - name: app
-          image: quay.io/rhpds/showroom-soundcheck-app:v1.0.5
+          image: quay.io/rhpds/showroom-soundcheck-app:v1.0.7
           imagePullPolicy: IfNotPresent
           ports:
             - name: frontend
               containerPort: 3000
-            - name: backend
-              containerPort: 8000
           envFrom:
             - configMapRef:
                 name: showroom-soundcheck-config
@@ -100,19 +51,19 @@ spec:
           startupProbe:
             httpGet:
               path: /ping
-              port: backend
+              port: frontend
             failureThreshold: 30
             periodSeconds: 2
           readinessProbe:
             httpGet:
               path: /ping
-              port: backend
+              port: frontend
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /ping
-              port: backend
+              port: frontend
             periodSeconds: 15
             timeoutSeconds: 5
           resources:
@@ -121,14 +72,7 @@ spec:
               memory: 512Mi
             limits:
               memory: 1Gi
-
       volumes:
-        - name: proxy-tls
-          secret:
-            secretName: showroom-soundcheck-proxy-tls
-        - name: proxy-secret
-          secret:
-            secretName: showroom-soundcheck-proxy
         - name: babylon-kubeconfigs
           secret:
             secretName: babylon-kubeconfigs

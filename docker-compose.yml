@@ -21,14 +21,12 @@ services:
       REFLEX_ENV: dev
       PYTHONPATH: /app
       PYTHONUNBUFFERED: 1
+    user: "0:0"
     working_dir: /app
     command: ["bash", "/app/entrypoint.sh"]
     volumes:
       - ./:/app:Z
       - ${BABYLON_KUBECONFIG_DIR:-./secrets}:/secrets:ro,Z
-    tmpfs:
-      - /app/.web
-      - /app/.states
     depends_on:
       postgres:
         condition: service_healthy

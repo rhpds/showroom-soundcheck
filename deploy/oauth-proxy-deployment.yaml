@@ -1,0 +1,68 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth-proxy
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/name: oauth-proxy
+    app.kubernetes.io/part-of: showroom-soundcheck
+    app.kubernetes.io/component: oauth-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth-proxy
+        app.kubernetes.io/part-of: showroom-soundcheck
+        app.kubernetes.io/component: oauth-proxy
+    spec:
+      serviceAccountName: showroom-soundcheck-proxy
+      automountServiceAccountToken: true
+      containers:
+        - name: oauth-proxy
+          image: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9:v4.17
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 4180
+          args:
+            - -http-address=:4180
+            - -https-address=
+            - -provider=openshift
+            - -openshift-service-account=showroom-soundcheck-proxy
+            - -upstream=http://showroom-soundcheck-app:3000/
+            - -cookie-secret-file=/etc/proxy/secrets/session-secret
+            - -email-domain=*
+            - -skip-provider-button=true
+          volumeMounts:
+            - name: proxy-secret
+              mountPath: /etc/proxy/secrets
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: proxy-secret
+          secret:
+            secretName: showroom-soundcheck-proxy

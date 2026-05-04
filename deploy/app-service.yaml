@@ -8,15 +8,13 @@ metadata:
     app.kubernetes.io/name: showroom-soundcheck-app
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: web
-  annotations:
-    service.beta.openshift.io/serving-cert-secret-name: showroom-soundcheck-proxy-tls
 spec:
   selector:
     app.kubernetes.io/name: showroom-soundcheck-app
   ports:
-    - name: proxy
-      port: 443
-      targetPort: 4180
+    - name: frontend
+      port: 3000
+      targetPort: 3000
     - name: backend
       port: 8000
       targetPort: 8000

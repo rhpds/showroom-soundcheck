@@ -12,6 +12,7 @@ app_theme = rx.theme(
 
 base_style = {
     "font_family": "Instrument Sans, sans-serif",
+    "a[href='https://reflex.dev']": {"display": "none"},
     "& code": {
         "white_space": "pre-wrap !important",
         "word_wrap": "break-word !important",

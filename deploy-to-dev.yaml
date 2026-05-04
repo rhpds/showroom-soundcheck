@@ -1,0 +1,66 @@
+## Tag and Deploy
+
+### 1. Commit and tag
+
+```bash
+cd /home/andrew/src/github.com/rhpds/showroom-soundcheck
+git add <files>
+git commit -m "your message"
+git tag v1.0.X
+git push origin main v1.0.X
+```
+
+The tag push triggers the `app-image-publish` GitHub Actions workflow, which builds the Dockerfile and pushes to `quay.io/rhpds/showroom-soundcheck-app:v1.0.X`.
+
+### 2. Wait for CI
+
+```bash
+gh run list --repo rhpds/showroom-soundcheck --workflow app-image-publish --limit 1
+```
+
+Wait until it shows `completed success`.
+
+### 3. Update the deployment manifest
+
+Edit `deploy/app-deployment.yaml` -- update the image tag and version labels to match:
+
+```
+image: quay.io/rhpds/showroom-soundcheck-app:v1.0.X
+app.kubernetes.io/version: v1.0.X
+```
+
+### 4. Apply to OCP
+
+```bash
+for f in deploy/*.yaml; do
+  base=$(basename "$f")
+  case "$base" in
+    namespace.yaml|*-secret.yaml) continue ;;
+  esac
+  sed 's/namespace: showroom-soundcheck$/namespace: showroom-soundcheck-dev/' "$f" \
+    | oc apply -n showroom-soundcheck-dev -f -
+done
+```
+
+Or to just update the app deployment:
+
+```bash
+sed 's/namespace: showroom-soundcheck$/namespace: showroom-soundcheck-dev/' \
+  deploy/app-deployment.yaml | oc apply -n showroom-soundcheck-dev -f -
+```
+
+### 5. Verify
+
+```bash
+oc rollout status deployment/showroom-soundcheck-app -n showroom-soundcheck-dev --timeout=120s
+oc get pods -n showroom-soundcheck-dev
+```
+
+Route URL: `https://showroom-soundcheck-showroom-soundcheck-dev.apps.ocpv-infra01.dal12.infra.demo.redhat.com`
+
+### Current state
+
+- **Latest deployed**: v1.0.7
+- **Cluster**: `showroom-soundcheck-dev` on `api.ocpv-infra01.dal12.infra.demo.redhat.com:6443`
+- **Architecture**: Separate oauth-proxy Deployment (HTTP :4180, edge TLS on Route) + app Deployment (Reflex on :3000) + postgres StatefulSet
+- **Secrets** (already created, don't need to recreate): `postgres-credentials`, `showroom-soundcheck-proxy`, `babylon-kubeconfigs`

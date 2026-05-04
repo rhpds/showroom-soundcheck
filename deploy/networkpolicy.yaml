@@ -16,7 +16,31 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-router-to-app
+  name: allow-router-to-proxy
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/name: oauth-proxy
+    app.kubernetes.io/part-of: showroom-soundcheck
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: oauth-proxy
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+      ports:
+        - protocol: TCP
+          port: 4180
+---
+# Allow oauth-proxy to reach the app on port 3000
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-proxy-to-app
   namespace: showroom-soundcheck
   labels:
     app.kubernetes.io/name: showroom-soundcheck-app
@@ -29,14 +53,14 @@ spec:
     - Ingress
   ingress:
     - from:
-        - namespaceSelector:
+        - podSelector:
             matchLabels:
-              network.openshift.io/policy-group: ingress
+              app.kubernetes.io/name: oauth-proxy
       ports:
         - protocol: TCP
-          port: 4180
+          port: 3000
 ---
-# Allow ingress to postgres only from the app pods
+# Allow app pods to reach postgres on port 5432
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
