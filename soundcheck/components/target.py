@@ -27,15 +27,19 @@ def target_status_badge(status: str) -> rx.Component:
 
 
 def _target_url_or_provision_message(target: SessionTarget) -> rx.Component:
-    """Show the URL when available, or a provisioning message for placeholder targets."""
+    """Show the URL when available, or a provisioning/error message for placeholder targets."""
     return rx.cond(
         target.url != "",
         rx.text(target.url, size="1", color="gray", style={
             "max_width": "500px", "overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap",
         }),
-        rx.text("Waiting for showroom...", size="1", color=rx.color("indigo", 9), style={
-            "font_style": "italic",
-        }),
+        rx.cond(
+            target.status == "error",
+            rx.text("No showroom", size="1", color="red", weight="medium"),
+            rx.text("Waiting for showroom...", size="1", color=rx.color("indigo", 9), style={
+                "font_style": "italic",
+            }),
+        ),
     )
 
 

@@ -663,6 +663,9 @@ class CheckRunnerState(SessionState):
                         if is_placeholder and prov_status and "failed" in prov_status:
                             target_status = "error"
                             err_msg = f"Provision failed for ResourceClaim '{entry.get('label', guid)}'"
+                        elif is_placeholder and prov_status == "ready":
+                            target_status = "error"
+                            err_msg = f"No showroom endpoint found for ResourceClaim '{entry.get('label', guid)}' (resource is running)"
                         elif is_placeholder:
                             target_status = "provisioning"
                             err_msg = None
@@ -703,6 +706,9 @@ class CheckRunnerState(SessionState):
                         if is_placeholder and prov_status and "failed" in prov_status:
                             target_status = "error"
                             err_msg = f"Provision failed for ResourceClaim '{entry.get('label', ws_guid)}'"
+                        elif is_placeholder and prov_status == "ready":
+                            target_status = "error"
+                            err_msg = f"No showroom endpoint found for ResourceClaim '{entry.get('label', ws_guid)}' (resource is running)"
                         elif is_placeholder:
                             target_status = "provisioning"
                             err_msg = None
