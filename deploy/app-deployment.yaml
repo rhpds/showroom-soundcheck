@@ -6,7 +6,7 @@ metadata:
   namespace: showroom-soundcheck
   labels:
     app.kubernetes.io/name: showroom-soundcheck-app
-    app.kubernetes.io/version: v1.0.3
+    app.kubernetes.io/version: v1.0.5
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: web
 spec:
@@ -23,16 +23,12 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: showroom-soundcheck-app
-        app.kubernetes.io/version: v1.0.3
+        app.kubernetes.io/version: v1.0.5
         app.kubernetes.io/part-of: showroom-soundcheck
         app.kubernetes.io/component: web
     spec:
       serviceAccountName: showroom-soundcheck-proxy
       automountServiceAccountToken: true
-      securityContext:
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: oauth-proxy
           image: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9:v4.17
@@ -51,12 +47,6 @@ spec:
             - --cookie-secure=true
             - --email-domain=*
             - --skip-provider-button=true
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
           volumeMounts:
             - name: proxy-tls
               mountPath: /etc/tls/private
@@ -64,8 +54,6 @@ spec:
             - name: proxy-secret
               mountPath: /etc/proxy/secrets
               readOnly: true
-            - name: oauth-proxy-tmp
-              mountPath: /tmp
           resources:
             requests:
               cpu: 50m
@@ -88,7 +76,7 @@ spec:
             periodSeconds: 15
 
         - name: app
-          image: quay.io/rhpds/showroom-soundcheck-app:v1.0.3
+          image: quay.io/rhpds/showroom-soundcheck-app:v1.0.5
           imagePullPolicy: IfNotPresent
           ports:
             - name: frontend
@@ -105,11 +93,6 @@ spec:
               value: "1"
             - name: PYTHONPATH
               value: /app
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
           volumeMounts:
             - name: babylon-kubeconfigs
               mountPath: /secrets
@@ -146,8 +129,6 @@ spec:
         - name: proxy-secret
           secret:
             secretName: showroom-soundcheck-proxy
-        - name: oauth-proxy-tmp
-          emptyDir: {}
         - name: babylon-kubeconfigs
           secret:
             secretName: babylon-kubeconfigs
