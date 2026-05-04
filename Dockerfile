@@ -5,8 +5,8 @@
 # Defaults to production mode (REFLEX_ENV=prod). Override via env var or
 # docker-compose for development (REFLEX_ENV=dev + bind mount).
 #
-# Designed for rootless Podman: root inside the container maps to
-# your unprivileged host UID, so no user-switching is needed.
+# OpenShift compatible: group-writable /app, runs as arbitrary UID in
+# group 0 (standard OCP pattern).
 ##
 
 FROM registry.access.redhat.com/ubi10/python-312-minimal:latest AS builder
@@ -53,8 +53,14 @@ RUN python -m pip install --upgrade pip \
 
 COPY . /app
 
+RUN chmod -R g=u /app && \
+    mkdir -p /app/.web /app/.states && \
+    chmod -R g=u /app/.web /app/.states
+
 ENV REFLEX_ENV=prod
 
 EXPOSE 3000 8000
+
+USER 1001
 
 CMD ["bash", "/app/entrypoint.sh"]

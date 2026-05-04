@@ -1,0 +1,61 @@
+---
+# Default deny all ingress in the namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/part-of: showroom-soundcheck
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow ingress to the oauth-proxy from the OpenShift router
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-router-to-app
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/name: showroom-soundcheck-app
+    app.kubernetes.io/part-of: showroom-soundcheck
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: showroom-soundcheck-app
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+      ports:
+        - protocol: TCP
+          port: 4180
+---
+# Allow ingress to postgres only from the app pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-postgres
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: showroom-soundcheck
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: showroom-soundcheck-app
+      ports:
+        - protocol: TCP
+          port: 5432

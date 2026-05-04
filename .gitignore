@@ -1,0 +1,36 @@
+.web
+.states
+assets/external/
+# Reflex
+.web/
+__pycache__/
+*.py[cod]
+*.pyc
+.states/
+
+# Environment
+.env
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite3
+
+# Volumes
+postgres_data/
+
+# Babylon kubeconfig secrets
+secrets/
+
+# Plaintext Kubernetes secrets (never commit real credentials)
+deploy/*-secret.yaml

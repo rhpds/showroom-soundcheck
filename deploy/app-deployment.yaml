@@ -1,0 +1,153 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: showroom-soundcheck-app
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/name: showroom-soundcheck-app
+    app.kubernetes.io/version: v1.0.2
+    app.kubernetes.io/part-of: showroom-soundcheck
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: showroom-soundcheck-app
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: showroom-soundcheck-app
+        app.kubernetes.io/version: v1.0.2
+        app.kubernetes.io/part-of: showroom-soundcheck
+        app.kubernetes.io/component: web
+    spec:
+      serviceAccountName: showroom-soundcheck-proxy
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth-proxy
+          image: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9:v4.17
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: proxy
+              containerPort: 4180
+          args:
+            - --https-address=:4180
+            - --provider=openshift
+            - --openshift-service-account=showroom-soundcheck-proxy
+            - --upstream=http://localhost:3000
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret-file=/etc/proxy/secrets/session-secret
+            - --cookie-secure=true
+            - --email-domain=*
+            - --skip-provider-button=true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: proxy-tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: proxy-secret
+              mountPath: /etc/proxy/secrets
+              readOnly: true
+            - name: oauth-proxy-tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: proxy
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /oauth/healthz
+              port: proxy
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 15
+
+        - name: app
+          image: quay.io/rhpds/showroom-soundcheck-app:v1.0.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: frontend
+              containerPort: 3000
+            - name: backend
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: showroom-soundcheck-config
+            - secretRef:
+                name: postgres-credentials
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONPATH
+              value: /app
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: babylon-kubeconfigs
+              mountPath: /secrets
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: backend
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: backend
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: backend
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+
+      volumes:
+        - name: proxy-tls
+          secret:
+            secretName: showroom-soundcheck-proxy-tls
+        - name: proxy-secret
+          secret:
+            secretName: showroom-soundcheck-proxy
+        - name: oauth-proxy-tmp
+          emptyDir: {}
+        - name: babylon-kubeconfigs
+          secret:
+            secretName: babylon-kubeconfigs

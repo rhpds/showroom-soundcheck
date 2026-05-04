@@ -1,0 +1,20 @@
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: showroom-soundcheck
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/name: showroom-soundcheck-app
+    app.kubernetes.io/part-of: showroom-soundcheck
+    app.kubernetes.io/component: web
+spec:
+  to:
+    kind: Service
+    name: showroom-soundcheck-app
+    weight: 100
+  port:
+    targetPort: proxy
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
