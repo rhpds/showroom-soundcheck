@@ -41,23 +41,25 @@ At least one of `urls`, `guid`, or `workshop` is required. If none are provided,
 
 ### CLI
 
-The CLI is distributed as a container image. It checks showroom URLs directly — no database or Babylon integration required.
+The CLI is distributed as a container image (`quay.io/rhpds/showroom-soundcheck-cli`). It checks showroom URLs directly — no database or Babylon integration required.
+
+> **Note:** Use `-t` (allocate a TTY) so the results table renders correctly. Without it, the container has no terminal and the table columns collapse.
 
 ```bash
-# Basic readyz check
-podman run --rm quay.io/rhpds/showroom-soundcheck-cli:latest \
+# Check multiple showroom URLs
+podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
   --urls https://showroom1.example.com,https://showroom2.example.com
 
-# healthz check with verbose output
-podman run --rm quay.io/rhpds/showroom-soundcheck-cli:latest \
-  --urls https://showroom1.example.com --check-type healthz -v
+# healthz (liveness) check instead of the default readyz (readiness)
+podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
+  --urls https://showroom1.example.com --check-type healthz
 
-# Delegate to showroom sidecar first, fall back to local checks
-podman run --rm quay.io/rhpds/showroom-soundcheck-cli:latest \
+# Delegate to the showroom health sidecar first, fall back to local checks
+podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
   --urls https://showroom1.example.com --check-mode showroom
 
-# Skip TLS verification
-podman run --rm quay.io/rhpds/showroom-soundcheck-cli:latest \
+# Skip TLS verification (e.g. self-signed certs)
+podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
   --urls https://showroom1.example.com --insecure
 ```
 
@@ -68,7 +70,7 @@ podman run --rm quay.io/rhpds/showroom-soundcheck-cli:latest \
 | `--check-mode`  | `manual`, `showroom`, or `auto` (default: `manual`)                      |
 | `-c`, `--concurrency` | Max concurrent checks (default: `10`, env: `CHECK_CONCURRENCY`)   |
 | `--insecure`    | Disable TLS certificate verification (env: `VERIFY_SSL`)                 |
-| `-v`, `--verbose` | Print detailed Tier 2 JSON results                                     |
+| `-v`, `--verbose` | Print detailed Tier 2 JSON results for each target                     |
 
 **Exit codes:** `0` = all healthy, `1` = one or more unhealthy, `2` = invalid input.
 
@@ -111,7 +113,7 @@ reflex run --env dev
 
 ```bash
 podman build -f Dockerfile.cli -t showroom-soundcheck-cli .
-podman run --rm showroom-soundcheck-cli --urls https://showroom1.example.com
+podman run --rm -t showroom-soundcheck-cli --urls https://showroom1.example.com
 ```
 
 ### Environment Variables
@@ -185,12 +187,12 @@ Three tables: `sessions`, `session_targets`, `check_results`. Migrations are man
 
 ### Container Images
 
-| Image | Registry |
+| Image | Pull URL |
 |-------|----------|
 | Web app | `quay.io/rhpds/showroom-soundcheck-app` |
 | CLI     | `quay.io/rhpds/showroom-soundcheck-cli` |
 
-Images are built and pushed on tagged releases (`v*`) via GitHub Actions. A GitHub Release is also created automatically with auto-generated release notes and a table of the published image tags.
+Images are built and pushed on tagged releases (`v*`) via GitHub Actions. A GitHub Release is also created automatically with auto-generated release notes and a table of the published image tags. Each release produces `latest` plus semver tags (e.g. `v1.0.0`, `v1.0`, `v1`).
 
 ### Standalone URL Discovery Script
 
