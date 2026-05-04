@@ -190,7 +190,7 @@ Three tables: `sessions`, `session_targets`, `check_results`. Migrations are man
 | Web app | `quay.io/rhpds/showroom-soundcheck-app` |
 | CLI     | `quay.io/rhpds/showroom-soundcheck-cli` |
 
-Images are built and pushed on tagged releases (`v*`) via GitHub Actions.
+Images are built and pushed on tagged releases (`v*`) via GitHub Actions. A GitHub Release is also created automatically with auto-generated release notes and a table of the published image tags.
 
 ### Standalone URL Discovery Script
 

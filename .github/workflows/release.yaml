@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive tag and version
+        id: vars
+        run: |
+          TAG_REF="${GITHUB_REF##*/}"
+          echo "tag=${TAG_REF}" >> $GITHUB_OUTPUT
+          VERSION="${TAG_REF#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.vars.outputs.tag }}
+          VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          NOTES=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${GITHUB_REPOSITORY}/releases/generate-notes \
+            -f tag_name="$TAG" \
+            -f target_commitish="$GITHUB_SHA" | jq -r '.body')
+
+          BODY="## Container Images
+
+          | Image | Tag |
+          |-------|-----|
+          | \`quay.io/rhpds/showroom-soundcheck-app\` | \`${TAG}\` |
+          | \`quay.io/rhpds/showroom-soundcheck-cli\` | \`${TAG}\` |
+
+          ${NOTES}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists, updating..."
+            gh release edit "$TAG" --notes "$BODY"
+          else
+            gh release create "$TAG" --title "v${VERSION}" --notes "$BODY"
+          fi
