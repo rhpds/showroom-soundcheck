@@ -80,19 +80,21 @@ USER 0
 WORKDIR /app
 
 RUN microdnf install -y --nodocs \
+    unzip \
     curl-minimal \
     postgresql-libs \
     && microdnf clean all
 
 COPY --from=init /opt/app-root/lib64/python3.12/site-packages /opt/app-root/lib64/python3.12/site-packages
 COPY --from=init /opt/app-root/bin /opt/app-root/bin
+COPY --from=init /opt/app-root/src/.local /opt/app-root/src/.local
 COPY --from=init /app /app
 
 # Patch copytree to use shutil.copy (no metadata preservation) so it works
 # under OpenShift's restricted SCC which drops CAP_FOWNER.
 RUN sed -i 's/dirs_exist_ok=True,/dirs_exist_ok=True, copy_function=shutil.copy,/' \
       /opt/app-root/lib64/python3.12/site-packages/reflex/utils/path_ops.py \
-    && chmod -R g=u /app
+    && chmod -R g=u /app /opt/app-root/src/.local
 
 EXPOSE 3000 8000
 
