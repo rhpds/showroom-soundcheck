@@ -281,16 +281,18 @@ NOOKBAG_BASES = ["/nookbag", ""]
 
 async def _fetch_config(
     client: httpx.AsyncClient, base_url: str,
-) -> tuple[Optional[dict], Optional[str], str]:
+) -> tuple[Optional[dict], Optional[str], str, bool]:
     """Fetch and parse the first available config file from nookbag.
 
     Tries each CONFIG_FILES name under each NOOKBAG_BASES prefix so that
     deployments serving configs at the root (no /nookbag/ prefix) are also
     discovered.
 
-    Returns (config_dict, config_filename, nookbag_base) or (None, None, "")
-    when no config is found.
+    Returns (config_dict, config_filename, nookbag_base, timed_out).
+    When no config is found returns (None, None, "", timed_out) where
+    *timed_out* indicates whether any attempt failed due to a timeout.
     """
+    saw_timeout = False
     for nookbag_base in NOOKBAG_BASES:
         for filename in CONFIG_FILES:
             url = f"{base_url}{nookbag_base}/{filename}"
@@ -303,11 +305,14 @@ async def _fetch_config(
                         continue
                     config = yaml.safe_load(data.decode("utf-8"))
                     if isinstance(config, dict):
-                        return config, filename, nookbag_base
+                        return config, filename, nookbag_base, False
+            except httpx.TimeoutException:
+                saw_timeout = True
+                logger.debug("timeout fetching config %s", filename)
             except (httpx.HTTPError, yaml.YAMLError, UnicodeDecodeError) as exc:
                 logger.debug("failed to fetch config %s: %s", filename, exc)
                 continue
-    return None, None, ""
+    return None, None, "", saw_timeout
 
 
 async def _probe_tabs(
@@ -345,16 +350,20 @@ async def _run_tier2(
 
     tier2 = Tier2Detail()
 
-    config, config_file, nookbag_base = await _fetch_config(client, base_url)
+    config, config_file, nookbag_base, config_timed_out = await _fetch_config(client, base_url)
     tier2.config_file = config_file
     tier2.config_found = config is not None
 
     if config is None:
         elapsed = int((time.monotonic() - start) * 1000)
+        if config_timed_out:
+            msg = f"Timed out fetching nookbag config (ui-config.yml / zero-touch-config.yml) after {PROBE_TIMEOUT}s"
+        else:
+            msg = "No nookbag config found (ui-config.yml / zero-touch-config.yml)"
         return TargetCheckResult(
             url=url, tier_used=2, check_type=check_type,
             response_time_ms=elapsed,
-            error_message="No nookbag config found (ui-config.yml / zero-touch-config.yml)",
+            error_message=msg,
             detail=_tier2_to_dict(tier2),
         )
 
