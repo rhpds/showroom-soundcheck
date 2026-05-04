@@ -59,8 +59,12 @@ COPY . /app
 RUN reflex init
 RUN reflex export --frontend-only --no-zip
 
+RUN chown -R 1001:0 /app /opt/app-root/src
+
 STOPSIGNAL SIGKILL
 
 EXPOSE 3000 8000
+
+USER 1001
 
 CMD ["bash", "/app/entrypoint.sh"]
