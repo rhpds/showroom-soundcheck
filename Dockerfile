@@ -59,7 +59,8 @@ COPY . /app
 RUN reflex init
 RUN reflex export --frontend-only --no-zip
 
-RUN chown -R 1001:0 /app /opt/app-root/src
+RUN chmod -R g=u /app /opt/app-root/src && \
+    chown -R 1001:0 /app /opt/app-root/src
 
 STOPSIGNAL SIGKILL
 
