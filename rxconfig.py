@@ -2,7 +2,7 @@ import reflex as rx
 from reflex.plugins.sitemap import SitemapPlugin
 import os
 
-config = rx.Config(
+_config_kwargs: dict = dict(
     app_name="soundcheck",
     disable_plugins=[SitemapPlugin],
     db_url=os.environ.get(
@@ -14,3 +14,8 @@ config = rx.Config(
         f"/{os.environ.get('POSTGRES_DB', 'soundcheck')}",
     ),
 )
+
+if os.environ.get("API_URL"):
+    _config_kwargs["api_url"] = os.environ["API_URL"]
+
+config = rx.Config(**_config_kwargs)
