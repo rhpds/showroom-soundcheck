@@ -1,18 +1,50 @@
-import reflex as rx
-from reflex.plugins.sitemap import SitemapPlugin
 import os
 
-_config_kwargs: dict = dict(
-    app_name="soundcheck",
-    disable_plugins=[SitemapPlugin],
-    db_url=os.environ.get(
-        "DATABASE_URL",
+import reflex as rx
+from reflex.plugins.sitemap import SitemapPlugin
+
+
+def _default_db_url() -> str:
+    return (
         f"postgresql://{os.environ.get('POSTGRES_USER', 'soundcheck')}"
         f":{os.environ.get('POSTGRES_PASSWORD', 'soundcheck_dev')}"
         f"@{os.environ.get('POSTGRES_HOST', 'localhost')}"
         f":{os.environ.get('POSTGRES_PORT', '5432')}"
-        f"/{os.environ.get('POSTGRES_DB', 'soundcheck')}",
-    ),
+        f"/{os.environ.get('POSTGRES_DB', 'soundcheck')}"
+    )
+
+
+def _derive_async_db_url(db_url: str | None) -> str | None:
+    if not db_url or "://" not in db_url:
+        return None
+    scheme, tail = db_url.split("://", 1)
+    if scheme in ("postgres", "postgresql", "postgresql+psycopg"):
+        return f"postgresql+asyncpg://{tail}"
+    if scheme.startswith("postgresql+") and scheme != "postgresql+asyncpg":
+        return f"postgresql+asyncpg://{tail}"
+    if scheme == "postgresql+asyncpg":
+        return db_url
+    return None
+
+
+def _configured_async_db_url(db_url: str | None) -> str | None:
+    explicit = (
+        os.environ.get("ASYNC_DATABASE_URL")
+        or os.environ.get("ASYNC_DB_URL")
+        or os.environ.get("REFLEX_ASYNC_DB_URL")
+    )
+    if explicit:
+        return explicit
+    return _derive_async_db_url(db_url)
+
+
+_db_url = os.environ.get("DATABASE_URL", _default_db_url())
+
+_config_kwargs: dict = dict(
+    app_name="soundcheck",
+    disable_plugins=[SitemapPlugin],
+    db_url=_db_url,
+    async_db_url=_configured_async_db_url(_db_url),
 )
 
 if os.environ.get("API_URL"):

@@ -51,6 +51,11 @@ CHECK_CONCURRENCY = _positive_int_env("CHECK_CONCURRENCY", 10)
 VERIFY_SSL = os.environ.get("VERIFY_SSL", "true").lower() in ("true", "1", "yes")
 
 
+def _utc_now_naive() -> datetime:
+    """Return naive UTC datetime for TIMESTAMP WITHOUT TIME ZONE columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def local_time(dt_var: rx.Var, **kwargs: object) -> rx.Component:
     return rx.moment(dt_var.to(str) + "Z", tz=APP_TIMEZONE, **kwargs)
 
@@ -74,7 +79,7 @@ def _persist_new_session(
     """Create a new pending session with targets in the database. Returns session_id."""
     workshop_guids = workshop_guids or []
     sid = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = _utc_now_naive()
 
     with rx.session() as session:
         cs = CheckSession(
@@ -835,7 +840,7 @@ class CheckRunnerState(SessionState):
         if not targets:
             return
 
-        now = datetime.now(timezone.utc)
+        now = _utc_now_naive()
         async with rx.asession() as db:
             for target in targets:
                 target_result = await db.execute(
@@ -874,7 +879,7 @@ class CheckRunnerState(SessionState):
                             error_message=str(e)[:500],
                         )
 
-                completed_at = datetime.now(timezone.utc)
+                completed_at = _utc_now_naive()
                 status = "healthy" if result.is_healthy else "error" if result.error_message else "unhealthy"
 
                 async with rx.asession() as db:
@@ -916,7 +921,7 @@ class CheckRunnerState(SessionState):
                     if t:
                         t.status = "error"
                         t.error_message = str(e)[:500]
-                        t.check_completed_at = datetime.now(timezone.utc)
+                        t.check_completed_at = _utc_now_naive()
                         db.add(t)
                         await db.commit()
 
@@ -947,7 +952,7 @@ class CheckRunnerState(SessionState):
             )
             if cs:
                 cs.status = "completed" if all_healthy else "failed"
-                cs.completed_at = datetime.now(timezone.utc)
+                cs.completed_at = _utc_now_naive()
                 session.add(cs)
                 await session.commit()
 
@@ -962,7 +967,7 @@ class CheckRunnerState(SessionState):
             cs = cs_result.scalars().first()
             if cs:
                 cs.status = "failed"
-                cs.completed_at = datetime.now(timezone.utc)
+                cs.completed_at = _utc_now_naive()
                 session.add(cs)
                 await session.commit()
 

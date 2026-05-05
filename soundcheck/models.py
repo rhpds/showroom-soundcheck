@@ -15,6 +15,11 @@ import reflex as rx
 from sqlmodel import Field
 
 
+def _utc_now_naive() -> datetime:
+    """Naive UTC datetime for TIMESTAMP WITHOUT TIME ZONE DB columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class CheckSession(rx.Model, table=True):
     """A health-check session initiated by a user.
 
@@ -34,7 +39,7 @@ class CheckSession(rx.Model, table=True):
     babylon_cluster: str = ""  # Babylon cluster name for GUID resolution
     display_label: str = ""
     status: str = "pending"  # pending | running | completed | failed
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=_utc_now_naive)
     completed_at: Optional[datetime] = None
 
     def get_urls(self) -> list[str]:
@@ -105,4 +110,4 @@ class CheckResult(rx.Model, table=True):
     response_time_ms: int = 0
     error_message: Optional[str] = None
     detail: Optional[str] = None  # JSON: config parsed, tabs checked, etc.
-    checked_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    checked_at: datetime = Field(default_factory=_utc_now_naive)
