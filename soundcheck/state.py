@@ -674,7 +674,11 @@ class CheckRunnerState(SessionState):
                     for entry in url_entries:
                         is_placeholder = not entry.get("url")
                         prov_status = entry.get("provision_status") or None
-                        if is_placeholder and prov_status and "failed" in prov_status:
+                        resolution_error = entry.get("resolution_error") or None
+                        if resolution_error:
+                            target_status = "error"
+                            err_msg = f"GUID resolution failed: {resolution_error}"
+                        elif is_placeholder and prov_status and "failed" in prov_status:
                             target_status = "error"
                             err_msg = f"Provision failed for ResourceClaim '{entry.get('label', guid)}'"
                         elif is_placeholder and prov_status == "ready":
@@ -717,7 +721,11 @@ class CheckRunnerState(SessionState):
                     for entry in url_entries:
                         is_placeholder = not entry.get("url")
                         prov_status = entry.get("provision_status") or None
-                        if is_placeholder and prov_status and "failed" in prov_status:
+                        resolution_error = entry.get("resolution_error") or None
+                        if resolution_error:
+                            target_status = "error"
+                            err_msg = f"Workshop GUID resolution failed: {resolution_error}"
+                        elif is_placeholder and prov_status and "failed" in prov_status:
                             target_status = "error"
                             err_msg = f"Provision failed for ResourceClaim '{entry.get('label', ws_guid)}'"
                         elif is_placeholder and prov_status == "ready":

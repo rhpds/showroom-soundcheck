@@ -166,7 +166,7 @@ def _rc_matches_guid(rc_def: dict[str, Any], guid: str) -> bool:
 
 async def _search_cluster_for_rc_guid(
     cluster: str, guid: str,
-) -> list[dict[str, str]]:
+) -> tuple[list[dict[str, str]], list[str]]:
     """Search a single cluster for ResourceClaims matching a GUID.
 
     When a matching RC has no showroom URLs yet (e.g. still provisioning),
@@ -191,22 +191,34 @@ async def _search_cluster_for_rc_guid(
                         "provision_status": provision_status,
                     })
     except Exception as e:
-        logger.warning("Failed RC search on cluster '%s' for GUID '%s': %s", cluster, guid, e)
-    return urls
+        msg = f"Cluster '{cluster}' ResourceClaim lookup failed for GUID '{guid}': {e}"
+        logger.warning(msg)
+        return [], [msg]
+    return urls, []
 
 
 WORKSHOP_ID_LABEL = f"{BABYLON_GROUP}/workshop-id"
 
 
+def _resolution_error_entry(guid: str, errors: list[str]) -> dict[str, str]:
+    detail = "; ".join(errors)[:500]
+    return {
+        "url": "",
+        "label": guid,
+        "resolution_error": detail,
+    }
+
+
 async def _search_cluster_for_workshop_guid(
     cluster: str, guid: str,
-) -> list[dict[str, str]]:
+) -> tuple[list[dict[str, str]], list[str]]:
     """Search a cluster for Workshops whose workshop-id label matches the GUID.
 
     When a Workshop is found, fetches each ResourceClaim listed in
     ``status.resourceClaims`` and extracts showroom URLs from them.
     """
     urls: list[dict[str, str]] = []
+    errors: list[str] = []
     try:
         result = await babylon_client.k8s_list_cluster_wide(
             cluster, BABYLON_GROUP, BABYLON_VERSION, WS_PLURAL,
@@ -214,7 +226,7 @@ async def _search_cluster_for_workshop_guid(
         )
         workshops = result.get("items", [])
         if not workshops:
-            return urls
+            return [], []
 
         for ws in workshops:
             ws_name = ws.get("metadata", {}).get("name", "unknown")
@@ -238,10 +250,12 @@ async def _search_cluster_for_workshop_guid(
 
             for rc_name, rc_result in zip(rc_map, rc_results):
                 if isinstance(rc_result, Exception):
-                    logger.warning(
-                        "Failed to fetch RC '%s/%s' for workshop '%s': %s",
-                        ws_ns, rc_name, ws_name, rc_result,
+                    msg = (
+                        f"Cluster '{cluster}' failed to fetch RC '{ws_ns}/{rc_name}' "
+                        f"for workshop '{ws_name}': {rc_result}"
                     )
+                    logger.warning(msg)
+                    errors.append(msg)
                     continue
                 rc_guid = _extract_rc_guid(rc_result)
                 found = extract_showroom_urls(rc_result)
@@ -259,18 +273,25 @@ async def _search_cluster_for_workshop_guid(
                     })
 
     except Exception as e:
-        logger.warning("Failed Workshop search on cluster '%s' for GUID '%s': %s", cluster, guid, e)
-    return urls
+        msg = f"Cluster '{cluster}' Workshop lookup failed for GUID '{guid}': {e}"
+        logger.warning(msg)
+        return [], [msg]
+    if urls:
+        return urls, []
+    return [], errors
 
 
 async def _search_cluster_for_guid(
     cluster: str, guid: str,
-) -> list[dict[str, str]]:
+) -> tuple[list[dict[str, str]], list[str]]:
     """Search a single cluster for a GUID, trying ResourceClaims first, then Workshops."""
-    urls = await _search_cluster_for_rc_guid(cluster, guid)
-    if urls:
-        return urls
-    return await _search_cluster_for_workshop_guid(cluster, guid)
+    rc_urls, rc_errors = await _search_cluster_for_rc_guid(cluster, guid)
+    if rc_urls:
+        return rc_urls, []
+    ws_urls, ws_errors = await _search_cluster_for_workshop_guid(cluster, guid)
+    if ws_urls:
+        return ws_urls, []
+    return [], rc_errors + ws_errors
 
 
 async def resolve_guid(guid: str, cluster: str = "") -> list[dict[str, str]]:
@@ -282,21 +303,28 @@ async def resolve_guid(guid: str, cluster: str = "") -> list[dict[str, str]]:
     Returns a list of {url, label} dicts.
     """
     if cluster:
-        return await _search_cluster_for_guid(cluster, guid)
+        urls, errors = await _search_cluster_for_guid(cluster, guid)
+        if urls:
+            return urls
+        if errors:
+            return [_resolution_error_entry(guid, errors)]
+        return []
 
     clusters = babylon_client.get_configured_clusters()
     if not clusters:
         logger.warning("No Babylon clusters configured for GUID resolution")
         return []
 
-    all_urls: list[dict[str, str]] = []
+    all_errors: list[str] = []
     for c in clusters:
-        urls = await _search_cluster_for_guid(c, guid)
+        urls, errors = await _search_cluster_for_guid(c, guid)
         if urls:
-            all_urls.extend(urls)
-            break  # GUID is unique, stop after first cluster with results
+            return urls  # GUID is unique, stop after first cluster with results
+        all_errors.extend(errors)
 
-    return all_urls
+    if all_errors:
+        return [_resolution_error_entry(guid, all_errors)]
+    return []
 
 
 async def resolve_guids(
@@ -313,18 +341,27 @@ async def resolve_workshop_guid(guid: str, cluster: str = "") -> list[dict[str, 
     Searches only for Workshop CRs — skips the ResourceClaim scan.
     """
     if cluster:
-        return await _search_cluster_for_workshop_guid(cluster, guid)
+        urls, errors = await _search_cluster_for_workshop_guid(cluster, guid)
+        if urls:
+            return urls
+        if errors:
+            return [_resolution_error_entry(guid, errors)]
+        return []
 
     clusters = babylon_client.get_configured_clusters()
     if not clusters:
         logger.warning("No Babylon clusters configured for Workshop GUID resolution")
         return []
 
+    all_errors: list[str] = []
     for c in clusters:
-        urls = await _search_cluster_for_workshop_guid(c, guid)
+        urls, errors = await _search_cluster_for_workshop_guid(c, guid)
         if urls:
             return urls
+        all_errors.extend(errors)
 
+    if all_errors:
+        return [_resolution_error_entry(guid, all_errors)]
     return []
 
 
