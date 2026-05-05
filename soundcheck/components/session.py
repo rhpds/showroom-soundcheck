@@ -242,14 +242,37 @@ def targets_list() -> rx.Component:
     )
 
 
+def _session_not_found() -> rx.Component:
+    return rx.center(
+        rx.vstack(
+            rx.icon("circle_x", size=48, color=rx.color("red", 9)),
+            rx.heading("Session not found", size="5"),
+            rx.text(
+                "The session you're looking for doesn't exist or has been removed.",
+                size="3",
+                color="gray",
+                text_align="center",
+            ),
+            spacing="4",
+            align="center",
+            max_width="400px",
+        ),
+        flex="1",
+    )
+
+
 def session_content() -> rx.Component:
     return rx.box(
-        rx.vstack(
-            session_summary(),
-            _check_progress(),
-            targets_list(),
-            spacing="4",
-            width="100%",
+        rx.cond(
+            SessionState.current_session,
+            rx.vstack(
+                session_summary(),
+                _check_progress(),
+                targets_list(),
+                spacing="4",
+                width="100%",
+            ),
+            _session_not_found(),
         ),
         target_detail_dialog(),
         **styles.content_style,
