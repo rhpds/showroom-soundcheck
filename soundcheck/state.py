@@ -138,6 +138,39 @@ def _load_all_sessions() -> list[CheckSession]:
         ).all()
 
 
+async def _fetch_session_data_async(sid: str) -> dict:
+    """Async variant of _fetch_session_data for background events."""
+    async with rx.asession() as session:
+        session_result = await session.execute(
+            select(CheckSession).where(CheckSession.session_id == sid)
+        )
+        cs = session_result.scalars().first()
+
+        targets_result = await session.execute(
+            select(SessionTarget).where(SessionTarget.session_id == sid)
+        )
+        targets = list(targets_result.scalars().all())
+
+        target_ids = [t.id for t in targets]
+        results: list[CheckResult] = []
+        if target_ids:
+            results_result = await session.execute(
+                select(CheckResult).where(
+                    CheckResult.target_id.in_(target_ids)  # type: ignore
+                ).order_by(col(CheckResult.checked_at).desc())
+            )
+            results = list(results_result.scalars().all())
+    return {"session": cs, "targets": targets, "results": results}
+
+
+async def _load_all_sessions_async() -> list[CheckSession]:
+    async with rx.asession() as session:
+        result = await session.execute(
+            select(CheckSession).order_by(col(CheckSession.created_at).desc()).limit(100)
+        )
+        return list(result.scalars().all())
+
+
 # ---------------------------------------------------------------------------
 # SessionState — core session data + navigation
 # ---------------------------------------------------------------------------
@@ -621,15 +654,16 @@ class CheckRunnerState(SessionState):
             if not sid:
                 return
 
-        with rx.session() as session:
-            cs = session.exec(
+        async with rx.asession() as session:
+            session_result = await session.execute(
                 select(CheckSession).where(CheckSession.session_id == sid).with_for_update()
-            ).first()
+            )
+            cs = session_result.scalars().first()
             if not cs or cs.status != "pending":
                 return
             cs.status = "running"
             session.add(cs)
-            session.commit()
+            await session.commit()
 
         try:
             await self._push_session_to_ui(sid)
@@ -638,18 +672,19 @@ class CheckRunnerState(SessionState):
             await self._finalize_session(sid)
         except Exception as e:
             logger.exception("Error running checks for session %s: %s", sid, e)
-            self._mark_session_failed(sid)
+            await self._mark_session_failed(sid)
             await self._push_session_to_ui(sid)
         finally:
             async with self:
-                self.all_sessions = _load_all_sessions()
+                self.all_sessions = await _load_all_sessions_async()
 
     async def _resolve_and_create_targets(self, sid: str) -> None:
         """Resolve GUIDs/workshop GUIDs and create SessionTarget rows."""
-        with rx.session() as session:
-            cs = session.exec(
+        async with rx.asession() as session:
+            session_result = await session.execute(
                 select(CheckSession).where(CheckSession.session_id == sid)
-            ).first()
+            )
+            cs = session_result.scalars().first()
             guids = cs.get_guids() if cs else []
             ws_guids = cs.get_workshop_guids() if cs else []
             cluster = cs.babylon_cluster if cs else ""
@@ -658,7 +693,7 @@ class CheckRunnerState(SessionState):
 
         if guids:
             guid_results = await resolve_guids(guids, cluster=cluster)
-            with rx.session() as session:
+            async with rx.asession() as session:
                 for guid, url_entries in guid_results.items():
                     if not url_entries:
                         target = SessionTarget(
@@ -700,12 +735,12 @@ class CheckRunnerState(SessionState):
                             error_message=err_msg,
                         )
                         session.add(target)
-                session.commit()
+                await session.commit()
             guid_resolved = True
 
         if ws_guids:
             ws_results = await resolve_workshop_guids(ws_guids, cluster=cluster)
-            with rx.session() as session:
+            async with rx.asession() as session:
                 for ws_guid, url_entries in ws_results.items():
                     if not url_entries:
                         target = SessionTarget(
@@ -748,7 +783,7 @@ class CheckRunnerState(SessionState):
                             error_message=err_msg,
                         )
                         session.add(target)
-                session.commit()
+                await session.commit()
             guid_resolved = True
 
         if guid_resolved:
@@ -756,20 +791,22 @@ class CheckRunnerState(SessionState):
 
     async def _execute_checks(self, sid: str) -> None:
         """Run health checks concurrently for all targets in the session."""
-        with rx.session() as session:
-            all_targets = session.exec(
+        async with rx.asession() as session:
+            targets_result = await session.execute(
                 select(SessionTarget).where(SessionTarget.session_id == sid)
-            ).all()
-            cs = session.exec(
+            )
+            all_targets = list(targets_result.scalars().all())
+            cs_result = await session.execute(
                 select(CheckSession).where(CheckSession.session_id == sid)
-            ).first()
+            )
+            cs = cs_result.scalars().first()
             check_type = cs.check_type if cs else "readyz"
             check_mode = cs.check_mode if cs else "manual"
 
         targets = [t for t in all_targets if t.status not in ("provisioning", "error")]
 
         if not all_targets:
-            self._mark_session_failed(sid)
+            await self._mark_session_failed(sid)
             await self._push_session_to_ui(sid)
             return
 
@@ -777,16 +814,17 @@ class CheckRunnerState(SessionState):
             return
 
         now = datetime.now(timezone.utc)
-        with rx.session() as db:
+        async with rx.asession() as db:
             for target in targets:
-                t = db.exec(
+                target_result = await db.execute(
                     select(SessionTarget).where(SessionTarget.id == target.id)
-                ).first()
+                )
+                t = target_result.scalars().first()
                 if t:
                     t.status = "checking"
                     t.check_started_at = now
                     db.add(t)
-            db.commit()
+            await db.commit()
 
         await self._push_session_to_ui(sid)
 
@@ -817,10 +855,11 @@ class CheckRunnerState(SessionState):
                 completed_at = datetime.now(timezone.utc)
                 status = "healthy" if result.is_healthy else "error" if result.error_message else "unhealthy"
 
-                with rx.session() as db:
-                    t = db.exec(
+                async with rx.asession() as db:
+                    target_result = await db.execute(
                         select(SessionTarget).where(SessionTarget.id == target.id)
-                    ).first()
+                    )
+                    t = target_result.scalars().first()
                     if t:
                         t.status = status
                         t.tier_used = result.tier_used
@@ -841,22 +880,23 @@ class CheckRunnerState(SessionState):
                         checked_at=completed_at,
                     )
                     db.add(cr)
-                    db.commit()
+                    await db.commit()
 
                 await maybe_push_ui()
 
             except Exception as e:
                 logger.exception("Error checking target %s: %s", target.url, e)
-                with rx.session() as db:
-                    t = db.exec(
+                async with rx.asession() as db:
+                    target_result = await db.execute(
                         select(SessionTarget).where(SessionTarget.id == target.id)
-                    ).first()
+                    )
+                    t = target_result.scalars().first()
                     if t:
                         t.status = "error"
                         t.error_message = str(e)[:500]
                         t.check_completed_at = datetime.now(timezone.utc)
                         db.add(t)
-                        db.commit()
+                        await db.commit()
 
         async with create_client(verify_ssl=VERIFY_SSL) as client:
             await asyncio.gather(*[process_target(t, client) for t in targets])
@@ -867,13 +907,15 @@ class CheckRunnerState(SessionState):
         Provisioning targets (no showroom URL yet) count as not-healthy,
         so the session is marked ``failed`` when any targets are still provisioning.
         """
-        with rx.session() as session:
-            cs = session.exec(
+        async with rx.asession() as session:
+            cs_result = await session.execute(
                 select(CheckSession).where(CheckSession.session_id == sid)
-            ).first()
-            final_targets = session.exec(
+            )
+            cs = cs_result.scalars().first()
+            targets_result = await session.execute(
                 select(SessionTarget).where(SessionTarget.session_id == sid)
-            ).all()
+            )
+            final_targets = list(targets_result.scalars().all())
             checkable = [t for t in final_targets if t.status != "provisioning"]
             has_provisioning = any(t.status == "provisioning" for t in final_targets)
             all_healthy = (
@@ -885,25 +927,26 @@ class CheckRunnerState(SessionState):
                 cs.status = "completed" if all_healthy else "failed"
                 cs.completed_at = datetime.now(timezone.utc)
                 session.add(cs)
-                session.commit()
+                await session.commit()
 
         await self._push_session_to_ui(sid)
 
     @staticmethod
-    def _mark_session_failed(sid: str) -> None:
-        with rx.session() as session:
-            cs = session.exec(
+    async def _mark_session_failed(sid: str) -> None:
+        async with rx.asession() as session:
+            cs_result = await session.execute(
                 select(CheckSession).where(CheckSession.session_id == sid)
-            ).first()
+            )
+            cs = cs_result.scalars().first()
             if cs:
                 cs.status = "failed"
                 cs.completed_at = datetime.now(timezone.utc)
                 session.add(cs)
-                session.commit()
+                await session.commit()
 
     async def _push_session_to_ui(self, sid: str) -> None:
         """Fetch session data from DB, then acquire state lock only for assignment."""
-        data = _fetch_session_data(sid)
+        data = await _fetch_session_data_async(sid)
         async with self:
             if self.current_session_id == sid:
                 self.current_session = data["session"]
