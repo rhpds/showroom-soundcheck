@@ -15,15 +15,18 @@ def _default_db_url() -> str:
 
 
 def _derive_async_db_url(db_url: str | None) -> str | None:
+    """Convert a sync PostgreSQL DB URL to its asyncpg equivalent.
+
+    Returns None for non-PostgreSQL URLs (e.g. sqlite) so the caller
+    can fall back gracefully.
+    """
     if not db_url or "://" not in db_url:
         return None
     scheme, tail = db_url.split("://", 1)
-    if scheme in ("postgres", "postgresql", "postgresql+psycopg"):
-        return f"postgresql+asyncpg://{tail}"
-    if scheme.startswith("postgresql+") and scheme != "postgresql+asyncpg":
-        return f"postgresql+asyncpg://{tail}"
     if scheme == "postgresql+asyncpg":
         return db_url
+    if scheme in ("postgres", "postgresql") or scheme.startswith("postgresql+"):
+        return f"postgresql+asyncpg://{tail}"
     return None
 
 
