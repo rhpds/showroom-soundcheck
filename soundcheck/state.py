@@ -32,8 +32,22 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+
+def _positive_int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name, str(default))
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("%s must be an integer (got %r); using %d", name, raw, default)
+        return default
+    if value < 1:
+        logger.warning("%s must be >= 1 (got %d); using 1", name, value)
+        return 1
+    return value
+
+
 APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "UTC")
-CHECK_CONCURRENCY = int(os.environ.get("CHECK_CONCURRENCY", "10"))
+CHECK_CONCURRENCY = _positive_int_env("CHECK_CONCURRENCY", 10)
 VERIFY_SSL = os.environ.get("VERIFY_SSL", "true").lower() in ("true", "1", "yes")
 
 

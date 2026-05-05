@@ -573,6 +573,9 @@ async def check_targets(
     on_progress(url, status, result) is called for each target as it
     transitions through statuses: "checking" then "done".
     """
+    if concurrency < 1:
+        raise ValueError(f"concurrency must be >= 1 (got {concurrency})")
+
     semaphore = asyncio.Semaphore(concurrency)
 
     async with create_client(verify_ssl=verify_ssl) as client:

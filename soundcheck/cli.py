@@ -24,6 +24,24 @@ def _extract_guid(url: str) -> str:
     return extract_guid_from_url(url) or "-"
 
 
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a valid integer") from exc
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("value must be >= 1")
+    return parsed
+
+
+def _env_concurrency_default() -> int:
+    raw = os.environ.get("CHECK_CONCURRENCY", "10")
+    try:
+        return _positive_int(raw)
+    except argparse.ArgumentTypeError:
+        return 10
+
+
 def _try_import_rich() -> tuple[Optional[Any], Optional[Any], Optional[Any]]:
     try:
         from rich.console import Console
@@ -181,8 +199,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--concurrency", "-c",
-        type=int,
-        default=int(os.environ.get("CHECK_CONCURRENCY", "10")),
+        type=_positive_int,
+        default=_env_concurrency_default(),
         help="Max concurrent checks (env: CHECK_CONCURRENCY, default: 10)",
     )
     parser.add_argument(
