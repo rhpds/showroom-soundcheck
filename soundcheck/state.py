@@ -678,6 +678,82 @@ class CheckRunnerState(SessionState):
             async with self:
                 self.all_sessions = await _load_all_sessions_async()
 
+    @staticmethod
+    def _not_found_target(
+        sid: str,
+        *,
+        guid: Optional[str] = None,
+        workshop_guid: Optional[str] = None,
+    ) -> SessionTarget:
+        if workshop_guid:
+            return SessionTarget(
+                session_id=sid,
+                url="",
+                label=f"Workshop not found: {workshop_guid}",
+                workshop_guid=workshop_guid,
+                status="error",
+                error_message=f"No Workshop found for GUID '{workshop_guid}' on any configured cluster",
+            )
+        return SessionTarget(
+            session_id=sid,
+            url="",
+            label=f"GUID not found: {guid}",
+            guid=guid,
+            status="error",
+            error_message=f"No ResourceClaim or Workshop found for GUID '{guid}' on any configured cluster",
+        )
+
+    @staticmethod
+    def _status_for_resolution_entry(
+        entry: dict[str, str],
+        *,
+        fallback_label: str,
+        resolution_error_prefix: str,
+    ) -> tuple[str, Optional[str], Optional[str]]:
+        is_placeholder = not entry.get("url")
+        prov_status = entry.get("provision_status") or None
+        resolution_error = entry.get("resolution_error") or None
+
+        if resolution_error:
+            return "error", f"{resolution_error_prefix}{resolution_error}", prov_status
+        if is_placeholder and prov_status and "failed" in prov_status:
+            return "error", f"Provision failed for ResourceClaim '{entry.get('label', fallback_label)}'", prov_status
+        if is_placeholder and prov_status == "ready":
+            return "error", (
+                f"No showroom endpoint found for ResourceClaim '{entry.get('label', fallback_label)}' "
+                "(resource is running)"
+            ), prov_status
+        if is_placeholder:
+            return "provisioning", None, prov_status
+        return "pending", None, prov_status
+
+    @classmethod
+    def _resolved_target(
+        cls,
+        sid: str,
+        entry: dict[str, str],
+        *,
+        fallback_label: str,
+        guid: Optional[str] = None,
+        workshop_guid: Optional[str] = None,
+        resolution_error_prefix: str,
+    ) -> SessionTarget:
+        status, err_msg, prov_status = cls._status_for_resolution_entry(
+            entry,
+            fallback_label=fallback_label,
+            resolution_error_prefix=resolution_error_prefix,
+        )
+        return SessionTarget(
+            session_id=sid,
+            url=entry["url"].rstrip("/") if entry.get("url") else "",
+            label=entry.get("label", entry.get("url", "")),
+            guid=guid,
+            workshop_guid=workshop_guid,
+            provision_status=prov_status,
+            status=status,
+            error_message=err_msg,
+        )
+
     async def _resolve_and_create_targets(self, sid: str) -> None:
         """Resolve GUIDs/workshop GUIDs and create SessionTarget rows."""
         async with rx.asession() as session:
@@ -696,45 +772,18 @@ class CheckRunnerState(SessionState):
             async with rx.asession() as session:
                 for guid, url_entries in guid_results.items():
                     if not url_entries:
-                        target = SessionTarget(
-                            session_id=sid,
-                            url="",
-                            label=f"GUID not found: {guid}",
-                            guid=guid,
-                            status="error",
-                            error_message=f"No ResourceClaim or Workshop found for GUID '{guid}' on any configured cluster",
-                        )
-                        session.add(target)
+                        session.add(self._not_found_target(sid, guid=guid))
                         continue
                     for entry in url_entries:
-                        is_placeholder = not entry.get("url")
-                        prov_status = entry.get("provision_status") or None
-                        resolution_error = entry.get("resolution_error") or None
-                        if resolution_error:
-                            target_status = "error"
-                            err_msg = f"GUID resolution failed: {resolution_error}"
-                        elif is_placeholder and prov_status and "failed" in prov_status:
-                            target_status = "error"
-                            err_msg = f"Provision failed for ResourceClaim '{entry.get('label', guid)}'"
-                        elif is_placeholder and prov_status == "ready":
-                            target_status = "error"
-                            err_msg = f"No showroom endpoint found for ResourceClaim '{entry.get('label', guid)}' (resource is running)"
-                        elif is_placeholder:
-                            target_status = "provisioning"
-                            err_msg = None
-                        else:
-                            target_status = "pending"
-                            err_msg = None
-                        target = SessionTarget(
-                            session_id=sid,
-                            url=entry["url"].rstrip("/") if entry.get("url") else "",
-                            label=entry.get("label", entry.get("url", "")),
-                            guid=guid,
-                            provision_status=prov_status,
-                            status=target_status,
-                            error_message=err_msg,
+                        session.add(
+                            self._resolved_target(
+                                sid,
+                                entry,
+                                fallback_label=guid,
+                                guid=guid,
+                                resolution_error_prefix="GUID resolution failed: ",
+                            )
                         )
-                        session.add(target)
                 await session.commit()
             guid_resolved = True
 
@@ -743,46 +792,19 @@ class CheckRunnerState(SessionState):
             async with rx.asession() as session:
                 for ws_guid, url_entries in ws_results.items():
                     if not url_entries:
-                        target = SessionTarget(
-                            session_id=sid,
-                            url="",
-                            label=f"Workshop not found: {ws_guid}",
-                            workshop_guid=ws_guid,
-                            status="error",
-                            error_message=f"No Workshop found for GUID '{ws_guid}' on any configured cluster",
-                        )
-                        session.add(target)
+                        session.add(self._not_found_target(sid, workshop_guid=ws_guid))
                         continue
                     for entry in url_entries:
-                        is_placeholder = not entry.get("url")
-                        prov_status = entry.get("provision_status") or None
-                        resolution_error = entry.get("resolution_error") or None
-                        if resolution_error:
-                            target_status = "error"
-                            err_msg = f"Workshop GUID resolution failed: {resolution_error}"
-                        elif is_placeholder and prov_status and "failed" in prov_status:
-                            target_status = "error"
-                            err_msg = f"Provision failed for ResourceClaim '{entry.get('label', ws_guid)}'"
-                        elif is_placeholder and prov_status == "ready":
-                            target_status = "error"
-                            err_msg = f"No showroom endpoint found for ResourceClaim '{entry.get('label', ws_guid)}' (resource is running)"
-                        elif is_placeholder:
-                            target_status = "provisioning"
-                            err_msg = None
-                        else:
-                            target_status = "pending"
-                            err_msg = None
-                        target = SessionTarget(
-                            session_id=sid,
-                            url=entry["url"].rstrip("/") if entry.get("url") else "",
-                            label=entry.get("label", entry.get("url", "")),
-                            guid=entry.get("rc_guid") or None,
-                            workshop_guid=ws_guid,
-                            provision_status=prov_status,
-                            status=target_status,
-                            error_message=err_msg,
+                        session.add(
+                            self._resolved_target(
+                                sid,
+                                entry,
+                                fallback_label=ws_guid,
+                                guid=entry.get("rc_guid") or None,
+                                workshop_guid=ws_guid,
+                                resolution_error_prefix="Workshop GUID resolution failed: ",
+                            )
                         )
-                        session.add(target)
                 await session.commit()
             guid_resolved = True
 
