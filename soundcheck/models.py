@@ -8,16 +8,13 @@ Use the get_urls() / get_guids() helpers instead of raw json.loads().
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 import reflex as rx
 from sqlmodel import Field
 
-
-def _utc_now_naive() -> datetime:
-    """Naive UTC datetime for TIMESTAMP WITHOUT TIME ZONE DB columns."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from .utils import utc_now_naive
 
 
 class CheckSession(rx.Model, table=True):
@@ -39,7 +36,7 @@ class CheckSession(rx.Model, table=True):
     babylon_cluster: str = ""  # Babylon cluster name for GUID resolution
     display_label: str = ""
     status: str = "pending"  # pending | running | completed | failed
-    created_at: datetime = Field(default_factory=_utc_now_naive)
+    created_at: datetime = Field(default_factory=utc_now_naive)
     completed_at: Optional[datetime] = None
 
     def get_urls(self) -> list[str]:
@@ -110,4 +107,4 @@ class CheckResult(rx.Model, table=True):
     response_time_ms: int = 0
     error_message: Optional[str] = None
     detail: Optional[str] = None  # JSON: config parsed, tabs checked, etc.
-    checked_at: datetime = Field(default_factory=_utc_now_naive)
+    checked_at: datetime = Field(default_factory=utc_now_naive)

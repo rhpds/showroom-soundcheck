@@ -1,11 +1,12 @@
 """Shared utilities for Showroom Soundcheck.
 
-Contains GUID extraction, input parsing/validation, and display label
-generation used by both the web UI (state.py) and CLI (cli.py).
+Contains GUID extraction, input parsing/validation, display label
+generation, and datetime helpers used across the application.
 """
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
 
 GUID_RE = re.compile(
@@ -15,6 +16,16 @@ GUID_RE = re.compile(
     r"\.cluster-([a-z0-9]+)\."
     r")"
 )
+
+
+def utc_now_naive() -> datetime:
+    """Return a naive UTC datetime for TIMESTAMP WITHOUT TIME ZONE columns.
+
+    asyncpg rejects timezone-aware datetimes for such columns, so we
+    strip tzinfo after obtaining a proper UTC timestamp.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 VALID_CHECK_TYPES = ("readyz", "healthz")
 VALID_CHECK_MODES = ("manual", "showroom")

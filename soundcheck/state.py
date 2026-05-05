@@ -13,7 +13,7 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
 import reflex as rx
@@ -28,6 +28,7 @@ from .utils import (
     extract_guid_from_url,
     make_display_label,
     parse_check_params,
+    utc_now_naive,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,11 +50,6 @@ def _positive_int_env(name: str, default: int) -> int:
 APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "UTC")
 CHECK_CONCURRENCY = _positive_int_env("CHECK_CONCURRENCY", 10)
 VERIFY_SSL = os.environ.get("VERIFY_SSL", "true").lower() in ("true", "1", "yes")
-
-
-def _utc_now_naive() -> datetime:
-    """Return naive UTC datetime for TIMESTAMP WITHOUT TIME ZONE columns."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def local_time(dt_var: rx.Var, **kwargs: object) -> rx.Component:
@@ -79,7 +75,7 @@ def _persist_new_session(
     """Create a new pending session with targets in the database. Returns session_id."""
     workshop_guids = workshop_guids or []
     sid = str(uuid.uuid4())
-    now = _utc_now_naive()
+    now = utc_now_naive()
 
     with rx.session() as session:
         cs = CheckSession(
@@ -116,55 +112,55 @@ def _persist_new_session(
 # ---------------------------------------------------------------------------
 
 
+def _session_data_queries() -> tuple:
+    """Return the three SELECT statements used by both sync and async fetch.
+
+    Keeps the query logic in one place so the sync and async variants
+    stay consistent.
+    """
+    session_q = select(CheckSession)
+    targets_q = select(SessionTarget)
+    results_q = select(CheckResult).order_by(col(CheckResult.checked_at).desc())
+    return session_q, targets_q, results_q
+
+
 def _fetch_session_data(sid: str) -> dict:
-    """Load session, targets, results from DB without holding any lock."""
+    """Sync: load session, targets, results from DB.
+
+    Used by the synchronous ``load_session`` @rx.event handler.
+    See ``_fetch_session_data_async`` for the async equivalent.
+    """
+    sq, tq, rq = _session_data_queries()
     with rx.session() as session:
-        cs = session.exec(
-            select(CheckSession).where(CheckSession.session_id == sid)
-        ).first()
-        targets = session.exec(
-            select(SessionTarget).where(SessionTarget.session_id == sid)
-        ).all()
+        cs = session.exec(sq.where(CheckSession.session_id == sid)).first()
+        targets = session.exec(tq.where(SessionTarget.session_id == sid)).all()
         target_ids = [t.id for t in targets]
         results: list[CheckResult] = []
         if target_ids:
             results = session.exec(
-                select(CheckResult).where(
-                    CheckResult.target_id.in_(target_ids)  # type: ignore
-                ).order_by(col(CheckResult.checked_at).desc())
+                rq.where(CheckResult.target_id.in_(target_ids))  # type: ignore
             ).all()
     return {"session": cs, "targets": targets, "results": results}
 
 
-def _load_all_sessions() -> list[CheckSession]:
-    with rx.session() as session:
-        return session.exec(
-            select(CheckSession).order_by(col(CheckSession.created_at).desc()).limit(100)
-        ).all()
-
-
 async def _fetch_session_data_async(sid: str) -> dict:
-    """Async variant of _fetch_session_data for background events."""
+    """Async: load session, targets, results from DB.
+
+    Used by ``CheckRunnerState._push_session_to_ui`` in background tasks.
+    See ``_fetch_session_data`` for the sync equivalent.
+    """
+    sq, tq, rq = _session_data_queries()
     async with rx.asession() as session:
-        session_result = await session.execute(
-            select(CheckSession).where(CheckSession.session_id == sid)
-        )
-        cs = session_result.scalars().first()
-
-        targets_result = await session.execute(
-            select(SessionTarget).where(SessionTarget.session_id == sid)
-        )
-        targets = list(targets_result.scalars().all())
-
+        cs = (await session.execute(sq.where(CheckSession.session_id == sid))).scalars().first()
+        targets = list((await session.execute(tq.where(SessionTarget.session_id == sid))).scalars().all())
         target_ids = [t.id for t in targets]
         results: list[CheckResult] = []
         if target_ids:
-            results_result = await session.execute(
-                select(CheckResult).where(
-                    CheckResult.target_id.in_(target_ids)  # type: ignore
-                ).order_by(col(CheckResult.checked_at).desc())
+            results = list(
+                (await session.execute(
+                    rq.where(CheckResult.target_id.in_(target_ids))  # type: ignore
+                )).scalars().all()
             )
-            results = list(results_result.scalars().all())
     return {"session": cs, "targets": targets, "results": results}
 
 
@@ -410,20 +406,20 @@ class SessionState(rx.State):
 
     @rx.var
     def today_sessions(self) -> list[CheckSession]:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = utc_now_naive()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         return [s for s in self.all_sessions if s.created_at and s.created_at >= today_start]
 
     @rx.var
     def yesterday_sessions(self) -> list[CheckSession]:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = utc_now_naive()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         yesterday_start = today_start - timedelta(days=1)
         return [s for s in self.all_sessions if s.created_at and yesterday_start <= s.created_at < today_start]
 
     @rx.var
     def older_sessions(self) -> list[CheckSession]:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = utc_now_naive()
         yesterday_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
         return [s for s in self.all_sessions if s.created_at and s.created_at < yesterday_start]
 
@@ -840,7 +836,7 @@ class CheckRunnerState(SessionState):
         if not targets:
             return
 
-        now = _utc_now_naive()
+        now = utc_now_naive()
         async with rx.asession() as db:
             for target in targets:
                 target_result = await db.execute(
@@ -879,7 +875,7 @@ class CheckRunnerState(SessionState):
                             error_message=str(e)[:500],
                         )
 
-                completed_at = _utc_now_naive()
+                completed_at = utc_now_naive()
                 status = "healthy" if result.is_healthy else "error" if result.error_message else "unhealthy"
 
                 async with rx.asession() as db:
@@ -921,7 +917,7 @@ class CheckRunnerState(SessionState):
                     if t:
                         t.status = "error"
                         t.error_message = str(e)[:500]
-                        t.check_completed_at = _utc_now_naive()
+                        t.check_completed_at = utc_now_naive()
                         db.add(t)
                         await db.commit()
 
@@ -952,7 +948,7 @@ class CheckRunnerState(SessionState):
             )
             if cs:
                 cs.status = "completed" if all_healthy else "failed"
-                cs.completed_at = _utc_now_naive()
+                cs.completed_at = utc_now_naive()
                 session.add(cs)
                 await session.commit()
 
@@ -967,7 +963,7 @@ class CheckRunnerState(SessionState):
             cs = cs_result.scalars().first()
             if cs:
                 cs.status = "failed"
-                cs.completed_at = _utc_now_naive()
+                cs.completed_at = utc_now_naive()
                 session.add(cs)
                 await session.commit()
 
