@@ -20,7 +20,7 @@ import reflex as rx
 from sqlmodel import col, select
 
 from . import babylon_client
-from .babylon_service import resolve_guids, resolve_workshop_guids
+from .babylon_service import ResolutionContext, resolve_guids, resolve_workshop_guids
 from .check_service import TargetCheckResult, check_single_target, create_client
 from .models import CheckResult, CheckSession, SessionTarget
 from .utils import (
@@ -611,7 +611,27 @@ class TargetDetailState(SessionState):
 
     @rx.var
     def detail_content_list(self) -> list[dict]:
-        """Content probe as a single-item list for rx.foreach rendering."""
+        """Content probes as a list for rx.foreach rendering.
+
+        Uses the ``content_pages`` key (multiple probes) when present,
+        falling back to the legacy single ``content`` key.
+        """
+        pages = self.selected_target_detail.get("content_pages") or []
+        if pages:
+            result = []
+            for page in pages:
+                sc = page.get("status_code") or page.get("statusCode") or 0
+                result.append({
+                    "name": page.get("name", "content"),
+                    "url": page.get("url") or "",
+                    "reachable": bool(page.get("reachable", False)),
+                    "status_code": sc,
+                    "status_ok": 200 <= sc < 400 if sc else False,
+                    "error": page.get("error") or "",
+                    "iframe_blocked": False,
+                })
+            return result
+
         content = self.selected_target_detail.get("content", {})
         if not content:
             return []
@@ -628,15 +648,26 @@ class TargetDetailState(SessionState):
 
     @rx.var
     def detail_has_content(self) -> bool:
-        return bool(self.selected_target_detail.get("content"))
+        return bool(
+            self.selected_target_detail.get("content_pages")
+            or self.selected_target_detail.get("content")
+        )
 
     @rx.var
     def detail_config_file(self) -> str:
         return self.selected_target_detail.get("configFile", "") or self.selected_target_detail.get("config_file", "") or ""
 
     @rx.var
+    def detail_config_url(self) -> str:
+        return self.selected_target_detail.get("config_url", "") or ""
+
+    @rx.var
     def detail_status(self) -> str:
         return self.selected_target_detail.get("status", "")
+
+    @rx.var
+    def detail_is_legacy(self) -> bool:
+        return bool(self.selected_target_detail.get("legacy", False))
 
 
 # ---------------------------------------------------------------------------
@@ -767,9 +798,10 @@ class CheckRunnerState(SessionState):
             cluster = cs.babylon_cluster if cs else ""
 
         guid_resolved = False
+        ctx = ResolutionContext()
 
         if guids:
-            guid_results = await resolve_guids(guids, cluster=cluster)
+            guid_results = await resolve_guids(guids, cluster=cluster, ctx=ctx)
             async with rx.asession() as session:
                 for guid, url_entries in guid_results.items():
                     if not url_entries:
@@ -789,7 +821,7 @@ class CheckRunnerState(SessionState):
             guid_resolved = True
 
         if ws_guids:
-            ws_results = await resolve_workshop_guids(ws_guids, cluster=cluster)
+            ws_results = await resolve_workshop_guids(ws_guids, cluster=cluster, ctx=ctx)
             async with rx.asession() as session:
                 for ws_guid, url_entries in ws_results.items():
                     if not url_entries:

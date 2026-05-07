@@ -1,4 +1,4 @@
-"""Two-tier health check service for showroom URLs.
+"""Three-tier health check service for showroom URLs.
 
 Pure async module with no Reflex or database dependencies.  Both the web UI
 and CLI import this module and supply their own progress callbacks.
@@ -6,6 +6,8 @@ and CLI import this module and supply their own progress callbacks.
 Tier 1: delegate to the showroom's own /readyz or /healthz sidecar.
 Tier 2: replicate the nookbag healthz logic locally (fetch config, probe
          content page, probe tab URLs).
+Tier 3: legacy Antora showroom fallback (probe root + /content/ paths when
+         no nookbag config exists).
 """
 
 import asyncio
@@ -64,13 +66,20 @@ class TabProbeResult:
 
 
 @dataclass
+class ContentProbeResult:
+    name: str
+    url: Optional[str]
+    reachable: bool = False
+    status_code: Optional[int] = None
+    error: Optional[str] = None
+
+
+@dataclass
 class Tier2Detail:
     config_file: Optional[str] = None
+    config_url: Optional[str] = None
     config_found: bool = False
-    content_url: Optional[str] = None
-    content_reachable: bool = False
-    content_status_code: Optional[int] = None
-    content_error: Optional[str] = None
+    content_probes: list[ContentProbeResult] = field(default_factory=list)
     tabs: list[TabProbeResult] = field(default_factory=list)
 
 
@@ -84,6 +93,7 @@ class TargetCheckResult:
     response_time_ms: int = 0
     error_message: Optional[str] = None
     detail: Optional[dict[str, Any]] = None
+    no_config: bool = False
 
     def detail_json(self) -> Optional[str]:
         if self.detail is None:
@@ -352,6 +362,7 @@ async def _run_tier2(
 
     config, config_file, nookbag_base, config_timed_out = await _fetch_config(client, base_url)
     tier2.config_file = config_file
+    tier2.config_url = f"{base_url}{nookbag_base}/{config_file}" if config_file else None
     tier2.config_found = config is not None
 
     if config is None:
@@ -365,6 +376,7 @@ async def _run_tier2(
             response_time_ms=elapsed,
             error_message=msg,
             detail=_tier2_to_dict(tier2),
+            no_config=not config_timed_out,
         )
 
     antora = config.get("antora", {}) or {}
@@ -372,18 +384,41 @@ async def _run_tier2(
     content_dir = antora.get("dir") or ("www" if is_showroom else "antora")
     content_name = antora.get("name") or "modules"
     version = antora.get("version")
+    antora_modules = antora.get("modules") or []
 
     segments = [content_dir, content_name]
     if version:
         segments.append(version)
     content_path = "/".join(segments)
-    content_url = f"{base_url}{nookbag_base}/{content_path}/index.html"
-    tier2.content_url = content_url
 
-    content_probe = await _probe_url(client, content_url)
-    tier2.content_reachable = content_probe.get("reachable", False)
-    tier2.content_status_code = content_probe.get("status_code")
-    tier2.content_error = content_probe.get("error")
+    if antora_modules:
+        content_urls = []
+        for mod in antora_modules:
+            mod_name = mod if isinstance(mod, str) else mod.get("name", "")
+            mod_label = mod_name if isinstance(mod, str) else mod.get("label", mod_name)
+            if mod_name:
+                mod_url = f"{base_url}{nookbag_base}/{content_path}/{mod_name}.html"
+                content_urls.append((mod_label or mod_name, mod_url))
+        if not content_urls:
+            fallback_url = f"{base_url}{nookbag_base}/{content_path}/index.html"
+            content_urls.append(("content", fallback_url))
+    else:
+        fallback_url = f"{base_url}{nookbag_base}/{content_path}/index.html"
+        content_urls = [("content", fallback_url)]
+
+    content_probe_tasks = []
+    for label, curl in content_urls:
+        content_probe_tasks.append(_probe_url(client, curl))
+    content_probe_results = await asyncio.gather(*content_probe_tasks)
+
+    for (label, curl), probe in zip(content_urls, content_probe_results):
+        tier2.content_probes.append(ContentProbeResult(
+            name=label,
+            url=curl,
+            reachable=probe.get("reachable", False),
+            status_code=probe.get("status_code"),
+            error=probe.get("error"),
+        ))
 
     tabs_config = config.get("tabs", []) or []
     entries: list[tuple[str, Optional[str]]] = []
@@ -392,8 +427,11 @@ async def _run_tier2(
 
     tier2.tabs = await _probe_tabs(client, entries, base_url)
 
+    all_content_reachable = bool(tier2.content_probes) and all(
+        c.reachable for c in tier2.content_probes
+    )
     all_healthy = (
-        tier2.content_reachable
+        all_content_reachable
         and (len(tier2.tabs) == 0 or all(
             t.reachable and not t.iframe_blocked for t in tier2.tabs
         ))
@@ -403,8 +441,9 @@ async def _run_tier2(
     status_code = 200 if all_healthy else 503
 
     errors = []
-    if not tier2.content_reachable:
-        errors.append(f"Content unreachable: {tier2.content_error or content_url}")
+    for c in tier2.content_probes:
+        if not c.reachable:
+            errors.append(f"Content '{c.name}' unreachable: {c.error or c.url}")
     for t in tier2.tabs:
         if not t.reachable:
             prefix = "[external] " if t.external else ""
@@ -425,15 +464,27 @@ async def _run_tier2(
 
 
 def _tier2_to_dict(t: Tier2Detail) -> dict[str, Any]:
+    content_list = [
+        {
+            "name": c.name,
+            "url": c.url,
+            "reachable": c.reachable,
+            "status_code": c.status_code,
+            "error": c.error,
+        }
+        for c in t.content_probes
+    ]
+    # Backward-compatible: single-probe results also get a flat "content" key
+    single_content: dict[str, Any] = {}
+    if len(content_list) == 1:
+        single_content = content_list[0]
+
     return {
         "config_file": t.config_file,
+        "config_url": t.config_url,
         "config_found": t.config_found,
-        "content": {
-            "url": t.content_url,
-            "reachable": t.content_reachable,
-            "status_code": t.content_status_code,
-            "error": t.content_error,
-        },
+        "content": single_content,
+        "content_pages": content_list,
         "tabs": [
             {
                 "name": tab.name,
@@ -447,6 +498,86 @@ def _tier2_to_dict(t: Tier2Detail) -> dict[str, Any]:
             for tab in t.tabs
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# Tier 3: legacy Antora showroom checks
+# ---------------------------------------------------------------------------
+
+LEGACY_CONTENT_PATHS = ["/content/"]
+
+
+async def _run_tier3(
+    client: httpx.AsyncClient,
+    url: str,
+    check_type: str,
+) -> TargetCheckResult:
+    """Probe legacy (pre-nookbag) Antora showrooms.
+
+    These deployments serve a static nginx + Antora site without /readyz or
+    ui-config.yml.  We verify that both the showroom frame (root URL) and the
+    Antora content (``/content/``) are reachable.
+    """
+    base_url = url.rstrip("/")
+    start = time.monotonic()
+
+    probe_entries: list[tuple[str, str]] = [
+        ("showroom", base_url + "/"),
+    ]
+    for path in LEGACY_CONTENT_PATHS:
+        probe_entries.append(("content", base_url + path))
+
+    probe_results = await asyncio.gather(
+        *[_probe_url(client, purl) for _, purl in probe_entries]
+    )
+
+    content_probes: list[ContentProbeResult] = []
+    for (label, purl), probe in zip(probe_entries, probe_results):
+        content_probes.append(ContentProbeResult(
+            name=label,
+            url=purl,
+            reachable=probe.get("reachable", False),
+            status_code=probe.get("status_code"),
+            error=probe.get("error"),
+        ))
+
+    all_healthy = bool(content_probes) and all(c.reachable for c in content_probes)
+    elapsed = int((time.monotonic() - start) * 1000)
+
+    errors = []
+    for c in content_probes:
+        if not c.reachable:
+            errors.append(f"Legacy probe '{c.name}' unreachable: {c.error or c.url}")
+
+    detail: dict[str, Any] = {
+        "config_file": None,
+        "config_url": None,
+        "config_found": False,
+        "legacy": True,
+        "content": {},
+        "content_pages": [
+            {
+                "name": c.name,
+                "url": c.url,
+                "reachable": c.reachable,
+                "status_code": c.status_code,
+                "error": c.error,
+            }
+            for c in content_probes
+        ],
+        "tabs": [],
+    }
+
+    return TargetCheckResult(
+        url=url,
+        is_healthy=all_healthy,
+        tier_used=3,
+        check_type=check_type,
+        status_code=200 if all_healthy else 503,
+        response_time_ms=elapsed,
+        error_message="; ".join(errors) if errors else None,
+        detail=detail,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -521,10 +652,14 @@ async def check_single_target(
       "readyz"   - Readiness probe (full config + tab check)
 
     check_mode controls the strategy:
-      "manual"   - Tier 2 only (local nookbag-style checks, skip showroom sidecar)
+      "manual"   - Tier 2 first, then Tier 3 if no config found
       "showroom" - Tier 1 first (delegate to showroom /readyz or /healthz),
-                   fall back to Tier 2 if the sidecar is unavailable
-      "auto"     - same as "showroom" (try Tier 1, fall back to Tier 2)
+                   fall back to Tier 2, then Tier 3 if no config found
+      "auto"     - same as "showroom"
+
+    Tier 3 is a legacy fallback for old Antora showrooms that have no
+    /readyz sidecar and no nookbag config files.  It probes the root URL
+    and /content/ path to confirm the showroom frame and content are up.
 
     If client is provided, it will be reused (caller manages lifecycle).
     Otherwise a new client is created and closed per-call.
@@ -537,7 +672,14 @@ async def check_single_target(
         if check_mode == "manual":
             if check_type == "healthz":
                 return await _run_healthz(client, url)
-            return await _run_tier2(client, url, check_type)
+            result = await _run_tier2(client, url, check_type)
+            if result.no_config:
+                logger.info(
+                    "Tier 2 found no config for %s, falling back to Tier 3 (legacy)",
+                    url,
+                )
+                return await _run_tier3(client, url, check_type)
+            return result
 
         result = await _run_tier1(client, url, check_type)
 
@@ -552,7 +694,14 @@ async def check_single_target(
                 "Tier 1 unavailable for %s (status=%s), falling back to Tier 2",
                 url, result.status_code,
             )
-            return await _run_tier2(client, url, check_type)
+            t2_result = await _run_tier2(client, url, check_type)
+            if t2_result.no_config:
+                logger.info(
+                    "Tier 2 found no config for %s, falling back to Tier 3 (legacy)",
+                    url,
+                )
+                return await _run_tier3(client, url, check_type)
+            return t2_result
 
         return result
     finally:

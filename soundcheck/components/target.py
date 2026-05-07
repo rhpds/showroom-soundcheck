@@ -267,7 +267,15 @@ def _readyz_detail_section() -> rx.Component:
         TargetDetailState.has_detail,
         rx.vstack(
             rx.hstack(
-                rx.text("Readyz Check Detail", size="3", weight="bold"),
+                rx.cond(
+                    TargetDetailState.detail_is_legacy,
+                    rx.hstack(
+                        rx.text("Legacy Showroom Check", size="3", weight="bold"),
+                        rx.badge("legacy", variant="outline", color_scheme="amber", size="1"),
+                        spacing="2", align="center",
+                    ),
+                    rx.text("Readyz Check Detail", size="3", weight="bold"),
+                ),
                 rx.spacer(),
                 rx.cond(
                     TargetDetailState.detail_status != "",
@@ -289,7 +297,15 @@ def _readyz_detail_section() -> rx.Component:
                 TargetDetailState.detail_config_file != "",
                 rx.hstack(
                     rx.text("Config:", size="1", color="gray", weight="bold"),
-                    rx.code(TargetDetailState.detail_config_file, size="1"),
+                    rx.cond(
+                        TargetDetailState.detail_config_url != "",
+                        rx.link(
+                            rx.code(TargetDetailState.detail_config_file, size="1"),
+                            href=TargetDetailState.detail_config_url,
+                            is_external=True,
+                        ),
+                        rx.code(TargetDetailState.detail_config_file, size="1"),
+                    ),
                     spacing="2",
                 ),
             ),
@@ -322,7 +338,7 @@ def _readyz_detail_section() -> rx.Component:
                 ),
                 rx.text(
                     "Detail is captured when the readyz endpoint returns structured JSON "
-                    "or when Tier 2 local checks are run.",
+                    "or when Tier 2/3 checks are run.",
                     size="1", color="gray",
                 ),
                 padding_top="1em",

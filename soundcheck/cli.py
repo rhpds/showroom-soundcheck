@@ -1,6 +1,6 @@
 """CLI for showroom health checks.
 
-Standalone entry point that uses check_service for two-tier health checks.
+Standalone entry point that uses check_service for three-tier health checks.
 No dependency on Reflex, Postgres, or Babylon.
 
 Usage:
@@ -212,7 +212,7 @@ def main() -> None:
     parser.add_argument(
         "-v", "--verbose",
         action="store_true",
-        help="Show detailed Tier 2 check results",
+        help="Show detailed check results (Tier 2/3)",
     )
     args = parser.parse_args()
 
