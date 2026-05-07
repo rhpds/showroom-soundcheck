@@ -13,10 +13,11 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 import reflex as rx
+from reflex.utils.serializers import serializer
 from sqlmodel import col, select
 
 from . import babylon_client
@@ -32,6 +33,19 @@ from .utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# Override Reflex's default datetime serializer so naive-UTC datetimes are
+# sent to the browser as proper ISO 8601 with a "Z" suffix.  The default
+# uses str() which produces a space separator and no timezone indicator,
+# causing Moment.js to misinterpret the value as local time.
+@serializer(to=str)
+def _serialize_dt(dt: date | datetime) -> str:
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            return dt.isoformat() + "Z"
+        return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return dt.isoformat()
 
 
 def _positive_int_env(name: str, default: int) -> int:
@@ -56,13 +70,7 @@ def local_time(dt_var: rx.Var, **kwargs: object) -> rx.Component:
     kwargs.setdefault("from_now", True)
     kwargs.setdefault("with_title", True)
     kwargs.setdefault("title_format", "ddd, MMM D YYYY [at] h:mm A")
-    # Stored datetimes are naive UTC.  We need the browser's Moment.js to
-    # treat them as UTC, so we build an ISO-ish string with a trailing "Z".
-    # Using rx.Var.create with an f-string triggers Reflex's JSON serializer
-    # (datetime.isoformat()), unlike .to(str) which emits JS String() and
-    # can lose the time component depending on the Var origin.
-    date_as_utc = rx.Var.create(f"{dt_var}Z")
-    return rx.moment(date_as_utc, **kwargs)
+    return rx.moment(dt_var, **kwargs)
 
 
 # ---------------------------------------------------------------------------
