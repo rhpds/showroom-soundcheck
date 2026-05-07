@@ -56,7 +56,10 @@ def local_time(dt_var: rx.Var, **kwargs: object) -> rx.Component:
     kwargs.setdefault("from_now", True)
     kwargs.setdefault("with_title", True)
     kwargs.setdefault("title_format", "ddd, MMM D YYYY [at] h:mm A")
-    return rx.moment(dt_var, tz=APP_TIMEZONE, **kwargs)
+    # Stored datetimes are naive UTC.  Coerce to string and append "Z" so the
+    # browser's Moment.js parses them as UTC rather than local time.
+    date_as_utc = dt_var.to(str) + "Z"
+    return rx.moment(date_as_utc, **kwargs)
 
 
 # ---------------------------------------------------------------------------
