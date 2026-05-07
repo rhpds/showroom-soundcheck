@@ -9,6 +9,7 @@ metadata:
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: web
 spec:
+  host: showroom-soundcheck-dev.apps.ocpv-infra01.dal12.infra.demo.redhat.com
   to:
     kind: Service
     name: oauth-proxy-service

@@ -242,6 +242,34 @@ def targets_list() -> rx.Component:
     )
 
 
+def _session_loading() -> rx.Component:
+    """Full-viewport loading screen with a pulsing activity icon."""
+    return rx.center(
+        rx.vstack(
+            rx.icon(
+                "activity",
+                size=64,
+                color=rx.color("accent", 9),
+                style=styles.pulse_style,
+            ),
+            rx.text(
+                "Soundcheck",
+                size="5",
+                weight="bold",
+                color=rx.color("accent", 11),
+            ),
+            rx.text(
+                "Loading session…",
+                size="2",
+                color=rx.color("gray", 9),
+            ),
+            spacing="3",
+            align="center",
+        ),
+        flex="1",
+    )
+
+
 def _session_not_found() -> rx.Component:
     return rx.center(
         rx.vstack(
@@ -264,15 +292,19 @@ def _session_not_found() -> rx.Component:
 def session_content() -> rx.Component:
     return rx.box(
         rx.cond(
-            SessionState.current_session,
-            rx.vstack(
-                session_summary(),
-                _check_progress(),
-                targets_list(),
-                spacing="4",
-                width="100%",
+            SessionState.session_loading,
+            _session_loading(),
+            rx.cond(
+                SessionState.current_session,
+                rx.vstack(
+                    session_summary(),
+                    _check_progress(),
+                    targets_list(),
+                    spacing="4",
+                    width="100%",
+                ),
+                _session_not_found(),
             ),
-            _session_not_found(),
         ),
         target_detail_dialog(),
         **styles.content_style,

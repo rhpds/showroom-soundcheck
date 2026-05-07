@@ -25,9 +25,14 @@ base_style = {
         "from": {"transform": "rotate(0deg)"},
         "to": {"transform": "rotate(360deg)"},
     },
+    "@keyframes pulse": {
+        "0%, 100%": {"opacity": "0.3", "transform": "scale(0.95)"},
+        "50%": {"opacity": "1", "transform": "scale(1.05)"},
+    },
 }
 
 spin_style = {"animation": "spin 1.5s linear infinite"}
+pulse_style = {"animation": "pulse 2s ease-in-out infinite"}
 
 sidebar_style = {
     "bg": rx.color("gray", 2),

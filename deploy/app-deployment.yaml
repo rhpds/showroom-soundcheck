@@ -6,7 +6,7 @@ metadata:
   namespace: showroom-soundcheck
   labels:
     app.kubernetes.io/name: showroom-soundcheck-app
-    app.kubernetes.io/version: v1.0.8
+    app.kubernetes.io/version: v1.0.10
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: web
 spec:
@@ -23,13 +23,13 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: showroom-soundcheck-app
-        app.kubernetes.io/version: v1.0.8
+        app.kubernetes.io/version: v1.0.10
         app.kubernetes.io/part-of: showroom-soundcheck
         app.kubernetes.io/component: web
     spec:
       containers:
         - name: app
-          image: quay.io/rhpds/showroom-soundcheck-app:v1.0.8
+          image: quay.io/rhpds/showroom-soundcheck-app:v1.0.10
           imagePullPolicy: IfNotPresent
           ports:
             - name: frontend

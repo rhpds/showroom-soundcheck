@@ -187,6 +187,8 @@ class SessionState(rx.State):
 
     all_sessions: list[CheckSession] = []
 
+    session_loading: bool = True
+
     form_urls: str = ""
     form_guids: str = ""
     form_check_type: str = "readyz"
@@ -238,6 +240,7 @@ class SessionState(rx.State):
             self.current_session = None
             self.current_targets = []
             self.current_results = []
+            self.session_loading = False
             return
 
         self.current_session_id = sid
@@ -245,6 +248,7 @@ class SessionState(rx.State):
         self.current_session = data["session"]
         self.current_targets = data["targets"]
         self.current_results = data["results"]
+        self.session_loading = False
 
         if self.current_session and self.current_session.status == "pending":
             return CheckRunnerState.run_checks
@@ -274,6 +278,7 @@ class SessionState(rx.State):
 
     @rx.event
     def on_session_load(self):
+        self.session_loading = True
         return [
             SessionState.load_session,
             SessionState.load_sessions,
