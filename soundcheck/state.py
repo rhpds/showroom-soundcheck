@@ -56,9 +56,12 @@ def local_time(dt_var: rx.Var, **kwargs: object) -> rx.Component:
     kwargs.setdefault("from_now", True)
     kwargs.setdefault("with_title", True)
     kwargs.setdefault("title_format", "ddd, MMM D YYYY [at] h:mm A")
-    # Stored datetimes are naive UTC.  Coerce to string and append "Z" so the
-    # browser's Moment.js parses them as UTC rather than local time.
-    date_as_utc = dt_var.to(str) + "Z"
+    # Stored datetimes are naive UTC.  We need the browser's Moment.js to
+    # treat them as UTC, so we build an ISO-ish string with a trailing "Z".
+    # Using rx.Var.create with an f-string triggers Reflex's JSON serializer
+    # (datetime.isoformat()), unlike .to(str) which emits JS String() and
+    # can lose the time component depending on the Var origin.
+    date_as_utc = rx.Var.create(f"{dt_var}Z")
     return rx.moment(date_as_utc, **kwargs)
 
 
