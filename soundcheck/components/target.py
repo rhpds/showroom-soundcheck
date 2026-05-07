@@ -54,6 +54,15 @@ def target_row(target: SessionTarget) -> rx.Component:
                 }),
                 rx.hstack(
                     _target_url_or_provision_message(target),
+                    spacing="2",
+                    align="center",
+                ),
+                spacing="0",
+            ),
+            rx.spacer(),
+            rx.cond(
+                ~is_provisioning,
+                rx.hstack(
                     rx.cond(
                         target.workshop_guid,
                         rx.badge("ws:" + target.workshop_guid, variant="outline", color_scheme="teal", size="1"),
@@ -62,14 +71,6 @@ def target_row(target: SessionTarget) -> rx.Component:
                         target.guid,
                         rx.badge(target.guid, variant="outline", color_scheme="purple", size="1"),
                     ),
-                    spacing="2",
-                ),
-                spacing="0",
-            ),
-            rx.spacer(),
-            rx.cond(
-                ~is_provisioning,
-                rx.hstack(
                     rx.cond(
                         target.tier_used,
                         rx.badge(

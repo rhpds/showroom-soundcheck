@@ -53,7 +53,10 @@ VERIFY_SSL = os.environ.get("VERIFY_SSL", "true").lower() in ("true", "1", "yes"
 
 
 def local_time(dt_var: rx.Var, **kwargs: object) -> rx.Component:
-    return rx.moment(dt_var.to(str) + "Z", tz=APP_TIMEZONE, **kwargs)
+    kwargs.setdefault("from_now", True)
+    kwargs.setdefault("with_title", True)
+    kwargs.setdefault("title_format", "ddd, MMM D YYYY [at] h:mm A")
+    return rx.moment(dt_var, tz=APP_TIMEZONE, **kwargs)
 
 
 # ---------------------------------------------------------------------------
