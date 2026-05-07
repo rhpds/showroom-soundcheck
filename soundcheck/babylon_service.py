@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from . import babylon_client
 
@@ -31,6 +31,35 @@ LAB_UI_URL_KEYS = (
 )
 LAB_UI_URL_ANNOTATION = f"{BABYLON_GROUP}/labUserInterfaceUrl"
 LAB_UI_URLS_ANNOTATION = f"{BABYLON_GROUP}/labUserInterfaceUrls"
+
+
+class ResolutionContext:
+    """Per-session cache for cluster-wide K8s list results.
+
+    Created once at the start of GUID resolution and discarded when done.
+    Avoids repeating the same expensive cluster-wide list calls when
+    resolving many GUIDs within a single check session.
+    """
+
+    def __init__(self) -> None:
+        self._rc_cache: dict[str, dict] = {}
+        self._ws_cache: dict[str, dict] = {}
+
+    async def get_rc_list(self, cluster: str) -> dict:
+        if cluster not in self._rc_cache:
+            self._rc_cache[cluster] = await babylon_client.k8s_list_cluster_wide(
+                cluster, RC_GROUP, RC_VERSION, RC_PLURAL,
+            )
+        return self._rc_cache[cluster]
+
+    async def get_ws_list(self, cluster: str, label_selector: str = "") -> dict:
+        key = f"{cluster}|{label_selector}"
+        if key not in self._ws_cache:
+            self._ws_cache[key] = await babylon_client.k8s_list_cluster_wide(
+                cluster, BABYLON_GROUP, BABYLON_VERSION, WS_PLURAL,
+                label_selector=label_selector,
+            )
+        return self._ws_cache[key]
 
 
 def extract_showroom_urls(rc_def: dict[str, Any]) -> list[dict[str, str]]:
@@ -165,7 +194,7 @@ def _rc_matches_guid(rc_def: dict[str, Any], guid: str) -> bool:
 
 
 async def _search_cluster_for_rc_guid(
-    cluster: str, guid: str,
+    cluster: str, guid: str, ctx: Optional[ResolutionContext] = None,
 ) -> tuple[list[dict[str, str]], list[str]]:
     """Search a single cluster for ResourceClaims matching a GUID.
 
@@ -174,9 +203,12 @@ async def _search_cluster_for_rc_guid(
     """
     urls: list[dict[str, str]] = []
     try:
-        result = await babylon_client.k8s_list_cluster_wide(
-            cluster, RC_GROUP, RC_VERSION, RC_PLURAL,
-        )
+        if ctx:
+            result = await ctx.get_rc_list(cluster)
+        else:
+            result = await babylon_client.k8s_list_cluster_wide(
+                cluster, RC_GROUP, RC_VERSION, RC_PLURAL,
+            )
         for item in result.get("items", []):
             if _rc_matches_guid(item, guid):
                 found = extract_showroom_urls(item)
@@ -210,7 +242,7 @@ def _resolution_error_entry(guid: str, errors: list[str]) -> dict[str, str]:
 
 
 async def _search_cluster_for_workshop_guid(
-    cluster: str, guid: str,
+    cluster: str, guid: str, ctx: Optional[ResolutionContext] = None,
 ) -> tuple[list[dict[str, str]], list[str]]:
     """Search a cluster for Workshops whose workshop-id label matches the GUID.
 
@@ -220,10 +252,15 @@ async def _search_cluster_for_workshop_guid(
     urls: list[dict[str, str]] = []
     errors: list[str] = []
     try:
-        result = await babylon_client.k8s_list_cluster_wide(
-            cluster, BABYLON_GROUP, BABYLON_VERSION, WS_PLURAL,
-            label_selector=f"{WORKSHOP_ID_LABEL}={guid}",
-        )
+        if ctx:
+            result = await ctx.get_ws_list(
+                cluster, label_selector=f"{WORKSHOP_ID_LABEL}={guid}",
+            )
+        else:
+            result = await babylon_client.k8s_list_cluster_wide(
+                cluster, BABYLON_GROUP, BABYLON_VERSION, WS_PLURAL,
+                label_selector=f"{WORKSHOP_ID_LABEL}={guid}",
+            )
         workshops = result.get("items", [])
         if not workshops:
             return [], []
@@ -282,19 +319,21 @@ async def _search_cluster_for_workshop_guid(
 
 
 async def _search_cluster_for_guid(
-    cluster: str, guid: str,
+    cluster: str, guid: str, ctx: Optional[ResolutionContext] = None,
 ) -> tuple[list[dict[str, str]], list[str]]:
     """Search a single cluster for a GUID, trying ResourceClaims first, then Workshops."""
-    rc_urls, rc_errors = await _search_cluster_for_rc_guid(cluster, guid)
+    rc_urls, rc_errors = await _search_cluster_for_rc_guid(cluster, guid, ctx)
     if rc_urls:
         return rc_urls, []
-    ws_urls, ws_errors = await _search_cluster_for_workshop_guid(cluster, guid)
+    ws_urls, ws_errors = await _search_cluster_for_workshop_guid(cluster, guid, ctx)
     if ws_urls:
         return ws_urls, []
     return [], rc_errors + ws_errors
 
 
-async def resolve_guid(guid: str, cluster: str = "") -> list[dict[str, str]]:
+async def resolve_guid(
+    guid: str, cluster: str = "", ctx: Optional[ResolutionContext] = None,
+) -> list[dict[str, str]]:
     """Resolve a GUID to showroom URLs by searching configured clusters.
 
     When *cluster* is specified, only that cluster is searched.  Otherwise all
@@ -303,7 +342,7 @@ async def resolve_guid(guid: str, cluster: str = "") -> list[dict[str, str]]:
     Returns a list of {url, label} dicts.
     """
     if cluster:
-        urls, errors = await _search_cluster_for_guid(cluster, guid)
+        urls, errors = await _search_cluster_for_guid(cluster, guid, ctx)
         if urls:
             return urls
         if errors:
@@ -317,9 +356,9 @@ async def resolve_guid(guid: str, cluster: str = "") -> list[dict[str, str]]:
 
     all_errors: list[str] = []
     for c in clusters:
-        urls, errors = await _search_cluster_for_guid(c, guid)
+        urls, errors = await _search_cluster_for_guid(c, guid, ctx)
         if urls:
-            return urls  # GUID is unique, stop after first cluster with results
+            return urls
         all_errors.extend(errors)
 
     if all_errors:
@@ -328,20 +367,26 @@ async def resolve_guid(guid: str, cluster: str = "") -> list[dict[str, str]]:
 
 
 async def resolve_guids(
-    guids: list[str], cluster: str = "",
+    guids: list[str],
+    cluster: str = "",
+    ctx: Optional[ResolutionContext] = None,
 ) -> dict[str, list[dict[str, str]]]:
     """Resolve multiple GUIDs concurrently. Returns {guid: [{url, label}, ...]}."""
-    resolved = await asyncio.gather(*[resolve_guid(g, cluster=cluster) for g in guids])
+    if ctx is None:
+        ctx = ResolutionContext()
+    resolved = await asyncio.gather(*[resolve_guid(g, cluster=cluster, ctx=ctx) for g in guids])
     return dict(zip(guids, resolved))
 
 
-async def resolve_workshop_guid(guid: str, cluster: str = "") -> list[dict[str, str]]:
+async def resolve_workshop_guid(
+    guid: str, cluster: str = "", ctx: Optional[ResolutionContext] = None,
+) -> list[dict[str, str]]:
     """Resolve a Workshop GUID (workshop-id label) to showroom URLs.
 
     Searches only for Workshop CRs — skips the ResourceClaim scan.
     """
     if cluster:
-        urls, errors = await _search_cluster_for_workshop_guid(cluster, guid)
+        urls, errors = await _search_cluster_for_workshop_guid(cluster, guid, ctx)
         if urls:
             return urls
         if errors:
@@ -355,7 +400,7 @@ async def resolve_workshop_guid(guid: str, cluster: str = "") -> list[dict[str, 
 
     all_errors: list[str] = []
     for c in clusters:
-        urls, errors = await _search_cluster_for_workshop_guid(c, guid)
+        urls, errors = await _search_cluster_for_workshop_guid(c, guid, ctx)
         if urls:
             return urls
         all_errors.extend(errors)
@@ -366,10 +411,14 @@ async def resolve_workshop_guid(guid: str, cluster: str = "") -> list[dict[str, 
 
 
 async def resolve_workshop_guids(
-    guids: list[str], cluster: str = "",
+    guids: list[str],
+    cluster: str = "",
+    ctx: Optional[ResolutionContext] = None,
 ) -> dict[str, list[dict[str, str]]]:
     """Resolve multiple Workshop GUIDs concurrently. Returns {guid: [{url, label}, ...]}."""
+    if ctx is None:
+        ctx = ResolutionContext()
     resolved = await asyncio.gather(
-        *[resolve_workshop_guid(g, cluster=cluster) for g in guids],
+        *[resolve_workshop_guid(g, cluster=cluster, ctx=ctx) for g in guids],
     )
     return dict(zip(guids, resolved))
