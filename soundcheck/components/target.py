@@ -393,25 +393,28 @@ def target_detail_dialog() -> rx.Component:
                 ),
             ),
             rx.dialog.description(
-                rx.cond(
-                    TargetDetailState.selected_target,
-                    rx.vstack(
-                        _target_header(),
-                        rx.cond(
+                "Detailed readiness and check history for the selected target.",
+                size="2",
+                color="gray",
+            ),
+            rx.cond(
+                TargetDetailState.selected_target,
+                rx.vstack(
+                    _target_header(),
+                    rx.cond(
+                        TargetDetailState.selected_target.error_message,
+                        rx.callout(
                             TargetDetailState.selected_target.error_message,
-                            rx.callout(
-                                TargetDetailState.selected_target.error_message,
-                                icon="triangle_alert",
-                                color_scheme="red",
-                                size="1",
-                                width="100%",
-                            ),
+                            icon="triangle_alert",
+                            color_scheme="red",
+                            size="1",
+                            width="100%",
                         ),
-                        _readyz_detail_section(),
-                        _check_attempts_section(),
-                        spacing="3",
-                        width="100%",
                     ),
+                    _readyz_detail_section(),
+                    _check_attempts_section(),
+                    spacing="3",
+                    width="100%",
                 ),
             ),
             max_width="700px",
