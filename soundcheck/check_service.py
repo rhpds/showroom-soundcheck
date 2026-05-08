@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
 PROBE_TIMEOUT = 5
+CONFIG_FETCH_TIMEOUT = 30
 MAX_CONFIG_SIZE = 1024 * 1024  # 1 MiB
 PROBE_RETRIES = 2
 RETRY_DELAY = 1.0
@@ -307,7 +308,7 @@ async def _fetch_config(
         for filename in CONFIG_FILES:
             url = f"{base_url}{nookbag_base}/{filename}"
             try:
-                resp = await client.get(url, timeout=PROBE_TIMEOUT)
+                resp = await client.get(url, timeout=CONFIG_FETCH_TIMEOUT)
                 if resp.status_code == 200:
                     data = resp.content
                     if len(data) > MAX_CONFIG_SIZE:
@@ -368,7 +369,7 @@ async def _run_tier2(
     if config is None:
         elapsed = int((time.monotonic() - start) * 1000)
         if config_timed_out:
-            msg = f"Timed out fetching nookbag config (ui-config.yml / zero-touch-config.yml) after {PROBE_TIMEOUT}s"
+            msg = f"Timed out fetching nookbag config (ui-config.yml / zero-touch-config.yml) after {CONFIG_FETCH_TIMEOUT}s"
         else:
             msg = "No nookbag config found (ui-config.yml / zero-touch-config.yml)"
         return TargetCheckResult(
