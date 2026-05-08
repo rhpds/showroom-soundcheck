@@ -137,8 +137,8 @@ def sidebar() -> rx.Component:
             rx.divider(margin_y="0.75em"),
             rx.box(
                 rx.vstack(
-                    session_group("Today", SessionState.today_sessions),
-                    session_group("Yesterday", SessionState.yesterday_sessions),
+                    session_group("Recent", SessionState.today_sessions),
+                    session_group("Earlier", SessionState.yesterday_sessions),
                     session_group("Older", SessionState.older_sessions),
                     spacing="3",
                     width="100%",

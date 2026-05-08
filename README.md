@@ -128,7 +128,6 @@ podman run --rm -t showroom-soundcheck-cli --urls https://showroom1.example.com
 | `POSTGRES_PORT`        | `5432`               | PostgreSQL port                                              |
 | `APP_PORT`             | `3000`               | Frontend port (compose only)                                 |
 | `BACKEND_PORT`         | `8000`               | Backend API port (compose only)                              |
-| `APP_TIMEZONE`         | `UTC`                | Display timezone (IANA format, e.g. `Australia/Sydney`)      |
 | `CHECK_CONCURRENCY`    | `10`                 | Max concurrent health checks per session                     |
 | `VERIFY_SSL`           | `true`               | TLS verification; set to `false`/`0`/`no` to disable (compose defaults to `false`) |
 | `REFLEX_ENV`           | `dev`                | `dev` enables auto-migrations; `prod` runs migrations only (compose hardcodes `dev`) |

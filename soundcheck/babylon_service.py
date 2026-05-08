@@ -160,7 +160,7 @@ def get_rc_provision_status(rc_def: dict[str, Any]) -> str:
     end_raw = lifespan.get("end")
     if end_raw:
         try:
-            end_dt = datetime.fromisoformat(end_raw.replace("Z", "+00:00"))
+            end_dt = datetime.fromisoformat(end_raw)
             if end_dt < datetime.now(timezone.utc):
                 return "destroying"
         except (ValueError, TypeError):

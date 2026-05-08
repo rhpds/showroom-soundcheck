@@ -47,7 +47,6 @@ Update `stringData` values before deploying:
 
 | Key               | Default | Description                       |
 |-------------------|---------|-----------------------------------|
-| APP_TIMEZONE      | UTC     | Application timezone              |
 | CHECK_CONCURRENCY | 10      | Parallel health check concurrency |
 | VERIFY_SSL        | false   | Verify SSL certificates           |
 | REFLEX_ENV        | prod    | Reflex environment mode           |

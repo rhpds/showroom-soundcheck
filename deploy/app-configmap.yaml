@@ -8,7 +8,6 @@ metadata:
     app.kubernetes.io/name: showroom-soundcheck-app
     app.kubernetes.io/part-of: showroom-soundcheck
 data:
-  APP_TIMEZONE: "UTC"
   CHECK_CONCURRENCY: "10"
   VERIFY_SSL: "false"
   REFLEX_ENV: "prod"

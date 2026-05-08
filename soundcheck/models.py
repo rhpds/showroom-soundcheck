@@ -12,9 +12,10 @@ from datetime import datetime
 from typing import Optional
 
 import reflex as rx
+import sqlalchemy as sa
 from sqlmodel import Field
 
-from .utils import utc_now_naive
+from .utils import utc_now
 
 
 class CheckSession(rx.Model, table=True):
@@ -36,8 +37,8 @@ class CheckSession(rx.Model, table=True):
     babylon_cluster: str = ""  # Babylon cluster name for GUID resolution
     display_label: str = ""
     status: str = "pending"  # pending | running | completed | failed
-    created_at: datetime = Field(default_factory=utc_now_naive)
-    completed_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=utc_now, sa_type=sa.DateTime(timezone=True))
+    completed_at: Optional[datetime] = Field(default=None, sa_type=sa.DateTime(timezone=True))
 
     def get_urls(self) -> list[str]:
         try:
@@ -90,8 +91,8 @@ class SessionTarget(rx.Model, table=True):
     tier_used: Optional[int] = None  # 1 or 2
     response_time_ms: Optional[int] = None
     error_message: Optional[str] = None
-    check_started_at: Optional[datetime] = None
-    check_completed_at: Optional[datetime] = None
+    check_started_at: Optional[datetime] = Field(default=None, sa_type=sa.DateTime(timezone=True))
+    check_completed_at: Optional[datetime] = Field(default=None, sa_type=sa.DateTime(timezone=True))
 
 
 class CheckResult(rx.Model, table=True):
@@ -107,4 +108,4 @@ class CheckResult(rx.Model, table=True):
     response_time_ms: int = 0
     error_message: Optional[str] = None
     detail: Optional[str] = None  # JSON: config parsed, tabs checked, etc.
-    checked_at: datetime = Field(default_factory=utc_now_naive)
+    checked_at: datetime = Field(default_factory=utc_now, sa_type=sa.DateTime(timezone=True))

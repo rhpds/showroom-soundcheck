@@ -29,21 +29,23 @@ from .utils import (
     extract_guid_from_url,
     make_display_label,
     parse_check_params,
-    utc_now_naive,
+    utc_now,
 )
 
 logger = logging.getLogger(__name__)
 
+_DATETIME_MIN_UTC = datetime.min.replace(tzinfo=timezone.utc)
 
-# Override Reflex's default datetime serializer so naive-UTC datetimes are
-# sent to the browser as proper ISO 8601 with a "Z" suffix.  The default
-# uses str() which produces a space separator and no timezone indicator,
-# causing Moment.js to misinterpret the value as local time.
+
 @serializer(to=str)
 def _serialize_dt(dt: date | datetime) -> str:
+    """Override Reflex's default ``str(dt)`` which uses a space separator.
+
+    Produces proper ISO 8601 (``T`` separator) so Moment.js always parses
+    the full date+time.  Aware datetimes are normalised to UTC with a ``Z``
+    suffix.
+    """
     if isinstance(dt, datetime):
-        if dt.tzinfo is None:
-            return dt.isoformat() + "Z"
         return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     return dt.isoformat()
 
@@ -61,7 +63,6 @@ def _positive_int_env(name: str, default: int) -> int:
     return value
 
 
-APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "UTC")
 CHECK_CONCURRENCY = _positive_int_env("CHECK_CONCURRENCY", 10)
 VERIFY_SSL = os.environ.get("VERIFY_SSL", "true").lower() in ("true", "1", "yes")
 
@@ -92,7 +93,7 @@ def _persist_new_session(
     """Create a new pending session with targets in the database. Returns session_id."""
     workshop_guids = workshop_guids or []
     sid = str(uuid.uuid4())
-    now = utc_now_naive()
+    now = utc_now()
 
     with rx.session() as session:
         cs = CheckSession(
@@ -428,22 +429,20 @@ class SessionState(rx.State):
 
     @rx.var
     def today_sessions(self) -> list[CheckSession]:
-        now = utc_now_naive()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        return [s for s in self.all_sessions if s.created_at and s.created_at >= today_start]
+        cutoff = utc_now() - timedelta(hours=24)
+        return [s for s in self.all_sessions if s.created_at and s.created_at >= cutoff]
 
     @rx.var
     def yesterday_sessions(self) -> list[CheckSession]:
-        now = utc_now_naive()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        yesterday_start = today_start - timedelta(days=1)
-        return [s for s in self.all_sessions if s.created_at and yesterday_start <= s.created_at < today_start]
+        now = utc_now()
+        recent = now - timedelta(hours=24)
+        earlier = now - timedelta(hours=48)
+        return [s for s in self.all_sessions if s.created_at and earlier <= s.created_at < recent]
 
     @rx.var
     def older_sessions(self) -> list[CheckSession]:
-        now = utc_now_naive()
-        yesterday_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
-        return [s for s in self.all_sessions if s.created_at and s.created_at < yesterday_start]
+        cutoff = utc_now() - timedelta(hours=48)
+        return [s for s in self.all_sessions if s.created_at and s.created_at < cutoff]
 
     @rx.var
     def sorted_targets(self) -> list[SessionTarget]:
@@ -459,7 +458,7 @@ class SessionState(rx.State):
 
         def sort_key(t: SessionTarget):
             rank = order.get(t.status, 5)
-            ts = t.check_started_at or datetime.min
+            ts = t.check_started_at or _DATETIME_MIN_UTC
             return (rank, ts)
 
         return sorted(self.current_targets, key=sort_key)
@@ -895,7 +894,7 @@ class CheckRunnerState(SessionState):
         if not targets:
             return
 
-        now = utc_now_naive()
+        now = utc_now()
         async with rx.asession() as db:
             for target in targets:
                 target_result = await db.execute(
@@ -934,7 +933,7 @@ class CheckRunnerState(SessionState):
                             error_message=str(e)[:500],
                         )
 
-                completed_at = utc_now_naive()
+                completed_at = utc_now()
                 status = "healthy" if result.is_healthy else "error" if result.error_message else "unhealthy"
 
                 async with rx.asession() as db:
@@ -976,7 +975,7 @@ class CheckRunnerState(SessionState):
                     if t:
                         t.status = "error"
                         t.error_message = str(e)[:500]
-                        t.check_completed_at = utc_now_naive()
+                        t.check_completed_at = utc_now()
                         db.add(t)
                         await db.commit()
 
@@ -1007,7 +1006,7 @@ class CheckRunnerState(SessionState):
             )
             if cs:
                 cs.status = "completed" if all_healthy else "failed"
-                cs.completed_at = utc_now_naive()
+                cs.completed_at = utc_now()
                 session.add(cs)
                 await session.commit()
 
@@ -1022,7 +1021,7 @@ class CheckRunnerState(SessionState):
             cs = cs_result.scalars().first()
             if cs:
                 cs.status = "failed"
-                cs.completed_at = utc_now_naive()
+                cs.completed_at = utc_now()
                 session.add(cs)
                 await session.commit()
 

@@ -18,13 +18,9 @@ GUID_RE = re.compile(
 )
 
 
-def utc_now_naive() -> datetime:
-    """Return a naive UTC datetime for TIMESTAMP WITHOUT TIME ZONE columns.
-
-    asyncpg rejects timezone-aware datetimes for such columns, so we
-    strip tzinfo after obtaining a proper UTC timestamp.
-    """
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+def utc_now() -> datetime:
+    """Return a timezone-aware UTC datetime."""
+    return datetime.now(timezone.utc)
 
 
 VALID_CHECK_TYPES = ("readyz", "healthz")
