@@ -23,7 +23,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
-PROBE_TIMEOUT = 5
+PROBE_TIMEOUT = 10
 CONFIG_FETCH_TIMEOUT = 30
 MAX_CONFIG_SIZE = 1024 * 1024  # 1 MiB
 PROBE_RETRIES = 2
