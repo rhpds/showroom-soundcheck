@@ -430,12 +430,10 @@ async def _run_tier2(
     all_content_reachable = bool(tier2.content_probes) and all(
         c.reachable for c in tier2.content_probes
     )
-    all_healthy = (
-        all_content_reachable
-        and (len(tier2.tabs) == 0 or all(
-            t.reachable and not t.iframe_blocked for t in tier2.tabs
-        ))
+    all_tabs_ok = len(tier2.tabs) == 0 or all(
+        t.reachable and (not t.iframe_blocked or t.external) for t in tier2.tabs
     )
+    all_healthy = all_content_reachable and all_tabs_ok
 
     elapsed = int((time.monotonic() - start) * 1000)
     status_code = 200 if all_healthy else 503

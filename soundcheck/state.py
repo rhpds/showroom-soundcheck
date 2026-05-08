@@ -620,6 +620,8 @@ class TargetDetailState(SessionState):
         normalized = []
         for tab in raw_tabs:
             sc = tab.get("status_code") or tab.get("statusCode") or 0
+            external = bool(tab.get("external", False))
+            iframe_blocked = bool(tab.get("iframe_blocked", False) or tab.get("iframeBlocked", False))
             normalized.append({
                 "name": tab.get("name", "unknown"),
                 "url": tab.get("url", ""),
@@ -627,7 +629,8 @@ class TargetDetailState(SessionState):
                 "status_code": sc,
                 "status_ok": 200 <= sc < 400 if sc else False,
                 "error": tab.get("error") or "",
-                "iframe_blocked": bool(tab.get("iframe_blocked", False) or tab.get("iframeBlocked", False)),
+                "iframe_blocked": iframe_blocked,
+                "external": external,
             })
         return normalized
 
@@ -651,6 +654,7 @@ class TargetDetailState(SessionState):
                     "status_ok": 200 <= sc < 400 if sc else False,
                     "error": page.get("error") or "",
                     "iframe_blocked": False,
+                    "external": False,
                 })
             return result
 
@@ -666,6 +670,7 @@ class TargetDetailState(SessionState):
             "status_ok": 200 <= sc < 400 if sc else False,
             "error": content.get("error") or "",
             "iframe_blocked": False,
+            "external": False,
         }]
 
     @rx.var

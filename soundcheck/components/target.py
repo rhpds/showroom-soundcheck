@@ -122,11 +122,14 @@ def _detail_endpoint_row(tab: rx.Var[dict]) -> rx.Component:
     status_ok = tab["status_ok"]
     error = tab["error"]
     iframe_blocked = tab["iframe_blocked"]
+    external = tab["external"]
+
+    is_ok = reachable & (~iframe_blocked | external)
 
     return rx.box(
         rx.hstack(
             rx.cond(
-                reachable & ~iframe_blocked,
+                is_ok,
                 rx.icon("circle-check", size=14, color=rx.color("green", 9)),
                 rx.icon("circle-x", size=14, color=rx.color("red", 9)),
             ),
@@ -146,8 +149,15 @@ def _detail_endpoint_row(tab: rx.Var[dict]) -> rx.Component:
             }),
             rx.spacer(),
             rx.cond(
-                iframe_blocked,
-                rx.badge("iframe blocked", color_scheme="orange", variant="soft", size="1"),
+                iframe_blocked & external,
+                rx.badge(
+                    rx.hstack(rx.icon("external-link", size=10), "pop-out", spacing="1", align="center"),
+                    color_scheme="blue", variant="soft", size="1",
+                ),
+                rx.cond(
+                    iframe_blocked,
+                    rx.badge("iframe blocked", color_scheme="orange", variant="soft", size="1"),
+                ),
             ),
             spacing="2",
             align="center",
