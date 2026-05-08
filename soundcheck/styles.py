@@ -3,7 +3,7 @@
 import reflex as rx
 
 app_theme = rx.theme(
-    appearance="inherit",
+    appearance="light",
     has_background=True,
     accent_color="blue",
     radius="large",
