@@ -218,7 +218,13 @@ class SessionState(rx.State):
 
     @rx.var
     def page_session_id(self) -> str:
-        return self.router.page.params.get("session_id", "")
+        route_session_id = getattr(self, "session_id", "")
+        if route_session_id:
+            return route_session_id
+        path = self.router.url.path or ""
+        if path.startswith("/session/"):
+            return path.removeprefix("/session/").split("/", 1)[0]
+        return ""
 
     # ---------- Session history loading ----------
 
@@ -304,6 +310,8 @@ class SessionState(rx.State):
 
     @rx.event
     def on_home_load(self):
+        # Ensure a stale submit lock never survives navigation back home.
+        self.form_submitting = False
         return [SessionState.load_sessions]
 
     # ---------- Session-level computed vars ----------
@@ -320,7 +328,7 @@ class SessionState(rx.State):
     def checked_count(self) -> int:
         return sum(
             1 for t in self.current_targets
-            if t.status in ("healthy", "unhealthy", "error")
+            if t.status in ("healthy", "degraded", "unhealthy", "error")
         )
 
     @rx.var
@@ -450,18 +458,53 @@ class SessionState(rx.State):
         order = {
             "checking": 0,
             "error": 1,
-            "provisioning": 2,
-            "pending": 3,
-            "unhealthy": 4,
-            "healthy": 5,
+            "degraded": 2,
+            "provisioning": 3,
+            "pending": 4,
+            "unhealthy": 5,
+            "healthy": 6,
         }
 
         def sort_key(t: SessionTarget):
-            rank = order.get(t.status, 5)
+            rank = order.get(t.status, 6)
             ts = t.check_started_at or _DATETIME_MIN_UTC
             return (rank, ts)
 
         return sorted(self.current_targets, key=sort_key)
+
+    @rx.var
+    def target_check_summaries(self) -> dict[int, dict]:
+        """Per-target summary of content/tab pass counts from check detail JSON."""
+        summaries: dict[int, dict] = {}
+        seen_targets: set[int] = set()
+        for r in self.current_results:
+            if r.target_id in seen_targets or not r.detail:
+                continue
+            seen_targets.add(r.target_id)
+            try:
+                detail = json.loads(r.detail)
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            content_pages = detail.get("content_pages") or []
+            content_total = len(content_pages)
+            content_ok = sum(1 for p in content_pages if p.get("reachable"))
+
+            tabs = detail.get("tabs") or []
+            tabs_total = len(tabs)
+            tabs_ok = sum(
+                1 for t in tabs
+                if t.get("reachable") and (not t.get("iframe_blocked") or t.get("external"))
+            )
+
+            summaries[r.target_id] = {
+                "content_ok": content_ok,
+                "content_total": content_total,
+                "tabs_ok": tabs_ok,
+                "tabs_total": tabs_total,
+                "has_detail": True,
+            }
+        return summaries
 
 
 # ---------------------------------------------------------------------------
@@ -475,13 +518,14 @@ class SessionFormState(SessionState):
     @rx.event
     def handle_check_page(self):
         """Called on /check page load. Create session from query params and redirect."""
-        raw_urls = self.router.page.params.get("urls", "")
-        raw_guids = self.router.page.params.get("guid", "")
-        raw_ws_guids = self.router.page.params.get("workshop", "")
-        check_type = self.router.page.params.get("type", "readyz")
-        check_mode = self.router.page.params.get("mode", "manual")
-        session_name = self.router.page.params.get("name", "")
-        cluster = self.router.page.params.get("cluster", "")
+        query = self.router.url.query_parameters
+        raw_urls = query.get("urls", "")
+        raw_guids = query.get("guid", "")
+        raw_ws_guids = query.get("workshop", "")
+        check_type = query.get("type", "readyz")
+        check_mode = query.get("mode", "manual")
+        session_name = query.get("name", "")
+        cluster = query.get("cluster", "")
 
         if not raw_urls and not raw_guids and not raw_ws_guids:
             return rx.redirect("/")
@@ -513,6 +557,9 @@ class SessionFormState(SessionState):
 
     @rx.event
     def create_session_from_form(self, form_data: dict):
+        # Ignore duplicate submit events while the first request is in-flight.
+        if self.form_submitting:
+            return
         self.form_submitting = True
         try:
             parsed = parse_check_params(
@@ -548,7 +595,6 @@ class SessionFormState(SessionState):
         self.form_error = ""
         self.form_urls = ""
         self.form_guids = ""
-        self.form_submitting = False
         return rx.redirect(f"/session/{sid}")
 
 
@@ -934,7 +980,12 @@ class CheckRunnerState(SessionState):
                         )
 
                 completed_at = utc_now()
-                status = "healthy" if result.is_healthy else "error" if result.error_message else "unhealthy"
+                status = (
+                    "healthy" if result.is_healthy
+                    else "degraded" if result.is_degraded
+                    else "error" if result.error_message
+                    else "unhealthy"
+                )
 
                 async with rx.asession() as db:
                     target_result = await db.execute(

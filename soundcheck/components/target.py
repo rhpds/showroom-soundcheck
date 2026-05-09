@@ -21,6 +21,7 @@ def target_status_badge(status: str) -> rx.Component:
         )),
         ("pending", rx.badge("Pending", color_scheme="yellow", variant="soft", radius="full")),
         ("unhealthy", rx.badge("Unhealthy", color_scheme="orange", variant="soft", radius="full")),
+        ("degraded", rx.badge("Degraded", color_scheme="amber", variant="soft", radius="full")),
         ("error", rx.badge("Error", color_scheme="red", variant="soft", radius="full")),
         rx.badge(status, color_scheme="gray", variant="soft", radius="full"),
     )
@@ -43,6 +44,54 @@ def _target_url_or_provision_message(target: SessionTarget) -> rx.Component:
     )
 
 
+def _check_summary_badges(target: SessionTarget) -> rx.Component:
+    """Compact Content N/M and Tabs N/M badges from check detail data."""
+    summary = SessionState.target_check_summaries[target.id.to(int)]
+    return rx.cond(
+        SessionState.target_check_summaries.contains(target.id.to(int)),
+        rx.hstack(
+            rx.cond(
+                summary["content_total"].to(int) > 0,
+                rx.badge(
+                    rx.hstack(
+                        rx.icon("file-text", size=10),
+                        "Content " + summary["content_ok"].to(str) + "/" + summary["content_total"].to(str),
+                        spacing="1",
+                        align="center",
+                    ),
+                    color_scheme=rx.cond(
+                        summary["content_ok"].to(int) == summary["content_total"].to(int),
+                        "green",
+                        "red",
+                    ),
+                    variant="soft",
+                    size="1",
+                ),
+            ),
+            rx.cond(
+                summary["tabs_total"].to(int) > 0,
+                rx.badge(
+                    rx.hstack(
+                        rx.icon("layout-grid", size=10),
+                        "Tabs " + summary["tabs_ok"].to(str) + "/" + summary["tabs_total"].to(str),
+                        spacing="1",
+                        align="center",
+                    ),
+                    color_scheme=rx.cond(
+                        summary["tabs_ok"].to(int) == summary["tabs_total"].to(int),
+                        "green",
+                        "red",
+                    ),
+                    variant="soft",
+                    size="1",
+                ),
+            ),
+            spacing="1",
+            align="center",
+        ),
+    )
+
+
 def target_row(target: SessionTarget) -> rx.Component:
     is_provisioning = target.status == "provisioning"
     return rx.box(
@@ -57,6 +106,7 @@ def target_row(target: SessionTarget) -> rx.Component:
                     spacing="2",
                     align="center",
                 ),
+                _check_summary_badges(target),
                 spacing="0",
             ),
             rx.spacer(),

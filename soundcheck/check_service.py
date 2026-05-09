@@ -95,6 +95,7 @@ class TargetCheckResult:
     error_message: Optional[str] = None
     detail: Optional[dict[str, Any]] = None
     no_config: bool = False
+    is_degraded: bool = False
 
     def detail_json(self) -> Optional[str]:
         if self.detail is None:
@@ -435,6 +436,10 @@ async def _run_tier2(
         t.reachable and (not t.iframe_blocked or t.external) for t in tier2.tabs
     )
     all_healthy = all_content_reachable and all_tabs_ok
+    some_tabs_ok = any(
+        t.reachable and (not t.iframe_blocked or t.external) for t in tier2.tabs
+    )
+    is_degraded = all_content_reachable and not all_tabs_ok and some_tabs_ok
 
     elapsed = int((time.monotonic() - start) * 1000)
     status_code = 200 if all_healthy else 503
@@ -453,6 +458,7 @@ async def _run_tier2(
     return TargetCheckResult(
         url=url,
         is_healthy=all_healthy,
+        is_degraded=is_degraded,
         tier_used=2,
         check_type=check_type,
         status_code=status_code,
