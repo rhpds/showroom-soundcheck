@@ -20,7 +20,6 @@ logging.basicConfig(
 )
 
 app = rx.App(
-    theme=styles.app_theme,
     style=styles.base_style,
     head_components=[
         rx.el.link(rel="icon", href="/favicon.svg", type="image/svg+xml"),

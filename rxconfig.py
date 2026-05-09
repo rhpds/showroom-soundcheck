@@ -42,10 +42,18 @@ def _configured_async_db_url(db_url: str | None) -> str | None:
 
 
 _db_url = os.environ.get("DATABASE_URL", _default_db_url())
+_theme = rx.theme(
+    appearance="light",
+    has_background=True,
+    accent_color="blue",
+    radius="large",
+    scaling="100%",
+)
 
 _config_kwargs: dict = dict(
     app_name="soundcheck",
     disable_plugins=[SitemapPlugin],
+    plugins=[rx.plugins.RadixThemesPlugin(theme=_theme)],
     db_url=_db_url,
     async_db_url=_configured_async_db_url(_db_url),
 )
