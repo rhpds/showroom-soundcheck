@@ -5,7 +5,7 @@ from reflex.style import toggle_color_mode
 
 from .. import styles
 from ..models import CheckSession
-from ..state import SessionState, local_time
+from ..state import SessionState
 
 
 def session_status_icon(status: str) -> rx.Component:
@@ -59,7 +59,7 @@ def session_entry(s: CheckSession) -> rx.Component:
             session_status_icon(s.status),
             rx.vstack(
                 _session_label(s),
-                local_time(s.created_at, from_now=True),
+                rx.moment(s.created_at, from_now=True),
                 spacing="0",
             ),
             spacing="2",

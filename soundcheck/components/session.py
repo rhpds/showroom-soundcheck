@@ -157,7 +157,17 @@ def session_summary() -> rx.Component:
                     rx.text("·", color="gray"),
                     rx.text("Mode: " + SessionState.current_session.check_mode, size="2", color="gray"),
                     rx.text("·", color="gray"),
-                    rx.text(local_time(SessionState.current_session.created_at), size="2", color="gray"),
+                    rx.cond(
+                        SessionState.session_created_at != "",
+                        rx.text(
+                            rx.moment(
+                                date=SessionState.session_created_at,
+                                from_now=True,
+                            ),
+                            size="2",
+                            color="gray",
+                        ),
+                    ),
                     spacing="2",
                     align="center",
                 ),
