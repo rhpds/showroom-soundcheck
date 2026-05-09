@@ -68,9 +68,8 @@ VERIFY_SSL = os.environ.get("VERIFY_SSL", "true").lower() in ("true", "1", "yes"
 
 
 def local_time(dt_var: rx.Var, **kwargs: object) -> rx.Component:
-    kwargs.setdefault("from_now", True)
-    kwargs.setdefault("with_title", True)
-    kwargs.setdefault("title_format", "ddd, MMM D YYYY [at] h:mm A")
+    kwargs.setdefault("format", "ddd, MMM D YYYY [at] h:mm A")
+    kwargs.setdefault("local", True)
     return rx.moment(dt_var, **kwargs)
 
 
@@ -356,6 +355,21 @@ class SessionState(rx.State):
         )
 
     @rx.var
+    def showroom_degraded_count(self) -> int:
+        return sum(
+            1 for t in self.current_targets
+            if t.status == "degraded"
+        )
+
+    @rx.var
+    def showroom_error_count(self) -> int:
+        """Targets with error or unhealthy status."""
+        return sum(
+            1 for t in self.current_targets
+            if t.status in ("error", "unhealthy")
+        )
+
+    @rx.var
     def showroom_total_count(self) -> int:
         """Targets that have a URL (i.e. were checkable or are provisioning)."""
         return sum(
@@ -503,6 +517,7 @@ class SessionState(rx.State):
                 "tabs_ok": tabs_ok,
                 "tabs_total": tabs_total,
                 "has_detail": True,
+                "is_legacy": bool(detail.get("legacy", False)),
             }
         return summaries
 

@@ -80,6 +80,9 @@ class Tier2Detail:
     config_file: Optional[str] = None
     config_url: Optional[str] = None
     config_found: bool = False
+    is_nookbag: bool = False
+    root_reachable: bool = False
+    root_status_code: Optional[int] = None
     content_probes: list[ContentProbeResult] = field(default_factory=list)
     tabs: list[TabProbeResult] = field(default_factory=list)
 
@@ -290,6 +293,29 @@ async def _run_tier1(
 
 NOOKBAG_BASES = ["/nookbag", ""]
 
+NOOKBAG_FINGERPRINTS = ['id="root"', "<title>Showroom</title>"]
+
+
+async def _detect_nookbag(
+    client: httpx.AsyncClient, base_url: str,
+) -> tuple[bool, bool, Optional[int]]:
+    """Fetch the root page and decide whether this is a nookbag (React) showroom.
+
+    Returns (is_nookbag, root_reachable, root_status_code).
+    """
+    try:
+        resp = await client.get(base_url + "/", timeout=PROBE_TIMEOUT)
+    except (httpx.TimeoutException, httpx.HTTPError):
+        return False, False, None
+
+    reachable = 200 <= resp.status_code < 400
+    if not reachable:
+        return False, False, resp.status_code
+
+    body = resp.text[:4096]
+    is_nookbag = any(fp in body for fp in NOOKBAG_FINGERPRINTS)
+    return is_nookbag, True, resp.status_code
+
 
 async def _fetch_config(
     client: httpx.AsyncClient, base_url: str,
@@ -362,6 +388,11 @@ async def _run_tier2(
 
     tier2 = Tier2Detail()
 
+    is_nookbag, root_reachable, root_status = await _detect_nookbag(client, base_url)
+    tier2.is_nookbag = is_nookbag
+    tier2.root_reachable = root_reachable
+    tier2.root_status_code = root_status
+
     config, config_file, nookbag_base, config_timed_out = await _fetch_config(client, base_url)
     tier2.config_file = config_file
     tier2.config_url = f"{base_url}{nookbag_base}/{config_file}" if config_file else None
@@ -371,14 +402,22 @@ async def _run_tier2(
         elapsed = int((time.monotonic() - start) * 1000)
         if config_timed_out:
             msg = f"Timed out fetching nookbag config (ui-config.yml / zero-touch-config.yml) after {CONFIG_FETCH_TIMEOUT}s"
+        elif is_nookbag:
+            msg = "Nookbag showroom detected but config missing (ui-config.yml / zero-touch-config.yml)"
+        elif root_reachable:
+            msg = "Non-nookbag showroom detected, no config available"
         else:
-            msg = "No nookbag config found (ui-config.yml / zero-touch-config.yml)"
+            msg = "Showroom root unreachable, no config available"
+        # Only fall back to Tier 3 for non-nookbag showrooms where root is
+        # reachable (legacy Antora) or root is unreachable (unknown).
+        # Nookbag showrooms *must* have a config — missing config is an error.
+        no_config_fallback = not config_timed_out and not is_nookbag
         return TargetCheckResult(
             url=url, tier_used=2, check_type=check_type,
             response_time_ms=elapsed,
             error_message=msg,
             detail=_tier2_to_dict(tier2),
-            no_config=not config_timed_out,
+            no_config=no_config_fallback,
         )
 
     antora = config.get("antora", {}) or {}
@@ -484,10 +523,13 @@ def _tier2_to_dict(t: Tier2Detail) -> dict[str, Any]:
     if len(content_list) == 1:
         single_content = content_list[0]
 
-    return {
+    result = {
         "config_file": t.config_file,
         "config_url": t.config_url,
         "config_found": t.config_found,
+        "is_nookbag": t.is_nookbag,
+        "root_reachable": t.root_reachable,
+        "root_status_code": t.root_status_code,
         "content": single_content,
         "content_pages": content_list,
         "tabs": [
@@ -503,6 +545,7 @@ def _tier2_to_dict(t: Tier2Detail) -> dict[str, Any]:
             for tab in t.tabs
         ],
     }
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -680,7 +723,7 @@ async def check_single_target(
             result = await _run_tier2(client, url, check_type)
             if result.no_config:
                 logger.info(
-                    "Tier 2 found no config for %s, falling back to Tier 3 (legacy)",
+                    "Tier 2: root unreachable and no config for %s, falling back to Tier 3 (legacy)",
                     url,
                 )
                 return await _run_tier3(client, url, check_type)
@@ -702,7 +745,7 @@ async def check_single_target(
             t2_result = await _run_tier2(client, url, check_type)
             if t2_result.no_config:
                 logger.info(
-                    "Tier 2 found no config for %s, falling back to Tier 3 (legacy)",
+                    "Tier 2: root unreachable and no config for %s, falling back to Tier 3 (legacy)",
                     url,
                 )
                 return await _run_tier3(client, url, check_type)

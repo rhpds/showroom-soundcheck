@@ -51,6 +51,20 @@ def _check_summary_badges(target: SessionTarget) -> rx.Component:
         SessionState.target_check_summaries.contains(target.id.to(int)),
         rx.hstack(
             rx.cond(
+                summary["is_legacy"].to(bool),
+                rx.badge(
+                    rx.hstack(
+                        rx.icon("history", size=10),
+                        "Legacy",
+                        spacing="1",
+                        align="center",
+                    ),
+                    color_scheme="amber",
+                    variant="outline",
+                    size="1",
+                ),
+            ),
+            rx.cond(
                 summary["content_total"].to(int) > 0,
                 rx.badge(
                     rx.hstack(

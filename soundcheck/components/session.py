@@ -55,11 +55,52 @@ def session_summary() -> rx.Component:
                 rx.hstack(
                     rx.text(
                         SessionState.showroom_healthy_count.to(str)
-                        + "/"
-                        + SessionState.showroom_total_count.to(str)
-                        + " Showroom UIs healthy",
+                        + " healthy",
                         size="2",
                         weight="medium",
+                        color=rx.cond(
+                            SessionState.showroom_healthy_count > 0,
+                            rx.color("green", 11),
+                            "inherit",
+                        ),
+                    ),
+                    rx.cond(
+                        SessionState.showroom_degraded_count > 0,
+                        rx.hstack(
+                            rx.text("·", color="gray"),
+                            rx.text(
+                                SessionState.showroom_degraded_count.to(str)
+                                + " degraded",
+                                size="2",
+                                weight="medium",
+                                color=rx.color("yellow", 11),
+                            ),
+                            spacing="2",
+                            align="center",
+                        ),
+                    ),
+                    rx.cond(
+                        SessionState.showroom_error_count > 0,
+                        rx.hstack(
+                            rx.text("·", color="gray"),
+                            rx.text(
+                                SessionState.showroom_error_count.to(str)
+                                + " error",
+                                size="2",
+                                weight="medium",
+                                color=rx.color("red", 11),
+                            ),
+                            spacing="2",
+                            align="center",
+                        ),
+                    ),
+                    rx.text(
+                        "/ "
+                        + SessionState.showroom_total_count.to(str)
+                        + " Showroom UIs",
+                        size="2",
+                        weight="medium",
+                        color="gray",
                     ),
                     rx.cond(
                         SessionState.guid_resolution_started
