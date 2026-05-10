@@ -2,14 +2,6 @@
 
 import reflex as rx
 
-app_theme = rx.theme(
-    appearance="light",
-    has_background=True,
-    accent_color="blue",
-    radius="large",
-    scaling="100%",
-)
-
 base_style = {
     "font_family": "Instrument Sans, sans-serif",
     "a[href='https://reflex.dev']": {"display": "none"},
