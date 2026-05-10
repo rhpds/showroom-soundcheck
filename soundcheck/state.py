@@ -591,6 +591,9 @@ class TargetDetailState(SessionState):
 
     @rx.event
     def open_target_detail(self, target_id: int):
+        for t in self.current_targets:
+            if t.id == target_id and t.status == "provisioning":
+                return
         self.selected_target_id = target_id
         self.show_target_detail = True
 
