@@ -106,6 +106,10 @@ def _color_mode_toggle() -> rx.Component:
             size="2",
             cursor="pointer",
             color_scheme="gray",
+            aria_label=rx.color_mode_cond(
+                light="Switch to dark mode",
+                dark="Switch to light mode",
+            ),
         ),
         content=rx.color_mode_cond(
             light="Switch to dark mode",
@@ -115,7 +119,7 @@ def _color_mode_toggle() -> rx.Component:
 
 
 def sidebar() -> rx.Component:
-    return rx.box(
+    return rx.el.nav(
         rx.vstack(
             rx.hstack(
                 rx.icon("terminal", size=22),
@@ -166,5 +170,6 @@ def sidebar() -> rx.Component:
             width="100%",
             flex="1",
         ),
+        aria_label="Session history",
         **styles.sidebar_style,
     )

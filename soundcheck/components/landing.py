@@ -7,7 +7,7 @@ from ..state import SessionFormState, SessionState
 
 
 def landing_content() -> rx.Component:
-    return rx.box(
+    return rx.el.main(
         rx.vstack(
             rx.center(
                 rx.vstack(

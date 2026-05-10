@@ -378,7 +378,7 @@ def _session_not_found() -> rx.Component:
 
 
 def session_content() -> rx.Component:
-    return rx.box(
+    return rx.el.main(
         rx.cond(
             SessionState.session_loading,
             _session_loading(),
