@@ -1,7 +1,6 @@
 """Sidebar — session history list (LibreChat-style)."""
 
 import reflex as rx
-from reflex.style import toggle_color_mode
 
 from .. import styles
 from ..models import CheckSession
@@ -97,7 +96,7 @@ def _color_mode_toggle() -> rx.Component:
                 light=rx.icon("moon", size=16),
                 dark=rx.icon("sun", size=16),
             ),
-            on_click=toggle_color_mode,
+            on_click=rx.toggle_color_mode,
             variant="ghost",
             size="2",
             cursor="pointer",
