@@ -230,23 +230,9 @@ class SessionState(rx.State):
     @rx.event
     def load_sessions(self):
         with rx.session() as session:
-            rows = session.exec(
+            self.all_sessions = session.exec(
                 select(CheckSession).order_by(col(CheckSession.created_at).desc()).limit(100)
             ).all()
-            need_commit = False
-            for cs in rows:
-                if not cs.display_label:
-                    cs.display_label = make_display_label(
-                        cs.get_urls(), cs.get_guids(), cs.get_workshop_guids(),
-                    )
-                    session.add(cs)
-                    need_commit = True
-            if need_commit:
-                session.commit()
-                rows = session.exec(
-                    select(CheckSession).order_by(col(CheckSession.created_at).desc()).limit(100)
-                ).all()
-            self.all_sessions = rows
 
     # ---------- Load a specific session ----------
 
