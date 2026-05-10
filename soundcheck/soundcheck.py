@@ -12,15 +12,12 @@ import reflex as rx
 from . import styles
 from .pages import check_redirect_page, home_page, session_page
 from .state import SessionFormState, SessionState
-from .utils import init_url_allowlist
 
 logging.basicConfig(
     level=logging.INFO,
     force=True,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-
-init_url_allowlist()
 
 app = rx.App(
     style=styles.base_style,

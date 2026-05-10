@@ -37,14 +37,19 @@ VALID_CHECK_MODES = ("manual", "showroom")
 # URL allowlist (SSRF prevention)
 # ---------------------------------------------------------------------------
 
-_URL_ALLOWLIST: list[str] = []
+_URL_ALLOWLIST: list[str] | None = None
 
 
-def _load_url_allowlist() -> list[str]:
-    """Parse ALLOWED_URL_PATTERNS env var into a list of hostname globs.
+def _get_url_allowlist() -> list[str]:
+    """Return the cached allowlist, loading it lazily on first access.
 
-    Raises RuntimeError at startup when the variable is missing or empty.
+    Lazy loading avoids crashing during ``reflex export`` (build-time)
+    where runtime env vars aren't available.
     """
+    global _URL_ALLOWLIST  # noqa: PLW0603
+    if _URL_ALLOWLIST is not None:
+        return _URL_ALLOWLIST
+
     raw = os.environ.get("ALLOWED_URL_PATTERNS", "")
     patterns = [p.strip() for p in raw.split(",") if p.strip()]
     if not patterns:
@@ -53,21 +58,16 @@ def _load_url_allowlist() -> list[str]:
             "Set to a comma-separated list of hostname globs "
             "(e.g. '*.redhat.com,*.opentlc.com,localhost')."
         )
-    return patterns
-
-
-def init_url_allowlist() -> None:
-    """Load the URL allowlist from the environment. Call once at startup."""
-    global _URL_ALLOWLIST  # noqa: PLW0603
-    _URL_ALLOWLIST = _load_url_allowlist()
+    _URL_ALLOWLIST = patterns
     logger.info("URL allowlist loaded: %s", _URL_ALLOWLIST)
+    return _URL_ALLOWLIST
 
 
 def is_url_allowed(url: str) -> bool:
     """Check if a URL's hostname matches any allowed pattern."""
     parsed = urlparse(url)
     hostname = parsed.hostname or ""
-    for pattern in _URL_ALLOWLIST:
+    for pattern in _get_url_allowlist():
         if fnmatch.fnmatch(hostname, pattern):
             return True
     return False

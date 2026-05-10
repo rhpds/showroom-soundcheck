@@ -17,7 +17,7 @@ import sys
 from typing import Any, Optional
 
 from .check_service import TargetCheckResult, check_targets
-from .utils import extract_guid_from_url, init_url_allowlist
+from .utils import extract_guid_from_url
 
 
 def _extract_guid(url: str) -> str:
@@ -215,8 +215,6 @@ def main() -> None:
         help="Show detailed check results (Tier 2/3)",
     )
     args = parser.parse_args()
-
-    init_url_allowlist()
 
     urls = [u.strip() for u in args.urls.split(",") if u.strip()]
     if not urls:
