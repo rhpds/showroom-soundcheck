@@ -118,10 +118,13 @@ def target_row(target: SessionTarget) -> rx.Component:
                     _target_url_or_provision_message(target),
                     spacing="2",
                     align="center",
+                    min_width="0",
+                    width="100%",
                 ),
                 _check_summary_badges(target),
                 spacing="0",
                 min_width="0",
+                overflow="hidden",
                 flex="1",
             ),
             rx.cond(

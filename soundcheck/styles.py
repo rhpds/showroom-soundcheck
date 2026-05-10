@@ -33,7 +33,7 @@ sidebar_style = {
     "width": "280px",
     "min_width": "280px",
     "padding": "1em",
-    "display": "flex",
+    "display": rx.breakpoints(initial="none", md="flex"),
     "flex_direction": "column",
     "flex_shrink": "0",
     "overflow_y": "hidden",
@@ -41,9 +41,8 @@ sidebar_style = {
 
 content_style = {
     "bg": rx.color("gray", 1),
-    "height": "100%",
     "flex_grow": "1",
-    "padding": "2em",
+    "padding": ["1em", "1em", "2em"],
     "display": "flex",
     "flex_direction": "column",
     "min_width": "0",

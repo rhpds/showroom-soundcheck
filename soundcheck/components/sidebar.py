@@ -80,6 +80,7 @@ def session_entry(s: CheckSession) -> rx.Component:
             "/session/" + s.session_id,
             "/",
         ),
+        on_click=SessionState.close_sidebar,
         style={"text_decoration": "none", "color": "inherit", "width": "100%"},
     )
 
@@ -120,58 +121,102 @@ def _color_mode_toggle() -> rx.Component:
     )
 
 
-def sidebar() -> rx.Component:
-    return rx.el.nav(
-        rx.vstack(
-            rx.hstack(
-                rx.icon("terminal", size=22),
-                rx.heading("Soundcheck", size="4", as_="div"),
-                spacing="2",
-                align="center",
-                width="100%",
-                flex_shrink="0",
-            ),
-            rx.divider(margin_y="0.75em"),
-            rx.link(
-                rx.button(
-                    rx.icon("plus", size=16),
-                    rx.text("New Check", size="2"),
-                    width="100%",
-                    color_scheme="blue",
-                    variant="solid",
-                ),
-                href="/",
-                width="100%",
-                style={"text_decoration": "none"},
-            ),
-            rx.divider(margin_y="0.75em"),
-            rx.box(
-                rx.vstack(
-                    session_group("Recent", SessionState.today_sessions),
-                    session_group("Earlier", SessionState.yesterday_sessions),
-                    session_group("Older", SessionState.older_sessions),
-                    spacing="3",
-                    width="100%",
-                ),
-                overflow_y="auto",
-                flex_grow="1",
-                width="100%",
-            ),
-            rx.divider(margin_y="0.75em"),
-            rx.hstack(
-                rx.text("Theme", size="1", color="gray", weight="medium"),
-                rx.spacer(),
-                _color_mode_toggle(),
-                width="100%",
-                align="center",
-                padding="0 0.25em",
-            ),
-            align_items="start",
-            justify_content="flex-start",
-            height="100%",
+def _sidebar_inner() -> rx.Component:
+    """Shared sidebar content used by both the desktop sidebar and mobile drawer."""
+    return rx.vstack(
+        rx.hstack(
+            rx.icon("terminal", size=22),
+            rx.heading("Soundcheck", size="4", as_="div"),
+            spacing="2",
+            align="center",
             width="100%",
-            flex="1",
+            flex_shrink="0",
         ),
+        rx.divider(margin_y="0.75em"),
+        rx.link(
+            rx.button(
+                rx.icon("plus", size=16),
+                rx.text("New Check", size="2"),
+                width="100%",
+                color_scheme="blue",
+                variant="solid",
+            ),
+            href="/",
+            width="100%",
+            style={"text_decoration": "none"},
+            on_click=SessionState.close_sidebar,
+        ),
+        rx.divider(margin_y="0.75em"),
+        rx.box(
+            rx.vstack(
+                session_group("Recent", SessionState.today_sessions),
+                session_group("Earlier", SessionState.yesterday_sessions),
+                session_group("Older", SessionState.older_sessions),
+                spacing="3",
+                width="100%",
+            ),
+            overflow_y="auto",
+            flex_grow="1",
+            width="100%",
+        ),
+        rx.divider(margin_y="0.75em"),
+        rx.hstack(
+            rx.text("Theme", size="1", color="gray", weight="medium"),
+            rx.spacer(),
+            _color_mode_toggle(),
+            width="100%",
+            align="center",
+            padding="0 0.25em",
+        ),
+        align_items="start",
+        justify_content="flex-start",
+        height="100%",
+        width="100%",
+        flex="1",
+    )
+
+
+def sidebar() -> rx.Component:
+    """Desktop sidebar — hidden below the mobile breakpoint."""
+    return rx.el.nav(
+        _sidebar_inner(),
         aria_label="Session history",
         **styles.sidebar_style,
+    )
+
+
+def mobile_sidebar_trigger() -> rx.Component:
+    """Hamburger button shown only on mobile to open the sidebar drawer."""
+    return rx.icon_button(
+        rx.icon("menu", size=20),
+        on_click=SessionState.open_sidebar,
+        variant="ghost",
+        size="2",
+        color_scheme="gray",
+        aria_label="Open navigation",
+    )
+
+
+def mobile_sidebar_drawer() -> rx.Component:
+    """Drawer-based sidebar for narrow viewports."""
+    return rx.drawer.root(
+        rx.drawer.overlay(),
+        rx.drawer.portal(
+            rx.drawer.content(
+                rx.el.nav(
+                    _sidebar_inner(),
+                    aria_label="Session history",
+                    style={"height": "100%"},
+                ),
+                style={
+                    "height": "100%",
+                    "width": "280px",
+                    "padding": "1em",
+                    "bg": rx.color("gray", 2),
+                },
+            ),
+        ),
+        direction="left",
+        open=SessionState.sidebar_open,
+        on_open_change=SessionState.set_sidebar_open,
     )

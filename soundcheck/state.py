@@ -213,6 +213,19 @@ class SessionState(rx.State):
     all_sessions: list[CheckSession] = []
 
     session_loading: bool = True
+    sidebar_open: bool = False
+
+    @rx.event
+    def open_sidebar(self):
+        self.sidebar_open = True
+
+    @rx.event
+    def close_sidebar(self):
+        self.sidebar_open = False
+
+    @rx.event
+    def set_sidebar_open(self, is_open: bool):
+        self.sidebar_open = is_open
 
     form_urls: str = ""
     form_guids: str = ""
