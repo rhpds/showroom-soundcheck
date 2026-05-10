@@ -42,7 +42,7 @@ def landing_content() -> rx.Component:
                         rx.text_area(
                             placeholder="https://showroom1.example.com\nhttps://showroom2.example.com",
                             name="urls",
-                            rows="4",
+                            rows=4,
                             width="100%",
                             **styles.input_style,
                         ),
