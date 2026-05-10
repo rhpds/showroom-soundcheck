@@ -800,8 +800,9 @@ class CheckRunnerState(SessionState):
             await self._mark_session_failed(sid)
             await self._push_session_to_ui(sid)
         finally:
+            sessions = await _load_all_sessions_async()
             async with self:
-                self.all_sessions = await _load_all_sessions_async()
+                self.all_sessions = sessions
 
     @staticmethod
     def _not_found_target(
