@@ -17,6 +17,7 @@ services:
       BABYLON_CLUSTERS: "${BABYLON_CLUSTERS:-}"
       CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-10}
       VERIFY_SSL: ${VERIFY_SSL:-false}
+      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io,localhost}
       REFLEX_ENV: dev
       PYTHONPATH: /app
       PYTHONUNBUFFERED: 1
@@ -59,6 +60,7 @@ services:
     environment:
       VERIFY_SSL: ${VERIFY_SSL:-false}
       CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-10}
+      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io,localhost}
 
 volumes:
   postgres_data:

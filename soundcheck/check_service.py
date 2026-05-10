@@ -712,6 +712,14 @@ async def check_single_target(
     If client is provided, it will be reused (caller manages lifecycle).
     Otherwise a new client is created and closed per-call.
     """
+    from .utils import is_url_allowed
+
+    if not is_url_allowed(url):
+        return TargetCheckResult(
+            url=url,
+            error_message=f"URL hostname not in allowlist: {url}",
+        )
+
     owns_client = client is None
     if owns_client:
         client = create_client(timeout=timeout, verify_ssl=verify_ssl)

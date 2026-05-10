@@ -1,13 +1,20 @@
 """Shared utilities for Showroom Soundcheck.
 
 Contains GUID extraction, input parsing/validation, display label
-generation, and datetime helpers used across the application.
+generation, URL allowlist enforcement, and datetime helpers used
+across the application.
 """
 
+import fnmatch
+import logging
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 GUID_RE = re.compile(
     r"(?:"
@@ -25,6 +32,45 @@ def utc_now() -> datetime:
 
 VALID_CHECK_TYPES = ("readyz", "healthz")
 VALID_CHECK_MODES = ("manual", "showroom")
+
+# ---------------------------------------------------------------------------
+# URL allowlist (SSRF prevention)
+# ---------------------------------------------------------------------------
+
+_URL_ALLOWLIST: list[str] = []
+
+
+def _load_url_allowlist() -> list[str]:
+    """Parse ALLOWED_URL_PATTERNS env var into a list of hostname globs.
+
+    Raises RuntimeError at startup when the variable is missing or empty.
+    """
+    raw = os.environ.get("ALLOWED_URL_PATTERNS", "")
+    patterns = [p.strip() for p in raw.split(",") if p.strip()]
+    if not patterns:
+        raise RuntimeError(
+            "ALLOWED_URL_PATTERNS env var is required. "
+            "Set to a comma-separated list of hostname globs "
+            "(e.g. '*.redhat.com,*.opentlc.com,localhost')."
+        )
+    return patterns
+
+
+def init_url_allowlist() -> None:
+    """Load the URL allowlist from the environment. Call once at startup."""
+    global _URL_ALLOWLIST  # noqa: PLW0603
+    _URL_ALLOWLIST = _load_url_allowlist()
+    logger.info("URL allowlist loaded: %s", _URL_ALLOWLIST)
+
+
+def is_url_allowed(url: str) -> bool:
+    """Check if a URL's hostname matches any allowed pattern."""
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    for pattern in _URL_ALLOWLIST:
+        if fnmatch.fnmatch(hostname, pattern):
+            return True
+    return False
 
 
 def extract_guid_from_url(url: str) -> Optional[str]:
@@ -111,6 +157,10 @@ def parse_check_params(
         if not url.startswith(valid_prefixes):
             raise InputValidationError(
                 f"Invalid URL (must start with http:// or https://): {url}"
+            )
+        if not is_url_allowed(url):
+            raise InputValidationError(
+                f"URL hostname not in allowlist: {url}"
             )
 
     return ParsedSessionInput(
