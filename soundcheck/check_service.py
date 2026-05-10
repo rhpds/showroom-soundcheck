@@ -24,9 +24,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30
 PROBE_TIMEOUT = 10
-CONFIG_FETCH_TIMEOUT = 30
+CONFIG_FETCH_TIMEOUT = 10
 MAX_CONFIG_SIZE = 1024 * 1024  # 1 MiB
 PROBE_RETRIES = 2
+CONFIG_RETRIES = 3
 RETRY_DELAY = 1.0
 
 DEFAULT_POOL_LIMITS = httpx.Limits(
@@ -302,19 +303,33 @@ async def _detect_nookbag(
     """Fetch the root page and decide whether this is a nookbag (React) showroom.
 
     Returns (is_nookbag, root_reachable, root_status_code).
+    Retries on transient failures (timeout, 5xx) to avoid misclassification.
     """
-    try:
-        resp = await client.get(base_url + "/", timeout=PROBE_TIMEOUT)
-    except (httpx.TimeoutException, httpx.HTTPError):
-        return False, False, None
+    last_status: Optional[int] = None
+    for attempt in range(PROBE_RETRIES + 1):
+        try:
+            resp = await client.get(base_url + "/", timeout=PROBE_TIMEOUT)
+            last_status = resp.status_code
+            reachable = 200 <= resp.status_code < 400
+            if reachable:
+                body = resp.text[:4096]
+                is_nookbag = any(fp in body for fp in NOOKBAG_FINGERPRINTS)
+                return is_nookbag, True, resp.status_code
+            if resp.status_code < 500:
+                return False, False, resp.status_code
+            logger.debug(
+                "nookbag detection attempt %d/%d got HTTP %d",
+                attempt + 1, PROBE_RETRIES + 1, resp.status_code,
+            )
+        except (httpx.TimeoutException, httpx.HTTPError) as exc:
+            logger.debug(
+                "nookbag detection attempt %d/%d failed: %s",
+                attempt + 1, PROBE_RETRIES + 1, exc,
+            )
+        if attempt < PROBE_RETRIES:
+            await asyncio.sleep(RETRY_DELAY * (attempt + 1))
 
-    reachable = 200 <= resp.status_code < 400
-    if not reachable:
-        return False, False, resp.status_code
-
-    body = resp.text[:4096]
-    is_nookbag = any(fp in body for fp in NOOKBAG_FINGERPRINTS)
-    return is_nookbag, True, resp.status_code
+    return False, False, last_status
 
 
 async def _fetch_config(
@@ -324,7 +339,8 @@ async def _fetch_config(
 
     Tries each CONFIG_FILES name under each NOOKBAG_BASES prefix so that
     deployments serving configs at the root (no /nookbag/ prefix) are also
-    discovered.
+    discovered.  Each URL is attempted up to CONFIG_RETRIES times with a
+    CONFIG_FETCH_TIMEOUT per attempt to handle transient failures.
 
     Returns (config_dict, config_filename, nookbag_base, timed_out).
     When no config is found returns (None, None, "", timed_out) where
@@ -334,22 +350,37 @@ async def _fetch_config(
     for nookbag_base in NOOKBAG_BASES:
         for filename in CONFIG_FILES:
             url = f"{base_url}{nookbag_base}/{filename}"
-            try:
-                resp = await client.get(url, timeout=CONFIG_FETCH_TIMEOUT)
-                if resp.status_code == 200:
-                    data = resp.content
-                    if len(data) > MAX_CONFIG_SIZE:
-                        logger.warning("config %s exceeds size limit", filename)
-                        continue
-                    config = yaml.safe_load(data.decode("utf-8"))
-                    if isinstance(config, dict):
-                        return config, filename, nookbag_base, False
-            except httpx.TimeoutException:
-                saw_timeout = True
-                logger.debug("timeout fetching config %s", filename)
-            except (httpx.HTTPError, yaml.YAMLError, UnicodeDecodeError) as exc:
-                logger.debug("failed to fetch config %s: %s", filename, exc)
-                continue
+            for attempt in range(CONFIG_RETRIES):
+                try:
+                    resp = await client.get(url, timeout=CONFIG_FETCH_TIMEOUT)
+                    if resp.status_code == 200:
+                        data = resp.content
+                        if len(data) > MAX_CONFIG_SIZE:
+                            logger.warning("config %s exceeds size limit", filename)
+                            break
+                        config = yaml.safe_load(data.decode("utf-8"))
+                        if isinstance(config, dict):
+                            return config, filename, nookbag_base, False
+                        break
+                    if resp.status_code == 404:
+                        break
+                    logger.debug(
+                        "config %s attempt %d/%d returned HTTP %d",
+                        filename, attempt + 1, CONFIG_RETRIES, resp.status_code,
+                    )
+                except httpx.TimeoutException:
+                    saw_timeout = True
+                    logger.debug(
+                        "timeout fetching config %s attempt %d/%d",
+                        filename, attempt + 1, CONFIG_RETRIES,
+                    )
+                except (httpx.HTTPError, yaml.YAMLError, UnicodeDecodeError) as exc:
+                    logger.debug(
+                        "failed to fetch config %s attempt %d/%d: %s",
+                        filename, attempt + 1, CONFIG_RETRIES, exc,
+                    )
+                if attempt < CONFIG_RETRIES - 1:
+                    await asyncio.sleep(RETRY_DELAY * (attempt + 1))
     return None, None, "", saw_timeout
 
 
@@ -401,7 +432,7 @@ async def _run_tier2(
     if config is None:
         elapsed = int((time.monotonic() - start) * 1000)
         if config_timed_out:
-            msg = f"Timed out fetching nookbag config (ui-config.yml / zero-touch-config.yml) after {CONFIG_FETCH_TIMEOUT}s"
+            msg = f"Timed out fetching nookbag config (ui-config.yml / zero-touch-config.yml) after {CONFIG_RETRIES} attempts ({CONFIG_FETCH_TIMEOUT}s each)"
         elif is_nookbag:
             msg = "Nookbag showroom detected but config missing (ui-config.yml / zero-touch-config.yml)"
         elif root_reachable:
