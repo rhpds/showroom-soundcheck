@@ -119,7 +119,7 @@ def sidebar() -> rx.Component:
         rx.vstack(
             rx.hstack(
                 rx.icon("terminal", size=22),
-                rx.heading("Soundcheck", size="4"),
+                rx.heading("Soundcheck", size="4", as_="div"),
                 spacing="2",
                 align="center",
                 width="100%",
