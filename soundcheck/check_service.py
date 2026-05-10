@@ -198,8 +198,9 @@ def _check_iframe_headers(headers: httpx.Headers) -> bool:
 
 
 async def _probe_url(client: httpx.AsyncClient, url: str, retries: int = PROBE_RETRIES) -> dict:
-    """Probe a URL with HEAD, falling back to GET. Retries on transient failures."""
+    """Probe a URL with HEAD, falling back to GET. Retries on transient 5xx."""
     last_error: Optional[str] = None
+    last_status: Optional[int] = None
     for attempt in range(retries + 1):
         for method in ("HEAD", "GET"):
             try:
@@ -209,13 +210,20 @@ async def _probe_url(client: httpx.AsyncClient, url: str, retries: int = PROBE_R
                 if not (200 <= resp.status_code < 400) and method == "HEAD":
                     last_error = f"HTTP {resp.status_code}"
                     continue
-                result: dict = {
-                    "reachable": 200 <= resp.status_code < 400,
-                    "status_code": resp.status_code,
-                }
-                if _check_iframe_headers(resp.headers):
-                    result["iframe_blocked"] = True
-                return result
+                if 200 <= resp.status_code < 400:
+                    result: dict = {
+                        "reachable": True,
+                        "status_code": resp.status_code,
+                    }
+                    if _check_iframe_headers(resp.headers):
+                        result["iframe_blocked"] = True
+                    return result
+                last_status = resp.status_code
+                if resp.status_code >= 500:
+                    last_error = f"HTTP {resp.status_code}"
+                    break  # 5xx on GET — retry after backoff
+                # 4xx is definitive, no point retrying
+                return {"reachable": False, "status_code": resp.status_code}
             except httpx.TimeoutException:
                 if method == "HEAD":
                     last_error = f"timeout after {PROBE_TIMEOUT}s"
@@ -230,7 +238,7 @@ async def _probe_url(client: httpx.AsyncClient, url: str, retries: int = PROBE_R
                 break
         if attempt < retries:
             await asyncio.sleep(RETRY_DELAY * (attempt + 1))
-    return {"reachable": False, "error": last_error or "all probe methods failed"}
+    return {"reachable": False, "status_code": last_status, "error": last_error or "all probe methods failed"}
 
 
 # ---------------------------------------------------------------------------
