@@ -53,6 +53,7 @@ def _session_label(s: CheckSession) -> rx.Component:
 
 
 def session_entry(s: CheckSession) -> rx.Component:
+    is_active = SessionState.current_session_id == s.session_id
     return rx.link(
         rx.hstack(
             session_status_icon(s.status),
@@ -71,7 +72,8 @@ def session_entry(s: CheckSession) -> rx.Component:
             padding="0.5em 0.75em",
             border_radius="var(--radius-2)",
             width="100%",
-            _hover={"bg": rx.color("gray", 4)},
+            bg=rx.cond(is_active, rx.color("accent", 3), "transparent"),
+            _hover={"bg": rx.cond(is_active, rx.color("accent", 4), rx.color("gray", 4))},
         ),
         href=rx.cond(
             s.session_id != "",
