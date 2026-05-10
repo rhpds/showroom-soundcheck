@@ -54,22 +54,22 @@ def session_summary() -> rx.Component:
                 ),
                 rx.hstack(
                     rx.text(
-                        SessionState.showroom_healthy_count.to(str)
+                        SessionState.target_counts["healthy"].to(str)
                         + " healthy",
                         size="2",
                         weight="medium",
                         color=rx.cond(
-                            SessionState.showroom_healthy_count > 0,
+                            SessionState.target_counts["healthy"].to(int) > 0,
                             rx.color("green", 11),
                             "inherit",
                         ),
                     ),
                     rx.cond(
-                        SessionState.showroom_degraded_count > 0,
+                        SessionState.target_counts["degraded"].to(int) > 0,
                         rx.hstack(
                             rx.text("·", color="gray"),
                             rx.text(
-                                SessionState.showroom_degraded_count.to(str)
+                                SessionState.target_counts["degraded"].to(str)
                                 + " degraded",
                                 size="2",
                                 weight="medium",
@@ -80,11 +80,11 @@ def session_summary() -> rx.Component:
                         ),
                     ),
                     rx.cond(
-                        SessionState.showroom_error_count > 0,
+                        SessionState.target_counts["error"].to(int) > 0,
                         rx.hstack(
                             rx.text("·", color="gray"),
                             rx.text(
-                                SessionState.showroom_error_count.to(str)
+                                SessionState.target_counts["error"].to(str)
                                 + " error",
                                 size="2",
                                 weight="medium",
@@ -96,7 +96,7 @@ def session_summary() -> rx.Component:
                     ),
                     rx.text(
                         "/ "
-                        + SessionState.showroom_total_count.to(str)
+                        + SessionState.target_counts["checkable"].to(str)
                         + " Showroom UIs",
                         size="2",
                         weight="medium",
@@ -242,16 +242,16 @@ def _targets_empty_state() -> rx.Component:
 def _check_progress() -> rx.Component:
     """Progress indicator shown while checks are actively running."""
     return rx.cond(
-        SessionState.checks_in_progress & (SessionState.total_count > 0),
+        SessionState.checks_in_progress & (SessionState.target_counts["total"].to(int) > 0),
         rx.card(
             rx.vstack(
                 rx.hstack(
                     rx.icon("loader", size=16, color=rx.color("blue", 9), style=styles.spin_style),
                     rx.text(
                         "Checking "
-                        + SessionState.checked_count.to(str)
+                        + SessionState.target_counts["checked"].to(str)
                         + " of "
-                        + SessionState.total_count.to(str)
+                        + SessionState.target_counts["total"].to(str)
                         + " targets…",
                         size="2",
                         weight="medium",
@@ -261,9 +261,9 @@ def _check_progress() -> rx.Component:
                     align="center",
                 ),
                 rx.progress(
-                    value=SessionState.checked_count * 100 / rx.cond(
-                        SessionState.total_count > 0,
-                        SessionState.total_count,
+                    value=SessionState.target_counts["checked"].to(int) * 100 / rx.cond(
+                        SessionState.target_counts["total"].to(int) > 0,
+                        SessionState.target_counts["total"].to(int),
                         1,
                     ),
                     width="100%",

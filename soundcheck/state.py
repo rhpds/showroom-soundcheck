@@ -316,19 +316,28 @@ class SessionState(rx.State):
     # ---------- Session-level computed vars ----------
 
     @rx.var
-    def healthy_count(self) -> int:
-        return sum(1 for t in self.current_targets if t.status == "healthy")
+    def target_counts(self) -> dict[str, int]:
+        """Single-pass status breakdown over current_targets.
 
-    @rx.var
-    def total_count(self) -> int:
-        return len(self.current_targets)
-
-    @rx.var
-    def checked_count(self) -> int:
-        return sum(
-            1 for t in self.current_targets
-            if t.status in ("healthy", "degraded", "unhealthy", "error")
-        )
+        Keys: healthy, degraded, error, checked, total, checkable.
+        """
+        counts: dict[str, int] = {
+            "healthy": 0, "degraded": 0, "error": 0,
+            "checked": 0, "total": 0, "checkable": 0,
+        }
+        for t in self.current_targets:
+            counts["total"] += 1
+            if t.url or t.status == "provisioning":
+                counts["checkable"] += 1
+            if t.status in ("healthy", "degraded", "unhealthy", "error"):
+                counts["checked"] += 1
+            if t.status == "healthy":
+                counts["healthy"] += 1
+            elif t.status == "degraded":
+                counts["degraded"] += 1
+            elif t.status in ("error", "unhealthy"):
+                counts["error"] += 1
+        return counts
 
     @rx.var
     def checks_in_progress(self) -> bool:
@@ -343,39 +352,6 @@ class SessionState(rx.State):
     @rx.var
     def cluster_select_options(self) -> list[str]:
         return ["(auto)"] + babylon_client.get_configured_clusters()
-
-    # ---------- Breakdown counts for session summary ----------
-
-    @rx.var
-    def showroom_healthy_count(self) -> int:
-        """Targets that were actually health-checked and came back healthy."""
-        return sum(
-            1 for t in self.current_targets
-            if t.status == "healthy"
-        )
-
-    @rx.var
-    def showroom_degraded_count(self) -> int:
-        return sum(
-            1 for t in self.current_targets
-            if t.status == "degraded"
-        )
-
-    @rx.var
-    def showroom_error_count(self) -> int:
-        """Targets with error or unhealthy status."""
-        return sum(
-            1 for t in self.current_targets
-            if t.status in ("error", "unhealthy")
-        )
-
-    @rx.var
-    def showroom_total_count(self) -> int:
-        """Targets that have a URL (i.e. were checkable or are provisioning)."""
-        return sum(
-            1 for t in self.current_targets
-            if t.url or t.status == "provisioning"
-        )
 
     @rx.var
     def guid_resolution_started(self) -> bool:
