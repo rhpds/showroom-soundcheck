@@ -296,6 +296,9 @@ class SessionState(rx.State):
     @rx.event
     def on_session_load(self):
         self.session_loading = True
+        self.current_session = None
+        self.current_targets = []
+        self.current_results = []
         return [
             SessionState.load_session,
             SessionState.load_sessions,
