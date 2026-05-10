@@ -143,6 +143,10 @@ def parse_check_params(
 ) -> ParsedSessionInput:
     """Parse and validate raw input from either query params or form data.
 
+    A session accepts either:
+      - One or more URLs (no GUIDs), OR
+      - Exactly one GUID (either a ResourceClaim GUID or a Workshop GUID, not both)
+
     Raises InputValidationError on invalid input.
     """
     urls = [u.strip() for u in raw_urls.split(url_separator) if u.strip()] if raw_urls else []
@@ -151,6 +155,26 @@ def parse_check_params(
 
     if not urls and not guids and not workshop_guids:
         raise InputValidationError("Provide at least one URL, GUID, or Workshop GUID")
+
+    if guids and workshop_guids:
+        raise InputValidationError(
+            "Provide either a ResourceClaim GUID or a Workshop GUID, not both"
+        )
+
+    if len(guids) > 1:
+        raise InputValidationError(
+            "Only one ResourceClaim GUID per session is supported"
+        )
+
+    if len(workshop_guids) > 1:
+        raise InputValidationError(
+            "Only one Workshop GUID per session is supported"
+        )
+
+    if (guids or workshop_guids) and urls:
+        raise InputValidationError(
+            "Provide either URLs or a GUID, not both"
+        )
 
     valid_prefixes = ("https://", "http://")
     for url in urls:

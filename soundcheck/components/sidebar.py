@@ -58,7 +58,12 @@ def session_entry(s: CheckSession) -> rx.Component:
             session_status_icon(s.status),
             rx.vstack(
                 _session_label(s),
-                rx.moment(s.created_at, from_now=True),
+                rx.moment(
+                    s.created_at,
+                    from_now=True,
+                    with_title=True,
+                    title_format="MMM D [at] h:mm:ss A",
+                ),
                 spacing="0",
             ),
             spacing="2",

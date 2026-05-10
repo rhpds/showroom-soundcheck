@@ -40,6 +40,12 @@ class CheckSession(rx.Model, table=True):
     created_at: datetime = Field(default_factory=utc_now, sa_type=sa.DateTime(timezone=True))
     completed_at: Optional[datetime] = Field(default=None, sa_type=sa.DateTime(timezone=True))
 
+    resource_name: str = ""
+    resource_namespace: str = ""
+    resource_kind: str = ""  # Workshop | ResourceClaim
+    resource_display_name: str = ""
+    resource_metadata: str = "{}"  # JSON dict of extra display fields from the CRD
+
     def get_urls(self) -> list[str]:
         try:
             return json.loads(self.source_urls) if self.source_urls else []
@@ -58,6 +64,12 @@ class CheckSession(rx.Model, table=True):
         except (json.JSONDecodeError, TypeError):
             return []
 
+    def get_resource_metadata(self) -> dict:
+        try:
+            return json.loads(self.resource_metadata) if self.resource_metadata else {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
     @staticmethod
     def encode_urls(urls: list[str]) -> str:
         return json.dumps(urls)
@@ -69,6 +81,10 @@ class CheckSession(rx.Model, table=True):
     @staticmethod
     def encode_workshop_guids(guids: list[str]) -> str:
         return json.dumps(guids)
+
+    @staticmethod
+    def encode_resource_metadata(meta: dict) -> str:
+        return json.dumps(meta, default=str)
 
 
 class SessionTarget(rx.Model, table=True):

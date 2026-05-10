@@ -422,3 +422,122 @@ async def resolve_workshop_guids(
         *[resolve_workshop_guid(g, cluster=cluster, ctx=ctx) for g in guids],
     )
     return dict(zip(guids, resolved))
+
+
+# ---------------------------------------------------------------------------
+# Resource metadata extraction (for session detail display)
+# ---------------------------------------------------------------------------
+
+
+def extract_workshop_metadata(ws_def: dict[str, Any]) -> dict[str, Any]:
+    """Extract display-worthy metadata from a Workshop CRD."""
+    meta = ws_def.get("metadata", {})
+    spec = ws_def.get("spec", {})
+    status = ws_def.get("status", {})
+    annotations = meta.get("annotations", {})
+    labels = meta.get("labels", {})
+
+    provision_count = status.get("provisionCount", {})
+    user_count = status.get("userCount", {})
+    lifespan = spec.get("lifespan", {})
+
+    result: dict[str, Any] = {
+        "kind": "Workshop",
+        "name": meta.get("name", ""),
+        "namespace": meta.get("namespace", ""),
+        "uid": meta.get("uid", ""),
+        "display_name": spec.get("displayName", ""),
+        "created_at": meta.get("creationTimestamp", ""),
+        "workshop_id": labels.get(f"{BABYLON_GROUP}/workshop-id", ""),
+        "workshop_url": status.get("workshopURL", ""),
+        "catalog_item": labels.get(f"{BABYLON_GROUP}/catalogItemName", ""),
+        "purpose": annotations.get("demo.redhat.com/purpose", ""),
+        "requester": annotations.get("demo.redhat.com/requester", ""),
+        "ordered_by": annotations.get("demo.redhat.com/orderedBy", ""),
+        "lifespan_start": lifespan.get("start", ""),
+        "lifespan_end": lifespan.get("end", ""),
+        "provision_active": provision_count.get("active", 0),
+        "provision_ordered": provision_count.get("ordered", 0),
+        "provision_failed": provision_count.get("failed", 0),
+        "users_assigned": user_count.get("assigned", 0),
+        "users_available": user_count.get("available", 0),
+        "users_total": user_count.get("total", 0),
+        "open_registration": spec.get("openRegistration", False),
+        "multiuser_services": spec.get("multiuserServices", False),
+    }
+    return {k: v for k, v in result.items() if v != "" and v != 0 and v is not False}
+
+
+def extract_resource_claim_metadata(rc_def: dict[str, Any]) -> dict[str, Any]:
+    """Extract display-worthy metadata from a ResourceClaim CRD."""
+    meta = rc_def.get("metadata", {})
+    status = rc_def.get("status", {})
+    annotations = meta.get("annotations", {})
+    labels = meta.get("labels", {})
+    summary = status.get("summary", {})
+    lifespan = status.get("lifespan", {})
+
+    result: dict[str, Any] = {
+        "kind": "ResourceClaim",
+        "name": meta.get("name", ""),
+        "namespace": meta.get("namespace", ""),
+        "uid": meta.get("uid", ""),
+        "display_name": annotations.get(f"{BABYLON_GROUP}/catalogItemDisplayName", ""),
+        "created_at": meta.get("creationTimestamp", ""),
+        "catalog_item": labels.get(f"{BABYLON_GROUP}/catalogItemName", ""),
+        "workshop_name": labels.get(f"{BABYLON_GROUP}/workshop", ""),
+        "workshop_id": labels.get(f"{BABYLON_GROUP}/workshop-id", ""),
+        "purpose": annotations.get("demo.redhat.com/purpose", ""),
+        "requester": annotations.get("demo.redhat.com/requester", ""),
+        "ordered_by": annotations.get("demo.redhat.com/orderedBy", ""),
+        "state": summary.get("state", ""),
+        "healthy": status.get("healthy"),
+        "ready": status.get("ready"),
+        "lifespan_start": lifespan.get("start", ""),
+        "lifespan_end": lifespan.get("end", ""),
+        "provision_guid": _extract_rc_guid(rc_def),
+    }
+    return {k: v for k, v in result.items() if v != "" and v != 0 and v is not None}
+
+
+async def lookup_workshop_by_guid(
+    guid: str, cluster: str = "", ctx: Optional[ResolutionContext] = None,
+) -> Optional[dict[str, Any]]:
+    """Find the Workshop CRD matching a workshop-id label and return its full definition."""
+    clusters = [cluster] if cluster else babylon_client.get_configured_clusters()
+    for c in clusters:
+        try:
+            if ctx:
+                result = await ctx.get_ws_list(c, label_selector=f"{WORKSHOP_ID_LABEL}={guid}")
+            else:
+                result = await babylon_client.k8s_list_cluster_wide(
+                    c, BABYLON_GROUP, BABYLON_VERSION, WS_PLURAL,
+                    label_selector=f"{WORKSHOP_ID_LABEL}={guid}",
+                )
+            items = result.get("items", [])
+            if items:
+                return items[0]
+        except Exception as e:
+            logger.warning("Failed to look up Workshop GUID '%s' on cluster '%s': %s", guid, c, e)
+    return None
+
+
+async def lookup_rc_by_guid(
+    guid: str, cluster: str = "", ctx: Optional[ResolutionContext] = None,
+) -> Optional[dict[str, Any]]:
+    """Find the ResourceClaim matching a provision GUID and return its full definition."""
+    clusters = [cluster] if cluster else babylon_client.get_configured_clusters()
+    for c in clusters:
+        try:
+            if ctx:
+                result = await ctx.get_rc_list(c)
+            else:
+                result = await babylon_client.k8s_list_cluster_wide(
+                    c, RC_GROUP, RC_VERSION, RC_PLURAL,
+                )
+            for item in result.get("items", []):
+                if _rc_matches_guid(item, guid):
+                    return item
+        except Exception as e:
+            logger.warning("Failed to look up RC GUID '%s' on cluster '%s': %s", guid, c, e)
+    return None

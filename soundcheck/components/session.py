@@ -7,6 +7,36 @@ from ..state import SessionState, local_time
 from .target import target_detail_dialog, target_row
 
 
+def _resource_details() -> rx.Component:
+    """Inline details about the resolved Workshop or ResourceClaim."""
+    return rx.hstack(
+        rx.badge(
+            SessionState.session_resource_kind,
+            variant="solid",
+            color_scheme="purple",
+            size="1",
+        ),
+        rx.text(
+            SessionState.session_resource_namespace + "/" + SessionState.session_resource_name,
+            size="2",
+            weight="medium",
+            color=rx.color("gray", 11),
+        ),
+        rx.cond(
+            SessionState.current_session.babylon_cluster != "",
+            rx.badge(
+                SessionState.current_session.babylon_cluster,
+                variant="outline",
+                color_scheme="blue",
+                size="1",
+            ),
+        ),
+        spacing="2",
+        align="center",
+        flex_wrap="wrap",
+    )
+
+
 def session_summary() -> rx.Component:
     return rx.cond(
         SessionState.current_session,
@@ -163,6 +193,8 @@ def session_summary() -> rx.Component:
                             rx.moment(
                                 date=SessionState.session_created_at,
                                 from_now=True,
+                                with_title=True,
+                                title_format="MMM D [at] h:mm:ss A",
                             ),
                             size="2",
                             color="gray",
@@ -172,7 +204,12 @@ def session_summary() -> rx.Component:
                     align="center",
                 ),
                 rx.cond(
-                    SessionState.session_source_guids.length() > 0,
+                    SessionState.session_resource_kind != "",
+                    _resource_details(),
+                ),
+                rx.cond(
+                    (SessionState.session_resource_kind == "")
+                    & (SessionState.session_source_guids.length() > 0),
                     rx.hstack(
                         rx.text("GUIDs:", size="1", color="gray", weight="bold"),
                         rx.foreach(

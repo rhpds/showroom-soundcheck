@@ -21,7 +21,15 @@ from reflex.utils.serializers import serializer
 from sqlmodel import col, select
 
 from . import babylon_client
-from .babylon_service import ResolutionContext, resolve_guids, resolve_workshop_guids
+from .babylon_service import (
+    ResolutionContext,
+    extract_resource_claim_metadata,
+    extract_workshop_metadata,
+    lookup_rc_by_guid,
+    lookup_workshop_by_guid,
+    resolve_guids,
+    resolve_workshop_guids,
+)
 from .check_service import TargetCheckResult, check_single_target, create_client
 from .models import CheckResult, CheckSession, SessionTarget
 from .utils import (
@@ -396,6 +404,37 @@ class SessionState(rx.State):
         if not self.current_session:
             return 0
         return len(self.current_session.get_guids())
+
+    @rx.var
+    def session_resource_kind(self) -> str:
+        if not self.current_session:
+            return ""
+        return self.current_session.resource_kind
+
+    @rx.var
+    def session_resource_name(self) -> str:
+        if not self.current_session:
+            return ""
+        return self.current_session.resource_name
+
+    @rx.var
+    def session_resource_namespace(self) -> str:
+        if not self.current_session:
+            return ""
+        return self.current_session.resource_namespace
+
+    @rx.var
+    def session_resource_display_name(self) -> str:
+        if not self.current_session:
+            return ""
+        return self.current_session.resource_display_name
+
+    @rx.var
+    def session_resource_metadata(self) -> dict:
+        if not self.current_session:
+            return {}
+        return self.current_session.get_resource_metadata()
+
 
     @rx.var
     def session_source_guids(self) -> list[str]:
@@ -846,7 +885,11 @@ class CheckRunnerState(SessionState):
         )
 
     async def _resolve_and_create_targets(self, sid: str) -> None:
-        """Resolve GUIDs/workshop GUIDs and create SessionTarget rows."""
+        """Resolve GUIDs/workshop GUIDs and create SessionTarget rows.
+
+        Also looks up the source resource (Workshop or ResourceClaim) to populate
+        session-level metadata (name, namespace, displayName, etc.).
+        """
         async with rx.asession() as session:
             session_result = await session.execute(
                 select(CheckSession).where(CheckSession.session_id == sid)
@@ -879,6 +922,9 @@ class CheckRunnerState(SessionState):
                 await session.commit()
             guid_resolved = True
 
+            if len(guids) == 1:
+                await self._populate_rc_metadata(sid, guids[0], cluster, ctx)
+
         if ws_guids:
             ws_results = await resolve_workshop_guids(ws_guids, cluster=cluster, ctx=ctx)
             async with rx.asession() as session:
@@ -900,8 +946,65 @@ class CheckRunnerState(SessionState):
                 await session.commit()
             guid_resolved = True
 
+            if len(ws_guids) == 1:
+                await self._populate_workshop_metadata(sid, ws_guids[0], cluster, ctx)
+
         if guid_resolved:
             await self._push_session_to_ui(sid)
+
+    async def _populate_workshop_metadata(
+        self, sid: str, ws_guid: str, cluster: str, ctx: ResolutionContext,
+    ) -> None:
+        """Look up the Workshop CRD and store metadata on the session."""
+        try:
+            ws_def = await lookup_workshop_by_guid(ws_guid, cluster=cluster, ctx=ctx)
+            if not ws_def:
+                return
+            meta = extract_workshop_metadata(ws_def)
+            async with rx.asession() as session:
+                cs_result = await session.execute(
+                    select(CheckSession).where(CheckSession.session_id == sid)
+                )
+                cs = cs_result.scalars().first()
+                if cs:
+                    cs.resource_kind = "Workshop"
+                    cs.resource_name = meta.get("name", "")
+                    cs.resource_namespace = meta.get("namespace", "")
+                    cs.resource_display_name = meta.get("display_name", "")
+                    cs.resource_metadata = CheckSession.encode_resource_metadata(meta)
+                    if meta.get("display_name") and not cs.name:
+                        cs.name = meta["display_name"]
+                    session.add(cs)
+                    await session.commit()
+        except Exception as e:
+            logger.warning("Failed to populate workshop metadata for '%s': %s", ws_guid, e)
+
+    async def _populate_rc_metadata(
+        self, sid: str, guid: str, cluster: str, ctx: ResolutionContext,
+    ) -> None:
+        """Look up the ResourceClaim CRD and store metadata on the session."""
+        try:
+            rc_def = await lookup_rc_by_guid(guid, cluster=cluster, ctx=ctx)
+            if not rc_def:
+                return
+            meta = extract_resource_claim_metadata(rc_def)
+            async with rx.asession() as session:
+                cs_result = await session.execute(
+                    select(CheckSession).where(CheckSession.session_id == sid)
+                )
+                cs = cs_result.scalars().first()
+                if cs:
+                    cs.resource_kind = "ResourceClaim"
+                    cs.resource_name = meta.get("name", "")
+                    cs.resource_namespace = meta.get("namespace", "")
+                    cs.resource_display_name = meta.get("display_name", "")
+                    cs.resource_metadata = CheckSession.encode_resource_metadata(meta)
+                    if meta.get("display_name") and not cs.name:
+                        cs.name = meta["display_name"]
+                    session.add(cs)
+                    await session.commit()
+        except Exception as e:
+            logger.warning("Failed to populate RC metadata for '%s': %s", guid, e)
 
     async def _execute_checks(self, sid: str) -> None:
         """Run health checks concurrently for all targets in the session."""
