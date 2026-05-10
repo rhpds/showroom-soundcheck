@@ -176,6 +176,7 @@ def target_row(target: SessionTarget) -> rx.Component:
         on_click=rx.cond(
             ~is_provisioning,
             TargetDetailState.open_target_detail(target.id),
+            rx.noop,
         ),
     )
 
