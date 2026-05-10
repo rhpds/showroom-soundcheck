@@ -32,7 +32,7 @@ def _target_url_or_provision_message(target: SessionTarget) -> rx.Component:
     return rx.cond(
         target.url != "",
         rx.text(target.url, size="1", color="gray", style={
-            "max_width": "500px", "overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap",
+            "overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap",
         }),
         rx.cond(
             target.status == "error",
@@ -107,14 +107,13 @@ def _check_summary_badges(target: SessionTarget) -> rx.Component:
 
 
 def target_row(target: SessionTarget) -> rx.Component:
+    _ellipsis = {"overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap"}
     is_provisioning = target.status == "provisioning"
     return rx.box(
         rx.hstack(
             target_status_badge(target.status),
             rx.vstack(
-                rx.text(target.label, size="2", weight="medium", style={
-                    "max_width": "500px", "overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap",
-                }),
+                rx.text(target.label, size="2", weight="medium", style=_ellipsis),
                 rx.hstack(
                     _target_url_or_provision_message(target),
                     spacing="2",
@@ -122,8 +121,9 @@ def target_row(target: SessionTarget) -> rx.Component:
                 ),
                 _check_summary_badges(target),
                 spacing="0",
+                min_width="0",
+                flex="1",
             ),
-            rx.spacer(),
             rx.cond(
                 ~is_provisioning,
                 rx.hstack(
@@ -151,6 +151,7 @@ def target_row(target: SessionTarget) -> rx.Component:
                     rx.icon("chevron-right", size=14, color=rx.color("gray", 8)),
                     spacing="2",
                     align="center",
+                    flex_shrink="0",
                 ),
             ),
             spacing="3",
