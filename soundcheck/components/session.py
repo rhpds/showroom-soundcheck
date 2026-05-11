@@ -13,20 +13,52 @@ def _resource_details() -> rx.Component:
         rx.badge(
             SessionState.current_session.resource_kind,
             variant="solid",
-            color_scheme="purple",
+            color_scheme=rx.cond(
+                SessionState.current_session.resource_kind == "Workshop",
+                "purple",
+                "teal",
+            ),
             size="1",
         ),
         rx.foreach(
             SessionState.session_source_guids_raw,
-            lambda g: rx.badge(g, variant="outline", color_scheme="purple", size="1"),
+            lambda g: rx.badge(
+                g,
+                variant="outline",
+                color_scheme=rx.cond(
+                    SessionState.current_session.resource_kind == "Workshop",
+                    "purple",
+                    "teal",
+                ),
+                size="1",
+            ),
         ),
-        rx.text(
-            SessionState.current_session.resource_namespace
-            + "/"
-            + SessionState.current_session.resource_name,
-            size="2",
-            weight="medium",
-            color=rx.color("gray", 11),
+        rx.cond(
+            SessionState.session_catalog_url != "",
+            rx.link(
+                rx.hstack(
+                    rx.text(
+                        SessionState.current_session.resource_namespace
+                        + "/"
+                        + SessionState.current_session.resource_name,
+                        size="2",
+                        weight="medium",
+                    ),
+                    rx.icon("external-link", size=12),
+                    spacing="1",
+                    align="center",
+                ),
+                href=SessionState.session_catalog_url,
+                is_external=True,
+            ),
+            rx.text(
+                SessionState.current_session.resource_namespace
+                + "/"
+                + SessionState.current_session.resource_name,
+                size="2",
+                weight="medium",
+                color=rx.color("gray", 11),
+            ),
         ),
         rx.cond(
             SessionState.current_session.babylon_cluster != "",
@@ -219,8 +251,12 @@ def session_summary() -> rx.Component:
                     rx.hstack(
                         rx.text("GUIDs:", size="1", color="gray", weight="bold"),
                         rx.foreach(
-                            SessionState.session_source_guids,
+                            SessionState.session_workshop_guids_prefixed,
                             lambda g: rx.badge(g, variant="outline", color_scheme="purple", size="1"),
+                        ),
+                        rx.foreach(
+                            SessionState.session_rc_guids,
+                            lambda g: rx.badge(g, variant="outline", color_scheme="teal", size="1"),
                         ),
                         rx.cond(
                             SessionState.current_session.babylon_cluster != "",

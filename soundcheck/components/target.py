@@ -137,12 +137,8 @@ def target_row(target: SessionTarget) -> rx.Component:
                 ~is_provisioning,
                 rx.hstack(
                     rx.cond(
-                        target.workshop_guid,
-                        rx.badge("ws:" + target.workshop_guid, variant="outline", color_scheme="teal", size="1"),
-                    ),
-                    rx.cond(
                         target.guid,
-                        rx.badge(target.guid, variant="outline", color_scheme="purple", size="1"),
+                        rx.badge(target.guid, variant="outline", color_scheme="teal", size="1"),
                     ),
                     rx.cond(
                         target.tier_used,
@@ -302,6 +298,20 @@ def _target_header() -> rx.Component:
         ),
         rx.hstack(
             rx.cond(
+                TargetDetailState.selected_target.workshop_guid,
+                rx.badge(
+                    TargetDetailState.selected_target.workshop_guid,
+                    variant="outline", color_scheme="purple", size="1",
+                ),
+            ),
+            rx.cond(
+                TargetDetailState.selected_target.guid,
+                rx.badge(
+                    TargetDetailState.selected_target.guid,
+                    variant="outline", color_scheme="teal", size="1",
+                ),
+            ),
+            rx.cond(
                 TargetDetailState.selected_target.tier_used,
                 rx.badge(
                     "Tier " + TargetDetailState.selected_target.tier_used.to(str),
@@ -316,17 +326,16 @@ def _target_header() -> rx.Component:
                 ),
             ),
             rx.cond(
-                TargetDetailState.selected_target.workshop_guid,
-                rx.badge(
-                    "ws:" + TargetDetailState.selected_target.workshop_guid,
-                    variant="outline", color_scheme="teal", size="1",
-                ),
-            ),
-            rx.cond(
-                TargetDetailState.selected_target.guid,
-                rx.badge(
-                    TargetDetailState.selected_target.guid,
-                    variant="outline", color_scheme="purple", size="1",
+                TargetDetailState.selected_target_catalog_url != "",
+                rx.link(
+                    rx.hstack(
+                        rx.icon("external-link", size=12),
+                        rx.text("View in Catalog", size="1"),
+                        spacing="1",
+                        align="center",
+                    ),
+                    href=TargetDetailState.selected_target_catalog_url,
+                    is_external=True,
                 ),
             ),
             spacing="2",
@@ -384,6 +393,7 @@ def _readyz_detail_section() -> rx.Component:
                         rx.code(TargetDetailState.detail_config_file, size="1"),
                     ),
                     spacing="2",
+                    align="center",
                 ),
             ),
             rx.cond(

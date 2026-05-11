@@ -407,11 +407,38 @@ class SessionState(rx.State):
         return ws + rc
 
     @rx.var
+    def session_workshop_guids_prefixed(self) -> list[str]:
+        """Workshop GUIDs with the ws: prefix, for badge rendering."""
+        if not self.current_session:
+            return []
+        return [f"ws:{g}" for g in self.current_session.get_workshop_guids()]
+
+    @rx.var
+    def session_rc_guids(self) -> list[str]:
+        """ResourceClaim GUIDs (plain), for badge rendering."""
+        if not self.current_session:
+            return []
+        return self.current_session.get_guids()
+
+    @rx.var
     def session_source_guids_raw(self) -> list[str]:
         """Source GUIDs without the ws: prefix (the resource kind badge provides that context)."""
         if not self.current_session:
             return []
         return self.current_session.get_workshop_guids() + self.current_session.get_guids()
+
+    @rx.var
+    def session_catalog_url(self) -> str:
+        """Babylon catalog URL for the session's resolved resource (Workshop or RC)."""
+        cs = self.current_session
+        if not cs or not cs.babylon_cluster or not cs.resource_namespace or not cs.resource_name:
+            return ""
+        base = babylon_client.get_catalog_url(cs.babylon_cluster)
+        if not base:
+            return ""
+        if cs.resource_kind == "Workshop":
+            return f"{base}/workshops/{cs.resource_namespace}/{cs.resource_name}"
+        return f"{base}/services/{cs.resource_namespace}/{cs.resource_name}"
 
     @rx.var
     def today_sessions(self) -> list[CheckSession]:
@@ -631,6 +658,22 @@ class TargetDetailState(SessionState):
             if t.id == self.selected_target_id:
                 return t
         return None
+
+    @rx.var
+    def selected_target_catalog_url(self) -> str:
+        """Babylon catalog URL for the selected target's ResourceClaim."""
+        cs = self.current_session
+        target = self.selected_target
+        if not cs or not target or not cs.babylon_cluster:
+            return ""
+        ns = target.resource_namespace or cs.resource_namespace
+        name = target.resource_name or cs.resource_name
+        if not ns or not name:
+            return ""
+        base = babylon_client.get_catalog_url(cs.babylon_cluster)
+        if not base:
+            return ""
+        return f"{base}/services/{ns}/{name}"
 
     @rx.var
     def selected_target_results(self) -> list[CheckResult]:
@@ -855,6 +898,8 @@ class CheckRunnerState(SessionState):
             label=entry.get("label", entry.get("url", "")),
             guid=guid,
             workshop_guid=workshop_guid,
+            resource_name=entry.get("rc_name", ""),
+            resource_namespace=entry.get("rc_namespace", ""),
             provision_status=prov_status,
             status=status,
             error_message=err_msg,
