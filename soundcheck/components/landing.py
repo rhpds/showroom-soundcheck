@@ -105,9 +105,9 @@ def landing_content() -> rx.Component:
                             color="gray",
                         ),
                         rx.cond(
-                            SessionState.form_error != "",
+                            SessionFormState.form_error != "",
                             rx.callout(
-                                SessionState.form_error,
+                                SessionFormState.form_error,
                                 icon="triangle_alert",
                                 color_scheme="red",
                                 size="1",

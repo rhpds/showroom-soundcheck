@@ -227,15 +227,6 @@ class SessionState(rx.State):
     def set_sidebar_open(self, is_open: bool):
         self.sidebar_open = is_open
 
-    form_urls: str = ""
-    form_guids: str = ""
-    form_check_type: str = "readyz"
-    form_error: str = ""
-    form_submitting: bool = False
-
-    selected_target_id: int = 0
-    show_target_detail: bool = False
-
     @rx.var
     def page_session_id(self) -> str:
         route_session_id = getattr(self, "session_id", "")
@@ -320,9 +311,7 @@ class SessionState(rx.State):
 
     @rx.event
     def on_home_load(self):
-        # Ensure a stale submit lock never survives navigation back home.
-        self.form_submitting = False
-        return [SessionState.load_sessions]
+        return [SessionState.load_sessions, SessionFormState.reset_form_lock]
 
     # ---------- Session-level computed vars ----------
 
@@ -576,6 +565,17 @@ class SessionState(rx.State):
 class SessionFormState(SessionState):
     """Handles session creation from both query params and form submissions."""
 
+    form_urls: str = ""
+    form_guids: str = ""
+    form_check_type: str = "readyz"
+    form_error: str = ""
+    form_submitting: bool = False
+
+    @rx.event
+    def reset_form_lock(self):
+        """Clear stale submit lock when navigating back to the home page."""
+        self.form_submitting = False
+
     @rx.event
     def handle_check_page(self):
         """Called on /check page load. Create session from query params and redirect."""
@@ -666,6 +666,9 @@ class SessionFormState(SessionState):
 
 class TargetDetailState(SessionState):
     """Computed vars for the target detail dialog."""
+
+    selected_target_id: int = 0
+    show_target_detail: bool = False
 
     @rx.event
     def open_target_detail(self, target_id: int):
