@@ -29,17 +29,17 @@ app.add_page(
     home_page,
     route="/",
     on_load=SessionState.on_home_load,
-    title="Showroom Soundcheck",
+    title="Soundcheck",
 )
 app.add_page(
     check_redirect_page,
     route="/check",
     on_load=SessionFormState.handle_check_page,
-    title="Creating Session...",
+    title="Creating Session | Soundcheck",
 )
 app.add_page(
     session_page,
     route="/session/[session_id]",
     on_load=SessionState.on_session_load,
-    title="Session - Soundcheck",
+    title="Session | Soundcheck",
 )

@@ -146,7 +146,7 @@ def landing_content() -> rx.Component:
             ),
             rx.accordion.root(
                 rx.accordion.item(
-                    header="API / Direct Links",
+                    header="Direct Links",
                     content=rx.vstack(
                         rx.text(
                             "Create sessions via URL query parameters:",
