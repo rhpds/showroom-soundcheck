@@ -558,13 +558,13 @@ class SessionFormState(SessionState):
         self.form_submitting = True
         try:
             parsed = parse_check_params(
-                raw_urls=form_data.get("urls", "").strip(),
-                raw_guids=form_data.get("guids", "").strip(),
-                raw_ws_guids=form_data.get("workshop_guids", "").strip(),
-                check_type=form_data.get("check_type", "readyz"),
-                check_mode=form_data.get("check_mode", "manual"),
-                session_name=form_data.get("session_name", ""),
-                cluster=form_data.get("babylon_cluster", ""),
+                raw_urls=(form_data.get("urls") or "").strip(),
+                raw_guids=(form_data.get("guids") or "").strip(),
+                raw_ws_guids=(form_data.get("workshop_guids") or "").strip(),
+                check_type=form_data.get("check_type") or "readyz",
+                check_mode=form_data.get("check_mode") or "manual",
+                session_name=form_data.get("session_name") or "",
+                cluster=form_data.get("babylon_cluster") or "",
                 url_separator="\n",
             )
         except InputValidationError as e:
