@@ -164,6 +164,39 @@ async def _load_all_sessions_async() -> list[CheckSession]:
         return list(result.scalars().all())
 
 
+def _build_check_summaries(results: list[CheckResult]) -> dict[int, dict]:
+    """Parse check result detail JSON into per-target display summaries.
+
+    Only the first (most recent) result per target is considered.
+    Called explicitly when results change rather than on every render cycle.
+    """
+    summaries: dict[int, dict] = {}
+    seen: set[int] = set()
+    for r in results:
+        if r.target_id in seen or not r.detail:
+            continue
+        seen.add(r.target_id)
+        try:
+            detail = json.loads(r.detail)
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        content_pages = detail.get("content_pages") or []
+        tabs = detail.get("tabs") or []
+        summaries[r.target_id] = {
+            "content_ok": sum(1 for p in content_pages if p.get("reachable")),
+            "content_total": len(content_pages),
+            "tabs_ok": sum(
+                1 for t in tabs
+                if t.get("reachable") and (not t.get("iframe_blocked") or t.get("external"))
+            ),
+            "tabs_total": len(tabs),
+            "has_detail": True,
+            "is_legacy": bool(detail.get("legacy", False)),
+        }
+    return summaries
+
+
 # ---------------------------------------------------------------------------
 # SessionState — core session data + navigation
 # ---------------------------------------------------------------------------
@@ -229,6 +262,7 @@ class SessionState(rx.State):
             self.current_session = None
             self.current_targets = []
             self.current_results = []
+            self.target_check_summaries = {}
             self.session_loading = False
             return
 
@@ -237,6 +271,7 @@ class SessionState(rx.State):
         self.current_session = data["session"]
         self.current_targets = data["targets"]
         self.current_results = data["results"]
+        self.target_check_summaries = _build_check_summaries(data["results"])
         self.session_loading = False
 
         if self.current_session and self.current_session.status == "pending":
@@ -271,6 +306,7 @@ class SessionState(rx.State):
         self.current_session = None
         self.current_targets = []
         self.current_results = []
+        self.target_check_summaries = {}
         self.target_filter = "all"
         return [
             SessionState.load_session,
@@ -489,40 +525,7 @@ class SessionState(rx.State):
     def in_progress_targets(self) -> list[SessionTarget]:
         return self._target_buckets["in_progress"]
 
-    @rx.var
-    def target_check_summaries(self) -> dict[int, dict]:
-        """Per-target summary of content/tab pass counts from check detail JSON."""
-        summaries: dict[int, dict] = {}
-        seen_targets: set[int] = set()
-        for r in self.current_results:
-            if r.target_id in seen_targets or not r.detail:
-                continue
-            seen_targets.add(r.target_id)
-            try:
-                detail = json.loads(r.detail)
-            except (json.JSONDecodeError, TypeError):
-                continue
-
-            content_pages = detail.get("content_pages") or []
-            content_total = len(content_pages)
-            content_ok = sum(1 for p in content_pages if p.get("reachable"))
-
-            tabs = detail.get("tabs") or []
-            tabs_total = len(tabs)
-            tabs_ok = sum(
-                1 for t in tabs
-                if t.get("reachable") and (not t.get("iframe_blocked") or t.get("external"))
-            )
-
-            summaries[r.target_id] = {
-                "content_ok": content_ok,
-                "content_total": content_total,
-                "tabs_ok": tabs_ok,
-                "tabs_total": tabs_total,
-                "has_detail": True,
-                "is_legacy": bool(detail.get("legacy", False)),
-            }
-        return summaries
+    target_check_summaries: dict[int, dict] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -1178,8 +1181,10 @@ class CheckRunnerState(SessionState):
     async def _push_session_to_ui(self, sid: str) -> None:
         """Fetch session data from DB, then acquire state lock only for assignment."""
         data = await _fetch_session_data(sid)
+        summaries = _build_check_summaries(data["results"])
         async with self:
             if self.current_session_id == sid:
                 self.current_session = data["session"]
                 self.current_targets = data["targets"]
                 self.current_results = data["results"]
+                self.target_check_summaries = summaries
