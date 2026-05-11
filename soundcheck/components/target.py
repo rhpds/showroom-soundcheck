@@ -122,6 +122,12 @@ def target_row(target: SessionTarget) -> rx.Component:
                     width="100%",
                 ),
                 _check_summary_badges(target),
+                rx.cond(
+                    target.error_message,
+                    rx.text(target.error_message, size="1", color="red", style={
+                        "white_space": "pre-wrap", "word_wrap": "break-word",
+                    }),
+                ),
                 spacing="0",
                 min_width="0",
                 overflow="hidden",
@@ -160,16 +166,6 @@ def target_row(target: SessionTarget) -> rx.Component:
             spacing="3",
             align="center",
             width="100%",
-        ),
-        rx.cond(
-            target.error_message,
-            rx.box(
-                rx.text(target.error_message, size="1", color="red", style={
-                    "white_space": "pre-wrap", "word_wrap": "break-word",
-                }),
-                padding_left="2em",
-                padding_top="0.25em",
-            ),
         ),
         padding="0.75em 1em",
         border_bottom=f"1px solid {rx.color('gray', 4)}",
