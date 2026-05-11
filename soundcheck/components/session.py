@@ -133,20 +133,20 @@ def session_summary() -> rx.Component:
                         color="gray",
                     ),
                     rx.cond(
-                        SessionState.guid_resolution_started
-                        & (SessionState.workshop_guid_total_count > 0),
+                        SessionState.guid_resolution["started"].to(bool)
+                        & (SessionState.guid_resolution["ws_total"].to(int) > 0),
                         rx.hstack(
                             rx.text("·", color="gray"),
                             rx.text(
-                                SessionState.workshop_guid_resolved_count.to(str)
+                                SessionState.guid_resolution["ws_resolved"].to(str)
                                 + "/"
-                                + SessionState.workshop_guid_total_count.to(str)
+                                + SessionState.guid_resolution["ws_total"].to(str)
                                 + " Workshop GUIDs resolved",
                                 size="2",
                                 weight="medium",
                                 color=rx.cond(
-                                    SessionState.workshop_guid_resolved_count
-                                    == SessionState.workshop_guid_total_count,
+                                    SessionState.guid_resolution["ws_resolved"].to(int)
+                                    == SessionState.guid_resolution["ws_total"].to(int),
                                     rx.color("green", 11),
                                     rx.color("red", 11),
                                 ),
@@ -156,20 +156,20 @@ def session_summary() -> rx.Component:
                         ),
                     ),
                     rx.cond(
-                        SessionState.guid_resolution_started
-                        & (SessionState.rc_guid_total_count > 0),
+                        SessionState.guid_resolution["started"].to(bool)
+                        & (SessionState.guid_resolution["rc_total"].to(int) > 0),
                         rx.hstack(
                             rx.text("·", color="gray"),
                             rx.text(
-                                SessionState.rc_guid_resolved_count.to(str)
+                                SessionState.guid_resolution["rc_resolved"].to(str)
                                 + "/"
-                                + SessionState.rc_guid_total_count.to(str)
+                                + SessionState.guid_resolution["rc_total"].to(str)
                                 + " ResourceClaim GUIDs resolved",
                                 size="2",
                                 weight="medium",
                                 color=rx.cond(
-                                    SessionState.rc_guid_resolved_count
-                                    == SessionState.rc_guid_total_count,
+                                    SessionState.guid_resolution["rc_resolved"].to(int)
+                                    == SessionState.guid_resolution["rc_total"].to(int),
                                     rx.color("green", 11),
                                     rx.color("red", 11),
                                 ),

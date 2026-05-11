@@ -323,62 +323,44 @@ class SessionState(rx.State):
         return ["(auto)"] + babylon_client.get_configured_clusters()
 
     @rx.var
-    def guid_resolution_started(self) -> bool:
-        """True once at least one target has been created from GUID resolution."""
-        if not self.current_session:
-            return False
-        has_guids = bool(self.current_session.get_guids()) or bool(self.current_session.get_workshop_guids())
-        if not has_guids:
-            return False
-        return any(
-            t.guid or t.workshop_guid for t in self.current_targets
-        )
+    def guid_resolution(self) -> dict[str, int | bool]:
+        """Single-pass GUID resolution statistics.
 
-    @rx.var
-    def workshop_guid_resolved_count(self) -> int:
+        Keys: started (bool), ws_resolved, ws_total, rc_resolved, rc_total.
+        A GUID counts as resolved when at least one target for it has a
+        URL or a non-error status.
+        """
+        empty: dict[str, int | bool] = {
+            "started": False, "ws_resolved": 0, "ws_total": 0,
+            "rc_resolved": 0, "rc_total": 0,
+        }
         if not self.current_session:
-            return 0
-        ws_guids = self.current_session.get_workshop_guids()
-        if not ws_guids:
-            return 0
-        # A workshop GUID is "resolved" if at least one target from it
-        # has a URL or a non-error status (e.g. provisioning, healthy).
-        # It only counts as unresolved when *every* target for that GUID
-        # is an error placeholder with no URL.
-        resolved: set[str] = set()
-        seen: set[str] = set()
+            return empty
+        ws_guids = set(self.current_session.get_workshop_guids())
+        rc_guids = set(self.current_session.get_guids())
+        if not ws_guids and not rc_guids:
+            return empty
+
+        started = False
+        ws_resolved: set[str] = set()
+        rc_resolved: set[str] = set()
         for t in self.current_targets:
             if t.workshop_guid:
-                seen.add(t.workshop_guid)
+                started = True
                 if t.url or t.status != "error":
-                    resolved.add(t.workshop_guid)
-        return sum(1 for g in ws_guids if g in resolved)
-
-    @rx.var
-    def workshop_guid_total_count(self) -> int:
-        if not self.current_session:
-            return 0
-        return len(self.current_session.get_workshop_guids())
-
-    @rx.var
-    def rc_guid_resolved_count(self) -> int:
-        if not self.current_session:
-            return 0
-        rc_guids = self.current_session.get_guids()
-        if not rc_guids:
-            return 0
-        resolved: set[str] = set()
-        for t in self.current_targets:
+                    ws_resolved.add(t.workshop_guid)
             if t.guid and not t.workshop_guid:
+                started = True
                 if t.url or t.status != "error":
-                    resolved.add(t.guid)
-        return sum(1 for g in rc_guids if g in resolved)
+                    rc_resolved.add(t.guid)
 
-    @rx.var
-    def rc_guid_total_count(self) -> int:
-        if not self.current_session:
-            return 0
-        return len(self.current_session.get_guids())
+        return {
+            "started": started,
+            "ws_resolved": sum(1 for g in ws_guids if g in ws_resolved),
+            "ws_total": len(ws_guids),
+            "rc_resolved": sum(1 for g in rc_guids if g in rc_resolved),
+            "rc_total": len(rc_guids),
+        }
 
     @rx.var
     def session_resource_kind(self) -> str:
