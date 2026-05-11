@@ -312,6 +312,7 @@ class SessionState(rx.State):
         self.current_session = None
         self.current_targets = []
         self.current_results = []
+        self.target_filter = "all"
         return [
             SessionState.load_session,
             SessionState.load_sessions,
@@ -347,6 +348,7 @@ class SessionState(rx.State):
                 counts["degraded"] += 1
             elif t.status in ("error", "unhealthy"):
                 counts["error"] += 1
+        counts["issues"] = counts["error"] + counts["degraded"]
         return counts
 
     @rx.var
@@ -489,25 +491,46 @@ class SessionState(rx.State):
         cutoff = utc_now() - timedelta(hours=48)
         return [s for s in self.all_sessions if s.created_at and s.created_at < cutoff]
 
-    @rx.var
-    def sorted_targets(self) -> list[SessionTarget]:
-        """Targets sorted by status priority, then by check start time."""
+    target_filter: str = "all"
+
+    @rx.event
+    def set_target_filter(self, value: str):
+        self.target_filter = value
+
+    @staticmethod
+    def _sort_targets(targets: list) -> list:
         order = {
-            "checking": 0,
-            "error": 1,
-            "degraded": 2,
-            "provisioning": 3,
-            "pending": 4,
-            "unhealthy": 5,
-            "healthy": 6,
+            "checking": 0, "error": 1, "degraded": 2, "provisioning": 3,
+            "pending": 4, "unhealthy": 5, "healthy": 6,
         }
 
-        def sort_key(t: SessionTarget):
-            rank = order.get(t.status, 6)
-            ts = t.check_started_at or _DATETIME_MIN_UTC
-            return (rank, ts)
+        def sort_key(t):
+            return (order.get(t.status, 6), t.check_started_at or _DATETIME_MIN_UTC)
 
-        return sorted(self.current_targets, key=sort_key)
+        return sorted(targets, key=sort_key)
+
+    @rx.var
+    def sorted_targets(self) -> list[SessionTarget]:
+        """All targets sorted by status priority, then by check start time."""
+        return self._sort_targets(self.current_targets)
+
+    @rx.var
+    def issue_targets(self) -> list[SessionTarget]:
+        return self._sort_targets(
+            [t for t in self.current_targets if t.status in ("error", "unhealthy", "degraded")]
+        )
+
+    @rx.var
+    def healthy_targets(self) -> list[SessionTarget]:
+        return self._sort_targets(
+            [t for t in self.current_targets if t.status == "healthy"]
+        )
+
+    @rx.var
+    def in_progress_targets(self) -> list[SessionTarget]:
+        return self._sort_targets(
+            [t for t in self.current_targets if t.status in ("checking", "pending", "provisioning")]
+        )
 
     @rx.var
     def target_check_summaries(self) -> dict[int, dict]:

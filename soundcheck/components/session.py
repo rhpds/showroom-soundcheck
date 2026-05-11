@@ -314,13 +314,80 @@ def _check_progress() -> rx.Component:
     )
 
 
+def _tab_label(label: str, count: rx.Var) -> rx.Component:
+    return rx.hstack(
+        rx.text(label, size="2"),
+        rx.cond(
+            count > 0,
+            rx.badge(count.to(str), variant="soft", size="1"),
+        ),
+        spacing="1",
+        align="center",
+    )
+
+
 def targets_list() -> rx.Component:
     return rx.cond(
         SessionState.current_targets.length() > 0,
         rx.card(
             rx.vstack(
-                rx.text("Targets", size="3", weight="bold"),
-                rx.foreach(SessionState.sorted_targets, target_row),
+                rx.tabs.root(
+                    rx.tabs.list(
+                        rx.tabs.trigger(
+                            _tab_label("All", SessionState.target_counts["total"].to(int)),
+                            value="all",
+                        ),
+                        rx.tabs.trigger(
+                            _tab_label("Issues", SessionState.target_counts["issues"].to(int)),
+                            value="issues",
+                        ),
+                        rx.tabs.trigger(
+                            _tab_label("Healthy", SessionState.target_counts["healthy"].to(int)),
+                            value="healthy",
+                        ),
+                        rx.tabs.trigger(
+                            _tab_label("In Progress", SessionState.in_progress_targets.length()),
+                            value="in_progress",
+                        ),
+                    ),
+                    rx.tabs.content(
+                        rx.foreach(SessionState.sorted_targets, target_row),
+                        value="all",
+                    ),
+                    rx.tabs.content(
+                        rx.cond(
+                            SessionState.issue_targets.length() > 0,
+                            rx.foreach(SessionState.issue_targets, target_row),
+                            rx.center(
+                                rx.text("No issues found", size="2", color="gray", padding="2em"),
+                            ),
+                        ),
+                        value="issues",
+                    ),
+                    rx.tabs.content(
+                        rx.cond(
+                            SessionState.healthy_targets.length() > 0,
+                            rx.foreach(SessionState.healthy_targets, target_row),
+                            rx.center(
+                                rx.text("No healthy targets yet", size="2", color="gray", padding="2em"),
+                            ),
+                        ),
+                        value="healthy",
+                    ),
+                    rx.tabs.content(
+                        rx.cond(
+                            SessionState.in_progress_targets.length() > 0,
+                            rx.foreach(SessionState.in_progress_targets, target_row),
+                            rx.center(
+                                rx.text("No checks in progress", size="2", color="gray", padding="2em"),
+                            ),
+                        ),
+                        value="in_progress",
+                    ),
+                    value=SessionState.target_filter,
+                    on_change=SessionState.set_target_filter,
+                    width="100%",
+                ),
                 spacing="2",
                 width="100%",
             ),

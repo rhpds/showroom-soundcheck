@@ -177,8 +177,8 @@ def target_row(target: SessionTarget) -> rx.Component:
         cursor=rx.cond(is_provisioning, "default", "pointer"),
         _hover={"bg": rx.cond(is_provisioning, "inherit", rx.color("gray", 3))},
         transition="background 0.15s",
-        role=rx.cond(is_provisioning, None, "button"),
-        tab_index=rx.cond(is_provisioning, None, 0),
+        role="button",
+        tab_index=0,
         on_click=TargetDetailState.open_target_detail(target.id),
     )
 
