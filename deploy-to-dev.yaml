@@ -60,7 +60,7 @@ Route URL: `https://showroom-soundcheck-dev.apps.ocpv-infra01.dal12.infra.demo.r
 
 ### Current state
 
-- **Latest deployed**: v1.0.16
+- **Latest deployed**: v1.0.17
 - **Cluster**: `showroom-soundcheck-dev` on `api.ocpv-infra01.dal12.infra.demo.redhat.com:6443`
 - **Architecture**: Separate oauth-proxy Deployment (HTTP :4180, edge TLS on Route) + app Deployment (Reflex on :3000) + postgres StatefulSet
 - **Secrets** (already created, don't need to recreate): `postgres-credentials`, `showroom-soundcheck-proxy`, `babylon-kubeconfigs`
