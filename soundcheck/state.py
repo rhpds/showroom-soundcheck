@@ -399,55 +399,12 @@ class SessionState(rx.State):
         }
 
     @rx.var
-    def session_resource_kind(self) -> str:
-        if not self.current_session:
-            return ""
-        return self.current_session.resource_kind
-
-    @rx.var
-    def session_resource_name(self) -> str:
-        if not self.current_session:
-            return ""
-        return self.current_session.resource_name
-
-    @rx.var
-    def session_resource_namespace(self) -> str:
-        if not self.current_session:
-            return ""
-        return self.current_session.resource_namespace
-
-    @rx.var
-    def session_resource_display_name(self) -> str:
-        if not self.current_session:
-            return ""
-        return self.current_session.resource_display_name
-
-    @rx.var
-    def session_resource_metadata(self) -> dict:
-        if not self.current_session:
-            return {}
-        return self.current_session.get_resource_metadata()
-
-
-    @rx.var
     def session_source_guids(self) -> list[str]:
         if not self.current_session:
             return []
         rc = self.current_session.get_guids()
         ws = [f"ws:{g}" for g in self.current_session.get_workshop_guids()]
         return ws + rc
-
-    @rx.var
-    def session_source_urls(self) -> list[str]:
-        if not self.current_session:
-            return []
-        return self.current_session.get_urls()
-
-    @rx.var
-    def session_created_at(self) -> str:
-        if not self.current_session or not self.current_session.created_at:
-            return ""
-        return self.current_session.created_at.isoformat()
 
     @rx.var
     def today_sessions(self) -> list[CheckSession]:

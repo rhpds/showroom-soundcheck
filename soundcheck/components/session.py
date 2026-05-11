@@ -3,7 +3,7 @@
 import reflex as rx
 
 from .. import styles
-from ..state import SessionState, local_time
+from ..state import SessionState
 from .target import target_detail_dialog, target_row
 
 
@@ -11,13 +11,15 @@ def _resource_details() -> rx.Component:
     """Inline details about the resolved Workshop or ResourceClaim."""
     return rx.hstack(
         rx.badge(
-            SessionState.session_resource_kind,
+            SessionState.current_session.resource_kind,
             variant="solid",
             color_scheme="purple",
             size="1",
         ),
         rx.text(
-            SessionState.session_resource_namespace + "/" + SessionState.session_resource_name,
+            SessionState.current_session.resource_namespace
+            + "/"
+            + SessionState.current_session.resource_name,
             size="2",
             weight="medium",
             color=rx.color("gray", 11),
@@ -188,10 +190,10 @@ def session_summary() -> rx.Component:
                     rx.text("Mode: " + SessionState.current_session.check_mode, size="2", color="gray"),
                     rx.text("·", color="gray"),
                     rx.cond(
-                        SessionState.session_created_at != "",
+                        SessionState.current_session.created_at,
                         rx.text(
                             rx.moment(
-                                date=SessionState.session_created_at,
+                                date=SessionState.current_session.created_at,
                                 from_now=True,
                                 with_title=True,
                                 title_format="MMM D [at] h:mm:ss A",
@@ -204,11 +206,11 @@ def session_summary() -> rx.Component:
                     align="center",
                 ),
                 rx.cond(
-                    SessionState.session_resource_kind != "",
+                    SessionState.current_session.resource_kind != "",
                     _resource_details(),
                 ),
                 rx.cond(
-                    (SessionState.session_resource_kind == "")
+                    (SessionState.current_session.resource_kind == "")
                     & (SessionState.session_source_guids.length() > 0),
                     rx.hstack(
                         rx.text("GUIDs:", size="1", color="gray", weight="bold"),
