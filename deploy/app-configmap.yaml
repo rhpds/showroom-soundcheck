@@ -10,7 +10,7 @@ metadata:
 data:
   CHECK_CONCURRENCY: "10"
   VERIFY_SSL: "false"
-  ALLOWED_URL_PATTERNS: ""  # TODO: set production hostname patterns (e.g. "*.redhat.com,*.opentlc.com,*.rhdp.net")
+  ALLOWED_URL_PATTERNS: "*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io"
   REFLEX_ENV: "prod"
   POSTGRES_HOST: "postgres"
   POSTGRES_PORT: "5432"
