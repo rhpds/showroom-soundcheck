@@ -666,14 +666,12 @@ class TargetDetailState(SessionState):
         target = self.selected_target
         if not cs or not target or not cs.babylon_cluster:
             return ""
-        ns = target.resource_namespace or cs.resource_namespace
-        name = target.resource_name or cs.resource_name
-        if not ns or not name:
+        if not target.resource_namespace or not target.resource_name:
             return ""
         base = babylon_client.get_catalog_url(cs.babylon_cluster)
         if not base:
             return ""
-        return f"{base}/services/{ns}/{name}"
+        return f"{base}/services/{target.resource_namespace}/{target.resource_name}"
 
     @rx.var
     def selected_target_results(self) -> list[CheckResult]:
