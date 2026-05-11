@@ -467,27 +467,45 @@ class SessionState(rx.State):
         return sorted(targets, key=sort_key)
 
     @rx.var
+    def _target_buckets(self) -> dict[str, list[SessionTarget]]:
+        """Single-pass partition of current_targets into status buckets.
+
+        Returns keys: all, issues, healthy, in_progress — each
+        sorted by status priority then check start time.
+        """
+        issues: list[SessionTarget] = []
+        healthy: list[SessionTarget] = []
+        in_progress: list[SessionTarget] = []
+        for t in self.current_targets:
+            if t.status in ("error", "unhealthy", "degraded"):
+                issues.append(t)
+            elif t.status == "healthy":
+                healthy.append(t)
+            elif t.status in ("checking", "pending", "provisioning"):
+                in_progress.append(t)
+        all_sorted = self._sort_targets(self.current_targets)
+        return {
+            "all": all_sorted,
+            "issues": self._sort_targets(issues),
+            "healthy": self._sort_targets(healthy),
+            "in_progress": self._sort_targets(in_progress),
+        }
+
+    @rx.var
     def sorted_targets(self) -> list[SessionTarget]:
-        """All targets sorted by status priority, then by check start time."""
-        return self._sort_targets(self.current_targets)
+        return self._target_buckets["all"]
 
     @rx.var
     def issue_targets(self) -> list[SessionTarget]:
-        return self._sort_targets(
-            [t for t in self.current_targets if t.status in ("error", "unhealthy", "degraded")]
-        )
+        return self._target_buckets["issues"]
 
     @rx.var
     def healthy_targets(self) -> list[SessionTarget]:
-        return self._sort_targets(
-            [t for t in self.current_targets if t.status == "healthy"]
-        )
+        return self._target_buckets["healthy"]
 
     @rx.var
     def in_progress_targets(self) -> list[SessionTarget]:
-        return self._sort_targets(
-            [t for t in self.current_targets if t.status in ("checking", "pending", "provisioning")]
-        )
+        return self._target_buckets["in_progress"]
 
     @rx.var
     def target_check_summaries(self) -> dict[int, dict]:
