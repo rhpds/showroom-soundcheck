@@ -54,6 +54,12 @@ card_style = {
     "padding": "1.5em",
 }
 
+label_style = {
+    "font_size": "var(--font-size-2)",
+    "font_weight": "bold",
+    "line_height": "var(--line-height-2)",
+}
+
 input_style = {
     "bg": rx.color("gray", 3),
     "border": f"1px solid {rx.color('gray', 5)}",
