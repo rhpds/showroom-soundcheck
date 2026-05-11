@@ -16,6 +16,10 @@ def _resource_details() -> rx.Component:
             color_scheme="purple",
             size="1",
         ),
+        rx.foreach(
+            SessionState.session_source_guids_raw,
+            lambda g: rx.badge(g, variant="outline", color_scheme="purple", size="1"),
+        ),
         rx.text(
             SessionState.current_session.resource_namespace
             + "/"

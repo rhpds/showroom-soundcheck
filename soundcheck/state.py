@@ -407,6 +407,13 @@ class SessionState(rx.State):
         return ws + rc
 
     @rx.var
+    def session_source_guids_raw(self) -> list[str]:
+        """Source GUIDs without the ws: prefix (the resource kind badge provides that context)."""
+        if not self.current_session:
+            return []
+        return self.current_session.get_workshop_guids() + self.current_session.get_guids()
+
+    @rx.var
     def today_sessions(self) -> list[CheckSession]:
         cutoff = utc_now() - timedelta(hours=24)
         return [s for s in self.all_sessions if s.created_at and s.created_at >= cutoff]
