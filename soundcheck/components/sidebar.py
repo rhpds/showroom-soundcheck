@@ -124,12 +124,17 @@ def _color_mode_toggle() -> rx.Component:
 def _sidebar_inner() -> rx.Component:
     """Shared sidebar content used by both the desktop sidebar and mobile drawer."""
     return rx.vstack(
-        rx.hstack(
-            rx.icon("terminal", size=22),
-            rx.heading("Soundcheck", size="4", as_="div"),
-            spacing="2",
-            align="center",
-            width="100%",
+        rx.link(
+            rx.hstack(
+                rx.icon("terminal", size=22),
+                rx.heading("Soundcheck", size="4", as_="div"),
+                spacing="2",
+                align="center",
+                width="100%",
+            ),
+            href="/",
+            on_click=SessionState.close_sidebar,
+            style={"text_decoration": "none", "color": "inherit", "width": "100%"},
             flex_shrink="0",
         ),
         rx.divider(margin_y="0.75em"),
