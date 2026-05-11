@@ -86,7 +86,7 @@ def local_time(dt_var: rx.Var, **kwargs: object) -> rx.Component:
 # ---------------------------------------------------------------------------
 
 
-def _persist_new_session(
+async def _persist_new_session(
     *,
     name: str,
     check_type: str,
@@ -102,7 +102,7 @@ def _persist_new_session(
     sid = str(uuid.uuid4())
     now = utc_now()
 
-    with rx.session() as session:
+    async with rx.asession() as session:
         cs = CheckSession(
             session_id=sid,
             name=name,
@@ -127,7 +127,7 @@ def _persist_new_session(
             )
             session.add(target)
 
-        session.commit()
+        await session.commit()
 
     return sid
 
@@ -137,53 +137,20 @@ def _persist_new_session(
 # ---------------------------------------------------------------------------
 
 
-def _session_data_queries() -> tuple:
-    """Return the three SELECT statements used by both sync and async fetch.
-
-    Keeps the query logic in one place so the sync and async variants
-    stay consistent.
-    """
-    session_q = select(CheckSession)
-    targets_q = select(SessionTarget)
+async def _fetch_session_data(sid: str) -> dict:
+    """Load session, targets, and results from DB."""
+    session_q = select(CheckSession).where(CheckSession.session_id == sid)
+    targets_q = select(SessionTarget).where(SessionTarget.session_id == sid)
     results_q = select(CheckResult).order_by(col(CheckResult.checked_at).desc())
-    return session_q, targets_q, results_q
-
-
-def _fetch_session_data(sid: str) -> dict:
-    """Sync: load session, targets, results from DB.
-
-    Used by the synchronous ``load_session`` @rx.event handler.
-    See ``_fetch_session_data_async`` for the async equivalent.
-    """
-    sq, tq, rq = _session_data_queries()
-    with rx.session() as session:
-        cs = session.exec(sq.where(CheckSession.session_id == sid)).first()
-        targets = session.exec(tq.where(SessionTarget.session_id == sid)).all()
-        target_ids = [t.id for t in targets]
-        results: list[CheckResult] = []
-        if target_ids:
-            results = session.exec(
-                rq.where(CheckResult.target_id.in_(target_ids))  # type: ignore
-            ).all()
-    return {"session": cs, "targets": targets, "results": results}
-
-
-async def _fetch_session_data_async(sid: str) -> dict:
-    """Async: load session, targets, results from DB.
-
-    Used by ``CheckRunnerState._push_session_to_ui`` in background tasks.
-    See ``_fetch_session_data`` for the sync equivalent.
-    """
-    sq, tq, rq = _session_data_queries()
     async with rx.asession() as session:
-        cs = (await session.execute(sq.where(CheckSession.session_id == sid))).scalars().first()
-        targets = list((await session.execute(tq.where(SessionTarget.session_id == sid))).scalars().all())
+        cs = (await session.execute(session_q)).scalars().first()
+        targets = list((await session.execute(targets_q)).scalars().all())
         target_ids = [t.id for t in targets]
         results: list[CheckResult] = []
         if target_ids:
             results = list(
                 (await session.execute(
-                    rq.where(CheckResult.target_id.in_(target_ids))  # type: ignore
+                    results_q.where(CheckResult.target_id.in_(target_ids))  # type: ignore
                 )).scalars().all()
             )
     return {"session": cs, "targets": targets, "results": results}
@@ -240,16 +207,17 @@ class SessionState(rx.State):
     # ---------- Session history loading ----------
 
     @rx.event
-    def load_sessions(self):
-        with rx.session() as session:
-            self.all_sessions = session.exec(
+    async def load_sessions(self):
+        async with rx.asession() as session:
+            result = await session.execute(
                 select(CheckSession).order_by(col(CheckSession.created_at).desc()).limit(100)
-            ).all()
+            )
+            self.all_sessions = list(result.scalars().all())
 
     # ---------- Load a specific session ----------
 
     @rx.event
-    def load_session(self):
+    async def load_session(self):
         """Load session data based on the URL parameter.
 
         Returns run_checks when the session is pending so the background
@@ -265,7 +233,7 @@ class SessionState(rx.State):
             return
 
         self.current_session_id = sid
-        data = _fetch_session_data(sid)
+        data = await _fetch_session_data(sid)
         self.current_session = data["session"]
         self.current_targets = data["targets"]
         self.current_results = data["results"]
@@ -277,13 +245,13 @@ class SessionState(rx.State):
     # ---------- Clone / retry a session ----------
 
     @rx.event
-    def clone_session(self):
+    async def clone_session(self):
         """Create a new pending session cloned from the current one and redirect to it."""
         cs = self.current_session
         if not cs:
             return
 
-        sid = _persist_new_session(
+        sid = await _persist_new_session(
             name=cs.name,
             check_type=cs.check_type,
             check_mode=cs.check_mode,
@@ -577,7 +545,7 @@ class SessionFormState(SessionState):
         self.form_submitting = False
 
     @rx.event
-    def handle_check_page(self):
+    async def handle_check_page(self):
         """Called on /check page load. Create session from query params and redirect."""
         query = self.router.url.query_parameters
         raw_urls = query.get("urls", "")
@@ -605,7 +573,7 @@ class SessionFormState(SessionState):
         except InputValidationError:
             return rx.redirect("/")
 
-        sid = _persist_new_session(
+        sid = await _persist_new_session(
             name=parsed.session_name,
             check_type=parsed.check_type,
             check_mode=parsed.check_mode,
@@ -617,8 +585,7 @@ class SessionFormState(SessionState):
         return rx.redirect(f"/session/{sid}")
 
     @rx.event
-    def create_session_from_form(self, form_data: dict):
-        # Ignore duplicate submit events while the first request is in-flight.
+    async def create_session_from_form(self, form_data: dict):
         if self.form_submitting:
             return
         self.form_submitting = True
@@ -643,7 +610,7 @@ class SessionFormState(SessionState):
             self.form_submitting = False
             return
 
-        sid = _persist_new_session(
+        sid = await _persist_new_session(
             name=parsed.session_name,
             check_type=parsed.check_type,
             check_mode=parsed.check_mode,
@@ -1210,7 +1177,7 @@ class CheckRunnerState(SessionState):
 
     async def _push_session_to_ui(self, sid: str) -> None:
         """Fetch session data from DB, then acquire state lock only for assignment."""
-        data = await _fetch_session_data_async(sid)
+        data = await _fetch_session_data(sid)
         async with self:
             if self.current_session_id == sid:
                 self.current_session = data["session"]
