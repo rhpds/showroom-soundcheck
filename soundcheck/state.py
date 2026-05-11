@@ -978,7 +978,7 @@ class CheckRunnerState(SessionState):
     ) -> None:
         """Look up the Workshop CRD and store metadata on the session."""
         try:
-            ws_def = await lookup_workshop_by_guid(ws_guid, cluster=cluster, ctx=ctx)
+            ws_def, resolved_cluster = await lookup_workshop_by_guid(ws_guid, cluster=cluster, ctx=ctx)
             if not ws_def:
                 return
             meta = extract_workshop_metadata(ws_def)
@@ -993,6 +993,8 @@ class CheckRunnerState(SessionState):
                     cs.resource_namespace = meta.get("namespace", "")
                     cs.resource_display_name = meta.get("display_name", "")
                     cs.resource_metadata = CheckSession.encode_resource_metadata(meta)
+                    if resolved_cluster and not cs.babylon_cluster:
+                        cs.babylon_cluster = resolved_cluster
                     if meta.get("display_name") and not cs.name:
                         cs.name = meta["display_name"]
                     session.add(cs)
@@ -1005,7 +1007,7 @@ class CheckRunnerState(SessionState):
     ) -> None:
         """Look up the ResourceClaim CRD and store metadata on the session."""
         try:
-            rc_def = await lookup_rc_by_guid(guid, cluster=cluster, ctx=ctx)
+            rc_def, resolved_cluster = await lookup_rc_by_guid(guid, cluster=cluster, ctx=ctx)
             if not rc_def:
                 return
             meta = extract_resource_claim_metadata(rc_def)
@@ -1020,6 +1022,8 @@ class CheckRunnerState(SessionState):
                     cs.resource_namespace = meta.get("namespace", "")
                     cs.resource_display_name = meta.get("display_name", "")
                     cs.resource_metadata = CheckSession.encode_resource_metadata(meta)
+                    if resolved_cluster and not cs.babylon_cluster:
+                        cs.babylon_cluster = resolved_cluster
                     if meta.get("display_name") and not cs.name:
                         cs.name = meta["display_name"]
                     session.add(cs)

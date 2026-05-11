@@ -63,11 +63,19 @@ class ResolutionContext:
 
 
 def extract_showroom_urls(rc_def: dict[str, Any]) -> list[dict[str, str]]:
-    """Extract showroom/lab UI URLs from a ResourceClaim definition."""
+    """Extract showroom/lab UI URLs from a ResourceClaim definition.
+
+    Each returned entry includes ``rc_name`` and ``rc_namespace`` so callers
+    can build catalog links back to the source ResourceClaim.
+    """
     urls: list[dict[str, str]] = []
     seen: set[str] = set()
-    annotations = rc_def.get("metadata", {}).get("annotations", {})
-    rc_name = rc_def.get("metadata", {}).get("name", "unknown")
+    meta = rc_def.get("metadata", {})
+    annotations = meta.get("annotations", {})
+    rc_name = meta.get("name", "unknown")
+    rc_namespace = meta.get("namespace", "")
+
+    base = {"rc_name": rc_name, "rc_namespace": rc_namespace}
 
     for resource in rc_def.get("status", {}).get("resources", []):
         state = resource.get("state")
@@ -80,7 +88,7 @@ def extract_showroom_urls(rc_def: dict[str, Any]) -> list[dict[str, str]]:
             url = provision_data.get(key)
             if url and url not in seen:
                 seen.add(url)
-                urls.append({"url": url, "label": f"{rc_name}"})
+                urls.append({**base, "url": url, "label": f"{rc_name}"})
                 break
 
         users = provision_data.get("users", {})
@@ -92,13 +100,13 @@ def extract_showroom_urls(rc_def: dict[str, Any]) -> list[dict[str, str]]:
                     url = user_data.get(key)
                     if url and url not in seen:
                         seen.add(url)
-                        urls.append({"url": url, "label": f"{rc_name}/{username}"})
+                        urls.append({**base, "url": url, "label": f"{rc_name}/{username}"})
                         break
 
     ann_url = annotations.get(LAB_UI_URL_ANNOTATION)
     if ann_url and ann_url not in seen:
         seen.add(ann_url)
-        urls.append({"url": ann_url, "label": f"{rc_name} (annotation)"})
+        urls.append({**base, "url": ann_url, "label": f"{rc_name} (annotation)"})
 
     ann_urls_raw = annotations.get(LAB_UI_URLS_ANNOTATION)
     if ann_urls_raw:
@@ -108,7 +116,7 @@ def extract_showroom_urls(rc_def: dict[str, Any]) -> list[dict[str, str]]:
                 for username, url in ann_urls.items():
                     if url and url not in seen:
                         seen.add(url)
-                        urls.append({"url": url, "label": f"{rc_name}/{username} (annotation)"})
+                        urls.append({**base, "url": url, "label": f"{rc_name}/{username} (annotation)"})
         except (json.JSONDecodeError, TypeError):
             logger.warning("Failed to parse %s annotation on RC %s", LAB_UI_URLS_ANNOTATION, rc_name)
 
@@ -215,11 +223,14 @@ async def _search_cluster_for_rc_guid(
                 if found:
                     urls.extend(found)
                 else:
-                    rc_name = item.get("metadata", {}).get("name", "unknown")
+                    item_meta = item.get("metadata", {})
+                    rc_name = item_meta.get("name", "unknown")
                     provision_status = get_rc_provision_status(item)
                     urls.append({
                         "url": "",
                         "label": rc_name,
+                        "rc_name": rc_name,
+                        "rc_namespace": item_meta.get("namespace", ""),
                         "provision_status": provision_status,
                     })
     except Exception as e:
@@ -305,6 +316,8 @@ async def _search_cluster_for_workshop_guid(
                     urls.append({
                         "url": "",
                         "label": rc_name,
+                        "rc_name": rc_name,
+                        "rc_namespace": ws_ns,
                         "rc_guid": rc_guid,
                         "provision_status": provision_status,
                     })
@@ -339,11 +352,14 @@ async def resolve_guid(
     When *cluster* is specified, only that cluster is searched.  Otherwise all
     configured clusters are tried sequentially until a match is found.
 
-    Returns a list of {url, label} dicts.
+    Each returned entry includes ``resolved_cluster`` indicating which cluster
+    produced the match.
     """
     if cluster:
         urls, errors = await _search_cluster_for_guid(cluster, guid, ctx)
         if urls:
+            for u in urls:
+                u.setdefault("resolved_cluster", cluster)
             return urls
         if errors:
             return [_resolution_error_entry(guid, errors)]
@@ -358,6 +374,8 @@ async def resolve_guid(
     for c in clusters:
         urls, errors = await _search_cluster_for_guid(c, guid, ctx)
         if urls:
+            for u in urls:
+                u.setdefault("resolved_cluster", c)
             return urls
         all_errors.extend(errors)
 
@@ -384,10 +402,13 @@ async def resolve_workshop_guid(
     """Resolve a Workshop GUID (workshop-id label) to showroom URLs.
 
     Searches only for Workshop CRs — skips the ResourceClaim scan.
+    Each returned entry includes ``resolved_cluster``.
     """
     if cluster:
         urls, errors = await _search_cluster_for_workshop_guid(cluster, guid, ctx)
         if urls:
+            for u in urls:
+                u.setdefault("resolved_cluster", cluster)
             return urls
         if errors:
             return [_resolution_error_entry(guid, errors)]
@@ -402,6 +423,8 @@ async def resolve_workshop_guid(
     for c in clusters:
         urls, errors = await _search_cluster_for_workshop_guid(c, guid, ctx)
         if urls:
+            for u in urls:
+                u.setdefault("resolved_cluster", c)
             return urls
         all_errors.extend(errors)
 
@@ -502,8 +525,12 @@ def extract_resource_claim_metadata(rc_def: dict[str, Any]) -> dict[str, Any]:
 
 async def lookup_workshop_by_guid(
     guid: str, cluster: str = "", ctx: Optional[ResolutionContext] = None,
-) -> Optional[dict[str, Any]]:
-    """Find the Workshop CRD matching a workshop-id label and return its full definition."""
+) -> tuple[Optional[dict[str, Any]], str]:
+    """Find the Workshop CRD matching a workshop-id label.
+
+    Returns ``(workshop_def, resolved_cluster)`` — the cluster name that
+    actually contained the match (useful when *cluster* is empty / auto).
+    """
     clusters = [cluster] if cluster else babylon_client.get_configured_clusters()
     for c in clusters:
         try:
@@ -516,16 +543,20 @@ async def lookup_workshop_by_guid(
                 )
             items = result.get("items", [])
             if items:
-                return items[0]
+                return items[0], c
         except Exception as e:
             logger.warning("Failed to look up Workshop GUID '%s' on cluster '%s': %s", guid, c, e)
-    return None
+    return None, ""
 
 
 async def lookup_rc_by_guid(
     guid: str, cluster: str = "", ctx: Optional[ResolutionContext] = None,
-) -> Optional[dict[str, Any]]:
-    """Find the ResourceClaim matching a provision GUID and return its full definition."""
+) -> tuple[Optional[dict[str, Any]], str]:
+    """Find the ResourceClaim matching a provision GUID.
+
+    Returns ``(rc_def, resolved_cluster)`` — the cluster name that
+    actually contained the match (useful when *cluster* is empty / auto).
+    """
     clusters = [cluster] if cluster else babylon_client.get_configured_clusters()
     for c in clusters:
         try:
@@ -537,7 +568,7 @@ async def lookup_rc_by_guid(
                 )
             for item in result.get("items", []):
                 if _rc_matches_guid(item, guid):
-                    return item
+                    return item, c
         except Exception as e:
             logger.warning("Failed to look up RC GUID '%s' on cluster '%s': %s", guid, c, e)
-    return None
+    return None, ""

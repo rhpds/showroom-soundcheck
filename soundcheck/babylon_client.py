@@ -297,6 +297,37 @@ def get_configured_clusters() -> list[str]:
     return _default_manager.get_configured_clusters()
 
 
+# ---------------------------------------------------------------------------
+# Babylon catalog URL mapping (cluster name → UI base URL)
+# ---------------------------------------------------------------------------
+
+_catalog_urls: dict[str, str] | None = None
+
+
+def _load_catalog_urls() -> dict[str, str]:
+    global _catalog_urls
+    if _catalog_urls is not None:
+        return _catalog_urls
+    raw = os.environ.get("BABYLON_CATALOG_URLS", "")
+    if not raw:
+        _catalog_urls = {}
+        return _catalog_urls
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            raise ValueError("expected JSON object")
+        _catalog_urls = {k.lower(): v.rstrip("/") for k, v in parsed.items()}
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.error("BABYLON_CATALOG_URLS is not valid: %s — %s", raw[:200], exc)
+        _catalog_urls = {}
+    return _catalog_urls
+
+
+def get_catalog_url(cluster: str) -> str:
+    """Return the catalog UI base URL for a cluster, or empty string."""
+    return _load_catalog_urls().get(cluster.lower(), "")
+
+
 async def k8s_get_resource(
     cluster_name: str,
     group: str,
