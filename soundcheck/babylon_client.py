@@ -120,13 +120,13 @@ def _build_ssl_context(cluster_cfg: dict[str, Any]) -> ssl.SSLContext | bool:
         key_path = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".crt", delete=False, mode="wb") as cf:
+                cert_path = cf.name
                 os.fchmod(cf.fileno(), 0o600)
                 cf.write(cert_bytes)
-                cert_path = cf.name
             with tempfile.NamedTemporaryFile(suffix=".key", delete=False, mode="wb") as kf:
+                key_path = kf.name
                 os.fchmod(kf.fileno(), 0o600)
                 kf.write(key_bytes)
-                key_path = kf.name
             ctx.load_cert_chain(cert_path, key_path)
         finally:
             for path in (cert_path, key_path):
