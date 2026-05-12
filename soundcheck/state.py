@@ -449,21 +449,39 @@ class SessionState(rx.State):
         return f"{base}/services/{cs.resource_namespace}/{cs.resource_name}"
 
     @rx.var
+    def _session_time_buckets(self) -> dict[str, list[CheckSession]]:
+        """Single-pass partition of all_sessions into time-based buckets.
+
+        Keys: today (last 24h), yesterday (24-48h), older (>48h).
+        """
+        now = utc_now()
+        recent_cutoff = now - timedelta(hours=24)
+        earlier_cutoff = now - timedelta(hours=48)
+        today: list[CheckSession] = []
+        yesterday: list[CheckSession] = []
+        older: list[CheckSession] = []
+        for s in self.all_sessions:
+            if not s.created_at:
+                older.append(s)
+            elif s.created_at >= recent_cutoff:
+                today.append(s)
+            elif s.created_at >= earlier_cutoff:
+                yesterday.append(s)
+            else:
+                older.append(s)
+        return {"today": today, "yesterday": yesterday, "older": older}
+
+    @rx.var
     def today_sessions(self) -> list[CheckSession]:
-        cutoff = utc_now() - timedelta(hours=24)
-        return [s for s in self.all_sessions if s.created_at and s.created_at >= cutoff]
+        return self._session_time_buckets["today"]
 
     @rx.var
     def yesterday_sessions(self) -> list[CheckSession]:
-        now = utc_now()
-        recent = now - timedelta(hours=24)
-        earlier = now - timedelta(hours=48)
-        return [s for s in self.all_sessions if s.created_at and earlier <= s.created_at < recent]
+        return self._session_time_buckets["yesterday"]
 
     @rx.var
     def older_sessions(self) -> list[CheckSession]:
-        cutoff = utc_now() - timedelta(hours=48)
-        return [s for s in self.all_sessions if s.created_at and s.created_at < cutoff]
+        return self._session_time_buckets["older"]
 
     target_filter: str = "all"
 
