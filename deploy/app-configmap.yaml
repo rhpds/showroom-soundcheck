@@ -14,5 +14,5 @@ data:
   REFLEX_ENV: "prod"
   POSTGRES_HOST: "postgres"
   POSTGRES_PORT: "5432"
-  BABYLON_CLUSTERS: '["/secrets/east.kubeconfig","/secrets/west.kubeconfig"]'
+  BABYLON_CLUSTERS: '["/secrets/west.kubeconfig","/secrets/east.kubeconfig"]'
   BABYLON_CATALOG_URLS: '{"east": "https://catalog.demo.redhat.com", "west": "https://babylon-catalog.apps.ocp-us-west-2.infra.open.redhat.com"}'

@@ -139,7 +139,7 @@ podman run --rm -t showroom-soundcheck-cli --urls https://showroom1.example.com
 To enable GUID resolution, provide a JSON array of kubeconfig file paths. **Array order determines search priority** — when no cluster is specified, clusters are tried in order and the first match wins:
 
 ```json
-["/secrets/east.kubeconfig", "/secrets/west.kubeconfig"]
+["/secrets/west.kubeconfig", "/secrets/east.kubeconfig"]
 ```
 
 Cluster names are derived from filenames by stripping the `.kubeconfig` extension (e.g. `east.kubeconfig` → `east`). Any leading `NN-` numeric prefix is also stripped if present.
