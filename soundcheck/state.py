@@ -37,7 +37,6 @@ from .check_service import TargetCheckResult, check_single_target, create_client
 from .models import CheckResult, CheckSession, SessionTarget
 from .utils import (
     InputValidationError,
-    extract_guid_from_url,
     make_display_label,
     parse_check_params,
     utc_now,
