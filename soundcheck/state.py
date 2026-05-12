@@ -807,6 +807,8 @@ class TargetDetailState(SessionState):
 class CheckRunnerState(SessionState):
     """Background task orchestration for health checks."""
 
+    _running_session_id: str = ""
+
     @rx.event(background=True)
     async def run_checks(self):
         """Background task: resolve GUIDs and run health checks for current session."""
@@ -814,6 +816,9 @@ class CheckRunnerState(SessionState):
             sid = self.current_session_id
             if not sid:
                 return
+            if self._running_session_id == sid:
+                return
+            self._running_session_id = sid
 
         async with rx.asession() as session:
             session_result = await session.execute(
@@ -821,6 +826,8 @@ class CheckRunnerState(SessionState):
             )
             cs = session_result.scalars().first()
             if not cs or cs.status != "pending":
+                async with self:
+                    self._running_session_id = ""
                 return
             cs.status = "running"
             session.add(cs)
@@ -838,6 +845,7 @@ class CheckRunnerState(SessionState):
         finally:
             sessions = await _load_all_sessions_async()
             async with self:
+                self._running_session_id = ""
                 self.all_sessions = sessions
 
     @staticmethod
