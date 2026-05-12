@@ -543,8 +543,9 @@ class SessionFormState(SessionState):
 
     @rx.event
     def reset_form_lock(self):
-        """Clear stale submit lock when navigating back to the home page."""
+        """Clear stale submit lock and error when navigating back to the home page."""
         self.form_submitting = False
+        self.form_error = ""
 
     @rx.event
     async def handle_check_page(self):
