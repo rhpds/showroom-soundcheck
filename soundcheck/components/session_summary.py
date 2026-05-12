@@ -12,9 +12,10 @@ def _resource_details() -> rx.Component:
         rx.badge(
             SessionState.current_session.resource_kind,
             variant="solid",
-            color_scheme=rx.cond(
-                SessionState.current_session.resource_kind == "Workshop",
-                "purple",
+            color_scheme=rx.match(
+                SessionState.current_session.resource_kind,
+                ("Workshop", "purple"),
+                ("ResourcePool", "indigo"),
                 "teal",
             ),
             size="1",
@@ -24,9 +25,10 @@ def _resource_details() -> rx.Component:
             lambda g: rx.badge(
                 g,
                 variant="outline",
-                color_scheme=rx.cond(
-                    SessionState.current_session.resource_kind == "Workshop",
-                    "purple",
+                color_scheme=rx.match(
+                    SessionState.current_session.resource_kind,
+                    ("Workshop", "purple"),
+                    ("ResourcePool", "indigo"),
                     "teal",
                 ),
                 size="1",
