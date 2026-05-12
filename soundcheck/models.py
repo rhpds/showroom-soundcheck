@@ -34,6 +34,7 @@ class CheckSession(rx.Model, table=True):
     source_urls: str = "[]"  # JSON list of original input URLs
     source_guids: str = "[]"  # JSON list of ResourceClaim GUIDs (if any)
     source_workshop_guids: str = "[]"  # JSON list of Workshop GUIDs (workshop-id labels)
+    source_resource_pools: str = "[]"  # JSON list of ResourcePool names
     babylon_cluster: str = ""  # Babylon cluster name for GUID resolution
     display_label: str = ""
     status: str = "pending"  # pending | running | completed | failed
@@ -42,7 +43,7 @@ class CheckSession(rx.Model, table=True):
 
     resource_name: str = ""
     resource_namespace: str = ""
-    resource_kind: str = ""  # Workshop | ResourceClaim
+    resource_kind: str = ""  # Workshop | ResourceClaim | ResourcePool
     resource_display_name: str = ""
     resource_metadata: str = "{}"  # JSON dict of extra display fields from the CRD
 
@@ -61,6 +62,12 @@ class CheckSession(rx.Model, table=True):
     def get_workshop_guids(self) -> list[str]:
         try:
             return json.loads(self.source_workshop_guids) if self.source_workshop_guids else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def get_resource_pools(self) -> list[str]:
+        try:
+            return json.loads(self.source_resource_pools) if self.source_resource_pools else []
         except (json.JSONDecodeError, TypeError):
             return []
 
@@ -83,6 +90,10 @@ class CheckSession(rx.Model, table=True):
         return json.dumps(guids)
 
     @staticmethod
+    def encode_resource_pools(pools: list[str]) -> str:
+        return json.dumps(pools)
+
+    @staticmethod
     def encode_resource_metadata(meta: dict) -> str:
         return json.dumps(meta, default=str)
 
@@ -102,6 +113,7 @@ class SessionTarget(rx.Model, table=True):
     label: str = ""
     guid: Optional[str] = None
     workshop_guid: Optional[str] = None
+    resource_pool_name: Optional[str] = None
     resource_name: str = ""
     resource_namespace: str = ""
     provision_status: Optional[str] = None  # provisioning | ready | destroying

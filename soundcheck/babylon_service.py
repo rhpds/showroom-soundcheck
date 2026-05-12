@@ -2,7 +2,8 @@
 
 Stateless functions that resolve Babylon GUIDs to showroom URLs by querying
 Kubernetes API servers.  Searches across all configured clusters for
-ResourceClaims, Workshops, and MultiWorkshops matching the given GUID.
+ResourceClaims, Workshops, ResourcePools, and MultiWorkshops matching the
+given GUID or resource name.
 """
 
 import asyncio
@@ -18,6 +19,9 @@ logger = logging.getLogger(__name__)
 RC_GROUP = "poolboy.gpte.redhat.com"
 RC_VERSION = "v1"
 RC_PLURAL = "resourceclaims"
+RP_PLURAL = "resourcepools"
+RH_PLURAL = "resourcehandles"
+POOLBOY_NAMESPACE = "poolboy"
 
 BABYLON_GROUP = "babylon.gpte.redhat.com"
 BABYLON_VERSION = "v1"
@@ -445,6 +449,164 @@ async def resolve_workshop_guids(
         *[resolve_workshop_guid(g, cluster=cluster, ctx=ctx) for g in guids],
     )
     return dict(zip(guids, resolved))
+
+
+# ---------------------------------------------------------------------------
+# ResourcePool / ResourceHandle resolution
+# ---------------------------------------------------------------------------
+
+
+def extract_showroom_urls_from_handle(rh_def: dict[str, Any]) -> dict[str, str]:
+    """Extract a showroom URL entry from a ResourceHandle's provision_data.
+
+    Returns a single dict with ``url``, ``label``, and handle metadata.
+    Unlike ResourceClaims (where URLs live inside AnarchySubject state),
+    ResourceHandle provision_data is at ``status.summary.provision_data``.
+    """
+    meta = rh_def.get("metadata", {})
+    status = rh_def.get("status", {})
+    handle_name = meta.get("name", "unknown")
+    provision_data = status.get("summary", {}).get("provision_data", {})
+
+    url = ""
+    for key in LAB_UI_URL_KEYS:
+        candidate = provision_data.get(key)
+        if candidate:
+            url = candidate
+            break
+
+    healthy = status.get("healthy")
+    ready = status.get("ready")
+
+    if healthy is False:
+        provision_status = "unhealthy"
+    elif ready is True:
+        provision_status = "ready"
+    elif ready is False:
+        provision_status = "provisioning"
+    else:
+        provision_status = None
+
+    entry: dict[str, str] = {
+        "url": url,
+        "label": handle_name,
+        "handle_name": handle_name,
+    }
+    if provision_status:
+        entry["provision_status"] = provision_status
+    return entry
+
+
+async def resolve_resource_pool(
+    pool_name: str, cluster: str = "",
+) -> tuple[list[dict[str, str]], list[str], Optional[str]]:
+    """Resolve a ResourcePool name to showroom URLs via its ResourceHandles.
+
+    Fetches the ResourcePool from the ``poolboy`` namespace, reads
+    ``status.resourceHandles`` for handle names, then fetches each
+    ResourceHandle concurrently and extracts showroom URLs.
+
+    Returns ``(url_entries, errors, resolved_cluster)``.
+    """
+    clusters = [cluster] if cluster else babylon_client.get_configured_clusters()
+    if not clusters:
+        return [], ["No Babylon clusters configured for ResourcePool resolution"], None
+
+    for c in clusters:
+        try:
+            pool_def = await babylon_client.k8s_get_resource(
+                c, RC_GROUP, RC_VERSION, RP_PLURAL, POOLBOY_NAMESPACE, pool_name,
+            )
+        except Exception as e:
+            logger.debug("ResourcePool '%s' not found on cluster '%s': %s", pool_name, c, e)
+            continue
+
+        handle_entries = pool_def.get("status", {}).get("resourceHandles") or []
+        if not handle_entries:
+            return [], [], c
+
+        handle_names = [h["name"] for h in handle_entries if h.get("name")]
+        logger.info(
+            "ResourcePool '%s' on cluster '%s' has %d handle(s)",
+            pool_name, c, len(handle_names),
+        )
+
+        tasks = [
+            babylon_client.k8s_get_resource(
+                c, RC_GROUP, RC_VERSION, RH_PLURAL, POOLBOY_NAMESPACE, name,
+            )
+            for name in handle_names
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        url_entries: list[dict[str, str]] = []
+        errors: list[str] = []
+        for name, result in zip(handle_names, results):
+            if isinstance(result, Exception):
+                msg = f"Failed to fetch ResourceHandle '{name}': {result}"
+                logger.warning(msg)
+                errors.append(msg)
+                continue
+            entry = extract_showroom_urls_from_handle(result)
+            entry["resolved_cluster"] = c
+            url_entries.append(entry)
+
+        return url_entries, errors, c
+
+    return [], [f"ResourcePool '{pool_name}' not found on any configured cluster"], None
+
+
+def extract_resource_pool_metadata(rp_def: dict[str, Any]) -> dict[str, Any]:
+    """Extract display-worthy metadata from a ResourcePool CRD."""
+    meta = rp_def.get("metadata", {})
+    spec = rp_def.get("spec", {})
+    status = rp_def.get("status", {})
+    labels = meta.get("labels", {})
+    lifespan = spec.get("lifespan", {})
+    handle_count = status.get("resourceHandleCount", {})
+
+    catalog_label = ""
+    for label_key in labels:
+        if label_key.startswith("catalog-item.demo.redhat.com/"):
+            catalog_label = label_key.removeprefix("catalog-item.demo.redhat.com/")
+            break
+
+    result: dict[str, Any] = {
+        "kind": "ResourcePool",
+        "name": meta.get("name", ""),
+        "namespace": meta.get("namespace", ""),
+        "uid": meta.get("uid", ""),
+        "created_at": meta.get("creationTimestamp", ""),
+        "catalog_item": catalog_label,
+        "min_available": spec.get("minAvailable", 0),
+        "max_unready": spec.get("maxUnready", 0),
+        "handles_available": handle_count.get("available", 0),
+        "handles_ready": handle_count.get("ready", 0),
+        "handles_total": len(status.get("resourceHandles") or []),
+        "lifespan_default": lifespan.get("default", ""),
+        "lifespan_maximum": lifespan.get("maximum", ""),
+        "lifespan_unclaimed": lifespan.get("unclaimed", ""),
+    }
+    return {k: v for k, v in result.items() if v != "" and v != 0 and v is not False}
+
+
+async def lookup_resource_pool(
+    pool_name: str, cluster: str = "",
+) -> tuple[Optional[dict[str, Any]], str]:
+    """Fetch a ResourcePool by name from the poolboy namespace.
+
+    Returns ``(pool_def, resolved_cluster)``.
+    """
+    clusters = [cluster] if cluster else babylon_client.get_configured_clusters()
+    for c in clusters:
+        try:
+            pool_def = await babylon_client.k8s_get_resource(
+                c, RC_GROUP, RC_VERSION, RP_PLURAL, POOLBOY_NAMESPACE, pool_name,
+            )
+            return pool_def, c
+        except Exception as e:
+            logger.debug("ResourcePool '%s' not on cluster '%s': %s", pool_name, c, e)
+    return None, ""
 
 
 # ---------------------------------------------------------------------------

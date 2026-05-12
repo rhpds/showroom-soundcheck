@@ -24,10 +24,13 @@ from . import babylon_client
 from .babylon_service import (
     ResolutionContext,
     extract_resource_claim_metadata,
+    extract_resource_pool_metadata,
     extract_workshop_metadata,
     lookup_rc_by_guid,
+    lookup_resource_pool,
     lookup_workshop_by_guid,
     resolve_guids,
+    resolve_resource_pool,
     resolve_workshop_guids,
 )
 from .check_service import TargetCheckResult, check_single_target, create_client
@@ -96,9 +99,11 @@ async def _persist_new_session(
     babylon_cluster: str = "",
     display_label: str = "",
     workshop_guids: Optional[list[str]] = None,
+    resource_pools: Optional[list[str]] = None,
 ) -> str:
     """Create a new pending session with targets in the database. Returns session_id."""
     workshop_guids = workshop_guids or []
+    resource_pools = resource_pools or []
     sid = str(uuid.uuid4())
     now = utc_now()
 
@@ -111,8 +116,9 @@ async def _persist_new_session(
             source_urls=CheckSession.encode_urls(urls),
             source_guids=CheckSession.encode_guids(guids),
             source_workshop_guids=CheckSession.encode_workshop_guids(workshop_guids),
+            source_resource_pools=CheckSession.encode_resource_pools(resource_pools),
             babylon_cluster=babylon_cluster,
-            display_label=display_label or make_display_label(urls, guids, workshop_guids),
+            display_label=display_label or make_display_label(urls, guids, workshop_guids, resource_pools),
             status="pending",
             created_at=now,
         )
@@ -295,6 +301,7 @@ class SessionState(rx.State):
             babylon_cluster=cs.babylon_cluster,
             display_label=cs.display_label,
             workshop_guids=cs.get_workshop_guids(),
+            resource_pools=cs.get_resource_pools(),
         )
         return rx.redirect(f"/session/{sid}")
 
@@ -429,7 +436,7 @@ class SessionState(rx.State):
 
     @rx.var
     def session_catalog_url(self) -> str:
-        """Babylon catalog URL for the session's resolved resource (Workshop or RC)."""
+        """Babylon catalog URL for the session's resolved resource (Workshop, RC, or Pool)."""
         cs = self.current_session
         if not cs or not cs.babylon_cluster or not cs.resource_namespace or not cs.resource_name:
             return ""
@@ -438,6 +445,8 @@ class SessionState(rx.State):
             return ""
         if cs.resource_kind == "Workshop":
             return f"{base}/workshops/{cs.resource_namespace}/{cs.resource_name}"
+        if cs.resource_kind == "ResourcePool":
+            return f"{base}/admin/resourcepools/{cs.resource_name}/yaml"
         return f"{base}/services/{cs.resource_namespace}/{cs.resource_name}"
 
     @rx.var
@@ -545,12 +554,13 @@ class SessionFormState(SessionState):
         raw_urls = query.get("urls", "")
         raw_guids = query.get("guid", "")
         raw_ws_guids = query.get("workshop", "")
+        raw_pools = query.get("pool", "")
         check_type = query.get("type", "readyz")
         check_mode = query.get("mode", "manual")
         session_name = query.get("name", "")
         cluster = query.get("cluster", "")
 
-        if not raw_urls and not raw_guids and not raw_ws_guids:
+        if not raw_urls and not raw_guids and not raw_ws_guids and not raw_pools:
             return rx.redirect("/")
 
         try:
@@ -558,6 +568,7 @@ class SessionFormState(SessionState):
                 raw_urls=raw_urls,
                 raw_guids=raw_guids,
                 raw_ws_guids=raw_ws_guids,
+                raw_resource_pools=raw_pools,
                 check_type=check_type,
                 check_mode=check_mode,
                 session_name=session_name,
@@ -575,6 +586,7 @@ class SessionFormState(SessionState):
             guids=parsed.guids,
             babylon_cluster=parsed.babylon_cluster,
             workshop_guids=parsed.workshop_guids,
+            resource_pools=parsed.resource_pools,
         )
         return rx.redirect(f"/session/{sid}")
 
@@ -588,6 +600,7 @@ class SessionFormState(SessionState):
                 raw_urls=(form_data.get("urls") or "").strip(),
                 raw_guids=(form_data.get("guids") or "").strip(),
                 raw_ws_guids=(form_data.get("workshop_guids") or "").strip(),
+                raw_resource_pools=(form_data.get("resource_pool") or "").strip(),
                 check_type=form_data.get("check_type") or "readyz",
                 check_mode=form_data.get("check_mode") or "manual",
                 session_name=form_data.get("session_name") or "",
@@ -599,8 +612,9 @@ class SessionFormState(SessionState):
             self.form_submitting = False
             return
 
-        if (parsed.guids or parsed.workshop_guids) and not babylon_client.get_configured_clusters():
-            self.form_error = "No Babylon clusters configured — cannot resolve GUIDs"
+        needs_cluster = parsed.guids or parsed.workshop_guids or parsed.resource_pools
+        if needs_cluster and not babylon_client.get_configured_clusters():
+            self.form_error = "No Babylon clusters configured — cannot resolve GUIDs or ResourcePools"
             self.form_submitting = False
             return
 
@@ -612,6 +626,7 @@ class SessionFormState(SessionState):
             guids=parsed.guids,
             babylon_cluster=parsed.babylon_cluster,
             workshop_guids=parsed.workshop_guids,
+            resource_pools=parsed.resource_pools,
         )
 
         self.form_error = ""
@@ -904,10 +919,10 @@ class CheckRunnerState(SessionState):
         )
 
     async def _resolve_and_create_targets(self, sid: str) -> None:
-        """Resolve GUIDs/workshop GUIDs and create SessionTarget rows.
+        """Resolve GUIDs/workshop GUIDs/resource pools and create SessionTarget rows.
 
-        Also looks up the source resource (Workshop or ResourceClaim) to populate
-        session-level metadata (name, namespace, displayName, etc.).
+        Also looks up the source resource (Workshop, ResourceClaim, or
+        ResourcePool) to populate session-level metadata.
         """
         async with rx.asession() as session:
             session_result = await session.execute(
@@ -916,6 +931,7 @@ class CheckRunnerState(SessionState):
             cs = session_result.scalars().first()
             guids = cs.get_guids() if cs else []
             ws_guids = cs.get_workshop_guids() if cs else []
+            pools = cs.get_resource_pools() if cs else []
             cluster = cs.babylon_cluster if cs else ""
 
         guid_resolved = False
@@ -967,6 +983,52 @@ class CheckRunnerState(SessionState):
 
             if len(ws_guids) == 1:
                 await self._populate_workshop_metadata(sid, ws_guids[0], cluster, ctx)
+
+        if pools:
+            for pool_name in pools:
+                url_entries, errors, resolved_cluster = await resolve_resource_pool(
+                    pool_name, cluster=cluster,
+                )
+                async with rx.asession() as session:
+                    if not url_entries and not errors:
+                        session.add(SessionTarget(
+                            session_id=sid,
+                            url="",
+                            label=f"ResourcePool empty: {pool_name}",
+                            resource_pool_name=pool_name,
+                            status="error",
+                            error_message=f"ResourcePool '{pool_name}' has no instances",
+                        ))
+                    elif not url_entries and errors:
+                        session.add(SessionTarget(
+                            session_id=sid,
+                            url="",
+                            label=f"ResourcePool not found: {pool_name}",
+                            resource_pool_name=pool_name,
+                            status="error",
+                            error_message="; ".join(errors)[:500],
+                        ))
+                    else:
+                        for entry in url_entries:
+                            status, err_msg, prov_status = self._status_for_resolution_entry(
+                                entry,
+                                fallback_label=pool_name,
+                                resolution_error_prefix="ResourcePool resolution failed: ",
+                            )
+                            session.add(SessionTarget(
+                                session_id=sid,
+                                url=entry["url"].rstrip("/") if entry.get("url") else "",
+                                label=entry.get("label", ""),
+                                resource_pool_name=pool_name,
+                                provision_status=prov_status,
+                                status=status,
+                                error_message=err_msg,
+                            ))
+                    await session.commit()
+                guid_resolved = True
+
+            if len(pools) == 1:
+                await self._populate_pool_metadata(sid, pools[0], cluster)
 
         if guid_resolved:
             await self._push_session_to_ui(sid)
@@ -1028,6 +1090,35 @@ class CheckRunnerState(SessionState):
                     await session.commit()
         except Exception as e:
             logger.warning("Failed to populate RC metadata for '%s': %s", guid, e)
+
+    async def _populate_pool_metadata(
+        self, sid: str, pool_name: str, cluster: str,
+    ) -> None:
+        """Look up the ResourcePool CRD and store metadata on the session."""
+        try:
+            pool_def, resolved_cluster = await lookup_resource_pool(pool_name, cluster=cluster)
+            if not pool_def:
+                return
+            meta = extract_resource_pool_metadata(pool_def)
+            async with rx.asession() as session:
+                cs_result = await session.execute(
+                    select(CheckSession).where(CheckSession.session_id == sid)
+                )
+                cs = cs_result.scalars().first()
+                if cs:
+                    cs.resource_kind = "ResourcePool"
+                    cs.resource_name = meta.get("name", "")
+                    cs.resource_namespace = meta.get("namespace", "")
+                    cs.resource_display_name = meta.get("catalog_item", "")
+                    cs.resource_metadata = CheckSession.encode_resource_metadata(meta)
+                    if resolved_cluster and not cs.babylon_cluster:
+                        cs.babylon_cluster = resolved_cluster
+                    if meta.get("catalog_item") and not cs.name:
+                        cs.name = meta["catalog_item"]
+                    session.add(cs)
+                    await session.commit()
+        except Exception as e:
+            logger.warning("Failed to populate pool metadata for '%s': %s", pool_name, e)
 
     async def _execute_checks(self, sid: str) -> None:
         """Run health checks concurrently for all targets in the session."""

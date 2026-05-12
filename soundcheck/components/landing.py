@@ -15,7 +15,7 @@ def landing_content() -> rx.Component:
                     rx.heading("Showroom Health Checks", size="7"),
                     rx.text(
                         "Check the health of showroom environments. "
-                        "Provide URLs directly, or use a ResourceClaim or Workshop GUID to auto-discover them.",
+                        "Provide URLs directly, or use a GUID or ResourcePool name to auto-discover them.",
                         size="3",
                         color="gray",
                         text_align="center",
@@ -66,18 +66,27 @@ def landing_content() -> rx.Component:
                             width="100%",
                             **styles.input_style,
                         ),
+                        rx.el.label("ResourcePool Name", html_for="resource_pool", style=styles.label_style),
+                        rx.text("A pool name — discovers all ResourceHandles and their showroom URLs", size="1", color="gray"),
+                        rx.input(
+                            placeholder="ai-quickstarts.ai-qs-product-rec-tenant.event",
+                            name="resource_pool",
+                            id="resource_pool",
+                            width="100%",
+                            **styles.input_style,
+                        ),
+                        rx.el.label("Babylon Cluster", html_for="babylon_cluster", style=styles.label_style),
+                        rx.text("Optional — searches all clusters in priority order when omitted", size="1", color="gray"),
+                        rx.select(
+                            SessionState.cluster_select_options,
+                            name="babylon_cluster",
+                            id="babylon_cluster",
+                            default_value="(auto)",
+                        ),
                         rx.accordion.root(
                             rx.accordion.item(
                                 header="Advanced Settings",
                                 content=rx.vstack(
-                                    rx.el.label("Babylon Cluster", html_for="babylon_cluster", style=styles.label_style),
-                                    rx.text("Optional — searches all clusters in priority order when omitted", size="1", color="gray"),
-                                    rx.select(
-                                        SessionState.cluster_select_options,
-                                        name="babylon_cluster",
-                                        id="babylon_cluster",
-                                        default_value="(auto)",
-                                    ),
                                     rx.hstack(
                                         rx.vstack(
                                             rx.text("Check Type", size="2", weight="bold"),
@@ -168,6 +177,7 @@ def landing_content() -> rx.Component:
                         rx.code("/check?urls=https://showroom1.example.com,https://showroom2.example.com", size="1"),
                         rx.code("/check?guid=gmltt", size="1"),
                         rx.code("/check?workshop=9ucgv5", size="1"),
+                        rx.code("/check?pool=ai-quickstarts.ai-qs-product-rec-tenant.event&cluster=west", size="1"),
                         rx.code("/check?guid=gmltt&cluster=east", size="1"),
                         rx.code("/check?guid=gmltt&type=healthz&name=My+Workshop", size="1"),
                         rx.code("/check?urls=https://showroom1.example.com&mode=showroom", size="1"),

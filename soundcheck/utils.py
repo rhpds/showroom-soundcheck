@@ -85,6 +85,7 @@ def make_display_label(
     urls: list[str],
     guids: list[str],
     workshop_guids: Optional[list[str]] = None,
+    resource_pools: Optional[list[str]] = None,
 ) -> str:
     """Build a human-friendly label for the sidebar.
 
@@ -92,6 +93,8 @@ def make_display_label(
     the ``cluster-<guid>`` hostname component; falls back to the raw URL.
     """
     parts: list[str] = []
+    if resource_pools:
+        parts.extend(f"pool:{p}" for p in resource_pools)
     if workshop_guids:
         parts.extend(f"ws:{g}" for g in workshop_guids)
     if guids:
@@ -121,6 +124,7 @@ class ParsedSessionInput:
     urls: list[str] = field(default_factory=list)
     guids: list[str] = field(default_factory=list)
     workshop_guids: list[str] = field(default_factory=list)
+    resource_pools: list[str] = field(default_factory=list)
     check_type: str = "readyz"
     check_mode: str = "manual"
     babylon_cluster: str = ""
@@ -135,6 +139,7 @@ def parse_check_params(
     raw_urls: str,
     raw_guids: str,
     raw_ws_guids: str,
+    raw_resource_pools: str = "",
     check_type: str = "readyz",
     check_mode: str = "manual",
     session_name: str = "",
@@ -143,22 +148,26 @@ def parse_check_params(
 ) -> ParsedSessionInput:
     """Parse and validate raw input from either query params or form data.
 
-    A session accepts either:
-      - One or more URLs (no GUIDs), OR
-      - Exactly one GUID (either a ResourceClaim GUID or a Workshop GUID, not both)
+    A session accepts exactly one of:
+      - One or more URLs
+      - A single ResourceClaim GUID
+      - A single Workshop GUID
+      - A single ResourcePool name
 
     Raises InputValidationError on invalid input.
     """
     urls = [u.strip() for u in raw_urls.split(url_separator) if u.strip()] if raw_urls else []
     guids = [g.strip() for g in raw_guids.replace(",", "\n").split("\n") if g.strip()] if raw_guids else []
     workshop_guids = [g.strip() for g in raw_ws_guids.replace(",", "\n").split("\n") if g.strip()] if raw_ws_guids else []
+    resource_pools = [p.strip() for p in raw_resource_pools.replace(",", "\n").split("\n") if p.strip()] if raw_resource_pools else []
 
-    if not urls and not guids and not workshop_guids:
-        raise InputValidationError("Provide at least one URL, GUID, or Workshop GUID")
+    if not urls and not guids and not workshop_guids and not resource_pools:
+        raise InputValidationError("Provide at least one URL, GUID, Workshop GUID, or ResourcePool name")
 
-    if guids and workshop_guids:
+    input_kinds = sum(bool(x) for x in (urls, guids, workshop_guids, resource_pools))
+    if input_kinds > 1:
         raise InputValidationError(
-            "Provide either a ResourceClaim GUID or a Workshop GUID, not both"
+            "Provide only one of: URLs, ResourceClaim GUID, Workshop GUID, or ResourcePool name"
         )
 
     if len(guids) > 1:
@@ -171,9 +180,9 @@ def parse_check_params(
             "Only one Workshop GUID per session is supported"
         )
 
-    if (guids or workshop_guids) and urls:
+    if len(resource_pools) > 1:
         raise InputValidationError(
-            "Provide either URLs or a GUID, not both"
+            "Only one ResourcePool name per session is supported"
         )
 
     valid_prefixes = ("https://", "http://")
@@ -192,6 +201,7 @@ def parse_check_params(
         urls=urls,
         guids=guids,
         workshop_guids=workshop_guids,
+        resource_pools=resource_pools,
         check_type=normalize_check_type(check_type.strip()),
         check_mode=normalize_check_mode(check_mode.strip()),
         babylon_cluster=cluster.strip() if cluster.strip() != "(auto)" else "",
