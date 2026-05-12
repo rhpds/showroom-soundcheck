@@ -66,43 +66,55 @@ def landing_content() -> rx.Component:
                             width="100%",
                             **styles.input_style,
                         ),
-                        rx.el.label("Babylon Cluster", html_for="babylon_cluster", style=styles.label_style),
-                        rx.text("Optional — searches all clusters in priority order when omitted", size="1", color="gray"),
-                        rx.select(
-                            SessionState.cluster_select_options,
-                            name="babylon_cluster",
-                            id="babylon_cluster",
-                            default_value="(auto)",
-                        ),
-                        rx.hstack(
-                            rx.vstack(
-                                rx.text("Check Type", size="2", weight="bold"),
-                                rx.select(
-                                    ["readyz", "healthz"],
-                                    name="check_type",
-                                    default_value="readyz",
+                        rx.accordion.root(
+                            rx.accordion.item(
+                                header="Advanced Settings",
+                                content=rx.vstack(
+                                    rx.el.label("Babylon Cluster", html_for="babylon_cluster", style=styles.label_style),
+                                    rx.text("Optional — searches all clusters in priority order when omitted", size="1", color="gray"),
+                                    rx.select(
+                                        SessionState.cluster_select_options,
+                                        name="babylon_cluster",
+                                        id="babylon_cluster",
+                                        default_value="(auto)",
+                                    ),
+                                    rx.hstack(
+                                        rx.vstack(
+                                            rx.text("Check Type", size="2", weight="bold"),
+                                            rx.select(
+                                                ["readyz", "healthz"],
+                                                name="check_type",
+                                                default_value="readyz",
+                                            ),
+                                            spacing="1",
+                                            flex="1",
+                                        ),
+                                        rx.vstack(
+                                            rx.text("Check Mode", size="2", weight="bold"),
+                                            rx.select(
+                                                ["manual", "showroom"],
+                                                name="check_mode",
+                                                default_value="manual",
+                                            ),
+                                            spacing="1",
+                                            flex="1",
+                                        ),
+                                        spacing="3",
+                                        width="100%",
+                                    ),
+                                    rx.text(
+                                        "Manual: runs checks locally (fetches config, probes tabs). "
+                                        "Showroom: delegates to the showroom's own health endpoint first.",
+                                        size="1",
+                                        color="gray",
+                                    ),
+                                    spacing="3",
+                                    width="100%",
                                 ),
-                                spacing="1",
-                                flex="1",
                             ),
-                            rx.vstack(
-                                rx.text("Check Mode", size="2", weight="bold"),
-                                rx.select(
-                                    ["manual", "showroom"],
-                                    name="check_mode",
-                                    default_value="manual",
-                                ),
-                                spacing="1",
-                                flex="1",
-                            ),
-                            spacing="3",
+                            collapsible=True,
+                            variant="ghost",
                             width="100%",
-                        ),
-                        rx.text(
-                            "Manual: runs checks locally (fetches config, probes tabs). "
-                            "Showroom: delegates to the showroom's own health endpoint first.",
-                            size="1",
-                            color="gray",
                         ),
                         rx.cond(
                             SessionFormState.form_error != "",
