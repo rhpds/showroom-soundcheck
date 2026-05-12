@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/name: showroom-soundcheck-app
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: web
+  annotations:
+    haproxy.router.openshift.io/timeout: 3600s
 spec:
   host: showroom-soundcheck-dev.apps.ocpv-infra01.dal12.infra.demo.redhat.com
   to:
