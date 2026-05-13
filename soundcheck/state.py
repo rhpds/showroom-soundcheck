@@ -734,27 +734,23 @@ class SessionState(rx.State):
 
     @rx.var
     def _target_buckets(self) -> dict[str, list[SessionTarget]]:
-        """Single-pass partition of current_targets into status buckets.
-
-        Returns keys: all, issues, healthy, in_progress — each
-        sorted by status priority then check start time.
-        """
+        """Sort once, then partition into status buckets from the sorted list."""
+        all_sorted = self._sort_targets(self.current_targets)
         issues: list[SessionTarget] = []
         healthy: list[SessionTarget] = []
         in_progress: list[SessionTarget] = []
-        for t in self.current_targets:
+        for t in all_sorted:
             if t.status in ("error", "unhealthy", "degraded"):
                 issues.append(t)
             elif t.status == "healthy":
                 healthy.append(t)
             elif t.status in ("checking", "pending", "provisioning"):
                 in_progress.append(t)
-        all_sorted = self._sort_targets(self.current_targets)
         return {
             "all": all_sorted,
-            "issues": self._sort_targets(issues),
-            "healthy": self._sort_targets(healthy),
-            "in_progress": self._sort_targets(in_progress),
+            "issues": issues,
+            "healthy": healthy,
+            "in_progress": in_progress,
         }
 
     @rx.var
