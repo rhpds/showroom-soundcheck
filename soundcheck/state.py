@@ -1807,6 +1807,14 @@ class GroupState(SessionState):
                 })
         return summaries
 
+    @rx.var
+    def group_sessions_by_run(self) -> dict[str, list[dict]]:
+        """Session summaries pre-grouped by run_id for efficient rendering."""
+        by_run: dict[str, list[dict]] = {}
+        for s in self.group_session_summaries:
+            by_run.setdefault(s["run_id"], []).append(s)
+        return by_run
+
 
 class GroupFormState(SessionState):
     """Handles group creation with full settings."""

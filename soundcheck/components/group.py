@@ -676,14 +676,10 @@ def _session_card(summary: dict) -> rx.Component:
 
 
 def _sessions_for_run(run_summary: dict) -> rx.Component:
-    """Render session cards for a single run (filtered by run_id)."""
+    """Render session cards for a single run using pre-grouped data."""
     return rx.foreach(
-        GroupState.group_session_summaries,
-        lambda s: rx.cond(
-            s["run_id"].to(str) == run_summary["run_id"].to(str),
-            _session_card(s),
-            rx.fragment(),
-        ),
+        GroupState.group_sessions_by_run[run_summary["run_id"].to(str)],
+        _session_card,
     )
 
 
