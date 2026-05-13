@@ -110,35 +110,39 @@ async def _persist_new_session(
     sid = str(uuid.uuid4())
     now = utc_now()
 
-    async with rx.asession() as session:
-        cs = CheckSession(
-            session_id=sid,
-            name=name,
-            group_id=group_id or None,
-            group_run_id=group_run_id or None,
-            check_type=check_type,
-            check_mode=check_mode,
-            source_urls=CheckSession.encode_urls(urls),
-            source_guids=CheckSession.encode_guids(guids),
-            source_workshop_guids=CheckSession.encode_workshop_guids(workshop_guids),
-            source_resource_pools=CheckSession.encode_resource_pools(resource_pools),
-            babylon_cluster=babylon_cluster,
-            display_label=display_label or make_display_label(urls, guids, workshop_guids, resource_pools),
-            status="pending",
-            created_at=now,
-        )
-        session.add(cs)
-
-        for url in urls:
-            target = SessionTarget(
+    try:
+        async with rx.asession() as session:
+            cs = CheckSession(
                 session_id=sid,
-                url=url.rstrip("/"),
-                label=url,
+                name=name,
+                group_id=group_id or None,
+                group_run_id=group_run_id or None,
+                check_type=check_type,
+                check_mode=check_mode,
+                source_urls=CheckSession.encode_urls(urls),
+                source_guids=CheckSession.encode_guids(guids),
+                source_workshop_guids=CheckSession.encode_workshop_guids(workshop_guids),
+                source_resource_pools=CheckSession.encode_resource_pools(resource_pools),
+                babylon_cluster=babylon_cluster,
+                display_label=display_label or make_display_label(urls, guids, workshop_guids, resource_pools),
                 status="pending",
+                created_at=now,
             )
-            session.add(target)
+            session.add(cs)
 
-        await session.commit()
+            for url in urls:
+                target = SessionTarget(
+                    session_id=sid,
+                    url=url.rstrip("/"),
+                    label=url,
+                    status="pending",
+                )
+                session.add(target)
+
+            await session.commit()
+    except Exception:
+        logger.exception("Failed to persist new session '%s' (sid=%s)", name, sid)
+        raise
 
     return sid
 
