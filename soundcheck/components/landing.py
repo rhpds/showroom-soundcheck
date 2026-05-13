@@ -1,9 +1,9 @@
-"""Landing page — form for creating new health check sessions."""
+"""Landing page — form for creating new health check sessions and groups."""
 
 import reflex as rx
 
 from .. import styles
-from ..state import SessionFormState, SessionState
+from ..state import GroupFormState, SessionFormState, SessionState
 
 
 def landing_content() -> rx.Component:
@@ -26,144 +26,14 @@ def landing_content() -> rx.Component:
                     padding_bottom="1em",
                 ),
             ),
-            rx.card(
-                rx.form(
-                    rx.vstack(
-                        rx.el.label("Session Name", html_for="session_name", style=styles.label_style),
-                        rx.text("Optional — give this check a friendly name", size="1", color="gray"),
-                        rx.input(
-                            placeholder="e.g. OCP Workshop — Apr 28",
-                            name="session_name",
-                            id="session_name",
-                            width="100%",
-                            **styles.input_style,
-                        ),
-                        rx.el.label("Showroom URLs", html_for="urls", style=styles.label_style),
-                        rx.text("One URL per line", size="1", color="gray"),
-                        rx.text_area(
-                            placeholder="https://showroom1.example.com\nhttps://showroom2.example.com",
-                            name="urls",
-                            id="urls",
-                            rows="4",
-                            width="100%",
-                            **styles.input_style,
-                        ),
-                        rx.el.label("ResourceClaim GUID", html_for="guids", style=styles.label_style),
-                        rx.text("A single provision GUID to look up", size="1", color="gray"),
-                        rx.input(
-                            placeholder="gmltt",
-                            name="guids",
-                            id="guids",
-                            width="100%",
-                            **styles.input_style,
-                        ),
-                        rx.el.label("Workshop GUID", html_for="workshop_guids", style=styles.label_style),
-                        rx.text("A single workshop ID — discovers all ResourceClaims in the workshop", size="1", color="gray"),
-                        rx.input(
-                            placeholder="9ucgv5",
-                            name="workshop_guids",
-                            id="workshop_guids",
-                            width="100%",
-                            **styles.input_style,
-                        ),
-                        rx.el.label("ResourcePool Name", html_for="resource_pool", style=styles.label_style),
-                        rx.text("A pool name — discovers all ResourceHandles and their showroom URLs", size="1", color="gray"),
-                        rx.input(
-                            placeholder="ai-quickstarts.ai-qs-product-rec-tenant.event",
-                            name="resource_pool",
-                            id="resource_pool",
-                            width="100%",
-                            **styles.input_style,
-                        ),
-                        rx.el.label("Babylon Cluster", html_for="babylon_cluster", style=styles.label_style),
-                        rx.text("Optional — searches all clusters in priority order when omitted", size="1", color="gray"),
-                        rx.select(
-                            SessionState.cluster_select_options,
-                            name="babylon_cluster",
-                            id="babylon_cluster",
-                            default_value="(auto)",
-                        ),
-                        rx.accordion.root(
-                            rx.accordion.item(
-                                header="Advanced Settings",
-                                content=rx.vstack(
-                                    rx.hstack(
-                                        rx.vstack(
-                                            rx.text("Check Type", size="2", weight="bold"),
-                                            rx.select(
-                                                ["readyz", "healthz"],
-                                                name="check_type",
-                                                default_value="readyz",
-                                            ),
-                                            spacing="1",
-                                            flex="1",
-                                        ),
-                                        rx.vstack(
-                                            rx.text("Check Mode", size="2", weight="bold"),
-                                            rx.select(
-                                                ["manual", "showroom"],
-                                                name="check_mode",
-                                                default_value="manual",
-                                            ),
-                                            spacing="1",
-                                            flex="1",
-                                        ),
-                                        spacing="3",
-                                        width="100%",
-                                    ),
-                                    rx.text(
-                                        "Manual: runs checks locally (fetches config, probes tabs). "
-                                        "Showroom: delegates to the showroom's own health endpoint first.",
-                                        size="1",
-                                        color="gray",
-                                    ),
-                                    spacing="3",
-                                    width="100%",
-                                ),
-                            ),
-                            collapsible=True,
-                            variant="ghost",
-                            width="100%",
-                        ),
-                        rx.cond(
-                            SessionFormState.form_error != "",
-                            rx.callout(
-                                SessionFormState.form_error,
-                                icon="triangle_alert",
-                                color_scheme="red",
-                                size="1",
-                            ),
-                        ),
-                        rx.button(
-                            rx.cond(
-                                SessionFormState.form_submitting,
-                                rx.hstack(
-                                    rx.icon("loader", size=16, style=styles.spin_style),
-                                    rx.text("Creating session…"),
-                                    spacing="2",
-                                    align="center",
-                                ),
-                                rx.hstack(
-                                    rx.icon("play", size=16),
-                                    rx.text("Run Health Checks"),
-                                    spacing="2",
-                                    align="center",
-                                ),
-                            ),
-                            type="submit",
-                            color_scheme="blue",
-                            size="3",
-                            width="100%",
-                            disabled=SessionFormState.form_submitting,
-                        ),
-                        spacing="3",
-                        width="100%",
-                    ),
-                    on_submit=SessionFormState.create_session_from_form,
-                ),
-                max_width="600px",
-                margin_x="auto",
-                **styles.card_style,
+            _action_buttons(),
+            rx.cond(
+                SessionFormState.active_form == "check",
+                _single_check_form(),
+            ),
+            rx.cond(
+                SessionFormState.active_form == "group",
+                _group_create_form(),
             ),
             rx.accordion.root(
                 rx.accordion.item(
@@ -181,6 +51,16 @@ def landing_content() -> rx.Component:
                         rx.code("/check?guid=gmltt&cluster=east", size="1"),
                         rx.code("/check?guid=gmltt&type=healthz&name=My+Workshop", size="1"),
                         rx.code("/check?urls=https://showroom1.example.com&mode=showroom", size="1"),
+                        rx.separator(size="4", margin_y="0.25em"),
+                        rx.text(
+                            "Create groups via URL query parameters:",
+                            size="1",
+                            color="gray",
+                        ),
+                        rx.code("/group/new?name=My+Group&guid=abc12,def34,ghi56", size="1"),
+                        rx.code("/group/new?name=Workshops&workshop=9ucgv5,3kfht2", size="1"),
+                        rx.code("/group/new?name=Pool+Check&pool=my-pool.ns.event&cluster=west", size="1"),
+                        rx.code("/group/new?name=Mixed&guid=abc12&type=healthz&mode=showroom", size="1"),
                         spacing="1",
                         align="center",
                     ),
@@ -197,4 +77,333 @@ def landing_content() -> rx.Component:
             align="center",
         ),
         **styles.content_style,
+    )
+
+
+def _action_buttons() -> rx.Component:
+    """Two action buttons to toggle between New Check and New Group forms."""
+    return rx.hstack(
+        rx.button(
+            rx.hstack(
+                rx.icon("play", size=16),
+                rx.text("New Check"),
+                spacing="2",
+                align="center",
+            ),
+            on_click=SessionFormState.show_check_form,
+            color_scheme="blue",
+            size="3",
+            variant=rx.cond(
+                SessionFormState.active_form == "check", "solid", "outline"
+            ),
+        ),
+        rx.button(
+            rx.hstack(
+                rx.icon("folder-plus", size=16),
+                rx.text("New Group"),
+                spacing="2",
+                align="center",
+            ),
+            on_click=SessionFormState.show_group_form,
+            color_scheme="blue",
+            size="3",
+            variant=rx.cond(
+                SessionFormState.active_form == "group", "solid", "outline"
+            ),
+        ),
+        spacing="3",
+        justify="center",
+        width="100%",
+        max_width="600px",
+        margin_x="auto",
+    )
+
+
+def _single_check_form() -> rx.Component:
+    """Form for creating a single health-check session."""
+    return rx.card(
+        rx.form(
+            rx.vstack(
+                rx.el.label("Session Name", html_for="session_name", style=styles.label_style),
+                rx.text("Optional — give this check a friendly name", size="1", color="gray"),
+                rx.input(
+                    placeholder="e.g. OCP Workshop — Apr 28",
+                    name="session_name",
+                    id="session_name",
+                    width="100%",
+                    **styles.input_style,
+                ),
+                rx.el.label("Showroom URLs", html_for="urls", style=styles.label_style),
+                rx.text("One URL per line", size="1", color="gray"),
+                rx.text_area(
+                    placeholder="https://showroom1.example.com\nhttps://showroom2.example.com",
+                    name="urls",
+                    id="urls",
+                    rows="4",
+                    width="100%",
+                    **styles.input_style,
+                ),
+                rx.el.label("ResourceClaim GUID", html_for="guids", style=styles.label_style),
+                rx.text("A single provision GUID to look up", size="1", color="gray"),
+                rx.input(
+                    placeholder="gmltt",
+                    name="guids",
+                    id="guids",
+                    width="100%",
+                    **styles.input_style,
+                ),
+                rx.el.label("Workshop GUID", html_for="workshop_guids", style=styles.label_style),
+                rx.text("A single workshop ID — discovers all ResourceClaims in the workshop", size="1", color="gray"),
+                rx.input(
+                    placeholder="9ucgv5",
+                    name="workshop_guids",
+                    id="workshop_guids",
+                    width="100%",
+                    **styles.input_style,
+                ),
+                rx.el.label("ResourcePool Name", html_for="resource_pool", style=styles.label_style),
+                rx.text("A pool name — discovers all ResourceHandles and their showroom URLs", size="1", color="gray"),
+                rx.input(
+                    placeholder="ai-quickstarts.ai-qs-product-rec-tenant.event",
+                    name="resource_pool",
+                    id="resource_pool",
+                    width="100%",
+                    **styles.input_style,
+                ),
+                rx.el.label("Babylon Cluster", html_for="babylon_cluster", style=styles.label_style),
+                rx.text("Optional — searches all clusters in priority order when omitted", size="1", color="gray"),
+                rx.select(
+                    SessionState.cluster_select_options,
+                    name="babylon_cluster",
+                    id="babylon_cluster",
+                    default_value="(auto)",
+                ),
+                rx.accordion.root(
+                    rx.accordion.item(
+                        header="Advanced Settings",
+                        content=rx.vstack(
+                            rx.hstack(
+                                rx.vstack(
+                                    rx.text("Check Type", size="2", weight="bold"),
+                                    rx.select(
+                                        ["readyz", "healthz"],
+                                        name="check_type",
+                                        default_value="readyz",
+                                    ),
+                                    spacing="1",
+                                    flex="1",
+                                ),
+                                rx.vstack(
+                                    rx.text("Check Mode", size="2", weight="bold"),
+                                    rx.select(
+                                        ["manual", "showroom"],
+                                        name="check_mode",
+                                        default_value="manual",
+                                    ),
+                                    spacing="1",
+                                    flex="1",
+                                ),
+                                spacing="3",
+                                width="100%",
+                            ),
+                            rx.text(
+                                "Manual: runs checks locally (fetches config, probes tabs). "
+                                "Showroom: delegates to the showroom's own health endpoint first.",
+                                size="1",
+                                color="gray",
+                            ),
+                            spacing="3",
+                            width="100%",
+                        ),
+                    ),
+                    collapsible=True,
+                    variant="ghost",
+                    width="100%",
+                ),
+                rx.cond(
+                    SessionFormState.form_error != "",
+                    rx.callout(
+                        SessionFormState.form_error,
+                        icon="triangle_alert",
+                        color_scheme="red",
+                        size="1",
+                    ),
+                ),
+                rx.button(
+                    rx.cond(
+                        SessionFormState.form_submitting,
+                        rx.hstack(
+                            rx.icon("loader", size=16, style=styles.spin_style),
+                            rx.text("Creating session…"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        rx.hstack(
+                            rx.icon("play", size=16),
+                            rx.text("Run Health Checks"),
+                            spacing="2",
+                            align="center",
+                        ),
+                    ),
+                    type="submit",
+                    color_scheme="blue",
+                    size="3",
+                    width="100%",
+                    disabled=SessionFormState.form_submitting,
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            on_submit=SessionFormState.create_session_from_form,
+        ),
+        max_width="600px",
+        margin_x="auto",
+        **styles.card_style,
+    )
+
+
+def _group_create_form() -> rx.Component:
+    """Form for creating a group of GUIDs/pools with shared settings."""
+    return rx.card(
+        rx.form(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon("folder-plus", size=18, color=rx.color("accent", 9)),
+                    rx.text("Create a Check Group", size="3", weight="bold"),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.text(
+                    "Group multiple GUIDs and pools together. "
+                    "Run checks against all of them at once or individually.",
+                    size="2", color="gray",
+                ),
+                rx.el.label("Group Name", html_for="group_name", style=styles.label_style),
+                rx.input(
+                    placeholder="e.g. Summit Day 1",
+                    name="group_name",
+                    id="group_name",
+                    width="100%",
+                    **styles.input_style,
+                ),
+                rx.el.label("ResourceClaim GUIDs", html_for="rc_guids", style=styles.label_style),
+                rx.text("One GUID per line", size="1", color="gray"),
+                rx.text_area(
+                    placeholder="gmltt\nabc12\nxyz34",
+                    name="rc_guids",
+                    id="rc_guids",
+                    rows="3",
+                    width="100%",
+                    **styles.input_style,
+                ),
+                rx.el.label("Workshop GUIDs", html_for="group_workshop_guids", style=styles.label_style),
+                rx.text("One workshop ID per line", size="1", color="gray"),
+                rx.text_area(
+                    placeholder="9ucgv5",
+                    name="workshop_guids",
+                    id="group_workshop_guids",
+                    rows="3",
+                    width="100%",
+                    **styles.input_style,
+                ),
+                rx.el.label("ResourcePool Names", html_for="resource_pools", style=styles.label_style),
+                rx.text("One pool name per line", size="1", color="gray"),
+                rx.text_area(
+                    placeholder="ai-quickstarts.ai-qs-product-rec-tenant.event",
+                    name="resource_pools",
+                    id="resource_pools",
+                    rows="3",
+                    width="100%",
+                    **styles.input_style,
+                ),
+                rx.el.label("Babylon Cluster", html_for="babylon_cluster", style=styles.label_style),
+                rx.text("Shared across all checks in this group", size="1", color="gray"),
+                rx.select(
+                    SessionState.cluster_select_options,
+                    name="babylon_cluster",
+                    id="group_babylon_cluster",
+                    default_value="(auto)",
+                ),
+                rx.accordion.root(
+                    rx.accordion.item(
+                        header="Advanced Settings",
+                        content=rx.vstack(
+                            rx.hstack(
+                                rx.vstack(
+                                    rx.text("Check Type", size="2", weight="bold"),
+                                    rx.select(
+                                        ["readyz", "healthz"],
+                                        name="check_type",
+                                        default_value="readyz",
+                                    ),
+                                    spacing="1",
+                                    flex="1",
+                                ),
+                                rx.vstack(
+                                    rx.text("Check Mode", size="2", weight="bold"),
+                                    rx.select(
+                                        ["manual", "showroom"],
+                                        name="check_mode",
+                                        default_value="manual",
+                                    ),
+                                    spacing="1",
+                                    flex="1",
+                                ),
+                                spacing="3",
+                                width="100%",
+                            ),
+                            rx.text(
+                                "Manual: runs checks locally (fetches config, probes tabs). "
+                                "Showroom: delegates to the showroom's own health endpoint first.",
+                                size="1",
+                                color="gray",
+                            ),
+                            spacing="3",
+                            width="100%",
+                        ),
+                    ),
+                    collapsible=True,
+                    variant="ghost",
+                    width="100%",
+                ),
+                rx.cond(
+                    GroupFormState.group_form_error != "",
+                    rx.callout(
+                        GroupFormState.group_form_error,
+                        icon="triangle_alert",
+                        color_scheme="red",
+                        size="1",
+                    ),
+                ),
+                rx.button(
+                    rx.cond(
+                        GroupFormState.group_form_submitting,
+                        rx.hstack(
+                            rx.icon("loader", size=16, style=styles.spin_style),
+                            rx.text("Creating group…"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        rx.hstack(
+                            rx.icon("folder-plus", size=16),
+                            rx.text("Create Group"),
+                            spacing="2",
+                            align="center",
+                        ),
+                    ),
+                    type="submit",
+                    color_scheme="blue",
+                    variant="outline",
+                    size="3",
+                    width="100%",
+                    disabled=GroupFormState.group_form_submitting,
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            on_submit=GroupFormState.create_group,
+        ),
+        max_width="600px",
+        margin_x="auto",
+        **styles.card_style,
     )

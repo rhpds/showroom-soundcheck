@@ -3,20 +3,24 @@
 import reflex as rx
 
 from .. import styles
-from ..state import SessionState
+from ..state import GroupState, SessionState
 
 
 def _resource_details() -> rx.Component:
     """Inline details about the resolved Workshop or ResourceClaim."""
     return rx.hstack(
         rx.badge(
-            SessionState.current_session.resource_kind,
+            rx.match(
+                SessionState.current_session.resource_kind,
+                ("ResourcePool", "Pool"),
+                SessionState.current_session.resource_kind,
+            ),
             variant="solid",
             color_scheme=rx.match(
                 SessionState.current_session.resource_kind,
-                ("Workshop", "purple"),
-                ("ResourcePool", "indigo"),
-                "teal",
+                ("Workshop", "blue"),
+                ("ResourcePool", "orange"),
+                "purple",
             ),
             size="1",
         ),
@@ -27,9 +31,9 @@ def _resource_details() -> rx.Component:
                 variant="outline",
                 color_scheme=rx.match(
                     SessionState.current_session.resource_kind,
-                    ("Workshop", "purple"),
-                    ("ResourcePool", "indigo"),
-                    "teal",
+                    ("Workshop", "blue"),
+                    ("ResourcePool", "orange"),
+                    "purple",
                 ),
                 size="1",
             ),
@@ -76,11 +80,39 @@ def _resource_details() -> rx.Component:
     )
 
 
+def _group_breadcrumb() -> rx.Component:
+    """Back-to-group link shown when the session belongs to a group (hidden in drawer)."""
+    return rx.cond(
+        SessionState.session_parent_group.contains("id")
+        & ~GroupState.show_session_preview,
+        rx.link(
+            rx.hstack(
+                rx.icon("arrow-left", size=14),
+                rx.icon("folder", size=14, color=rx.color("accent", 9)),
+                rx.text(
+                    SessionState.session_parent_group["name"],
+                    size="2",
+                    weight="medium",
+                ),
+                spacing="2",
+                align="center",
+            ),
+            href="/group/" + SessionState.session_parent_group["id"],
+            style={
+                "text_decoration": "none",
+                "color": rx.color("gray", 11),
+                "_hover": {"color": rx.color("accent", 11)},
+            },
+        ),
+    )
+
+
 def session_summary() -> rx.Component:
     return rx.cond(
         SessionState.current_session,
         rx.card(
             rx.vstack(
+                _group_breadcrumb(),
                 rx.hstack(
                     rx.heading(
                         rx.cond(
@@ -89,6 +121,8 @@ def session_summary() -> rx.Component:
                             "Health Check Session",
                         ),
                         size="5",
+                        min_width="0",
+                        style={"word_break": "break-word"},
                     ),
                     rx.spacer(),
                     rx.hstack(
@@ -106,20 +140,34 @@ def session_summary() -> rx.Component:
                         rx.cond(
                             (SessionState.current_session.status == "completed")
                             | (SessionState.current_session.status == "failed"),
-                            rx.button(
-                                rx.icon("rotate-ccw", size=14),
-                                rx.text("Retry"),
-                                variant="outline",
-                                color_scheme="blue",
-                                size="2",
-                                on_click=SessionState.clone_session,
+                            rx.cond(
+                                GroupState.show_session_preview,
+                                rx.button(
+                                    rx.icon("rotate-ccw", size=14),
+                                    rx.text("Re-run"),
+                                    variant="outline",
+                                    color_scheme="blue",
+                                    size="2",
+                                    on_click=GroupState.retry_preview_session,
+                                ),
+                                rx.button(
+                                    rx.icon("rotate-ccw", size=14),
+                                    rx.text("Retry"),
+                                    variant="outline",
+                                    color_scheme="blue",
+                                    size="2",
+                                    on_click=SessionState.clone_session,
+                                ),
                             ),
                         ),
                         spacing="2",
                         align="center",
+                        flex_shrink="0",
                     ),
                     width="100%",
                     align="center",
+                    flex_wrap="wrap",
+                    gap="2",
                 ),
                 rx.hstack(
                     rx.text(
@@ -253,11 +301,11 @@ def session_summary() -> rx.Component:
                         rx.text("GUIDs:", size="1", color="gray", weight="bold"),
                         rx.foreach(
                             SessionState.session_workshop_guids_prefixed,
-                            lambda g: rx.badge(g, variant="outline", color_scheme="purple", size="1"),
+                            lambda g: rx.badge(g, variant="outline", color_scheme="blue", size="1"),
                         ),
                         rx.foreach(
                             SessionState.session_rc_guids,
-                            lambda g: rx.badge(g, variant="outline", color_scheme="teal", size="1"),
+                            lambda g: rx.badge(g, variant="outline", color_scheme="purple", size="1"),
                         ),
                         rx.cond(
                             SessionState.current_session.babylon_cluster != "",

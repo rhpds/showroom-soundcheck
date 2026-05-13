@@ -4,6 +4,7 @@ import reflex as rx
 
 from . import styles
 from .components import (
+    group_content,
     landing_content,
     mobile_sidebar_drawer,
     mobile_sidebar_trigger,
@@ -68,6 +69,22 @@ def check_redirect_page() -> rx.Component:
     )
 
 
+def group_redirect_page() -> rx.Component:
+    """Intermediate page that creates a group and redirects."""
+    return rx.fragment(
+        rx.center(
+            rx.vstack(
+                rx.icon("loader", size=32, color=rx.color("blue", 9), style=styles.spin_style),
+                rx.text("Creating group...", size="3", color="gray"),
+                spacing="3",
+                align="center",
+            ),
+            height="100vh",
+            width="100vw",
+        ),
+    )
+
+
 def session_page() -> rx.Component:
     return rx.fragment(
         rx.flex(
@@ -75,6 +92,25 @@ def session_page() -> rx.Component:
             rx.flex(
                 _mobile_header(),
                 session_content(),
+                direction="column",
+                flex="1",
+                min_width="0",
+            ),
+            height="100vh",
+            width="100vw",
+            flex_direction="row",
+        ),
+        mobile_sidebar_drawer(),
+    )
+
+
+def group_page() -> rx.Component:
+    return rx.fragment(
+        rx.flex(
+            sidebar(),
+            rx.flex(
+                _mobile_header(),
+                group_content(),
                 direction="column",
                 flex="1",
                 min_width="0",

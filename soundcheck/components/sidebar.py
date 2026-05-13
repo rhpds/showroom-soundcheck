@@ -1,13 +1,12 @@
-"""Sidebar — session history list (LibreChat-style)."""
+"""Sidebar — session and group history list."""
 
 import reflex as rx
 
 from .. import styles
-from ..models import CheckSession
-from ..state import SessionState
+from ..state import GroupState, SessionState
 
 
-def session_status_icon(status: str) -> rx.Component:
+def _status_icon(status: rx.Var[str]) -> rx.Component:
     return rx.match(
         status,
         ("completed", rx.icon("check", size=14, color=rx.color("green", 9))),
@@ -18,9 +17,12 @@ def session_status_icon(status: str) -> rx.Component:
     )
 
 
-def _session_label(s: CheckSession) -> rx.Component:
-    """Display label for a session with tooltip showing full content on hover."""
-    label = s.display_label
+def session_status_icon(status: str) -> rx.Component:
+    return _status_icon(status)
+
+
+def _sidebar_item_label(item: dict) -> rx.Component:
+    """Label for a sidebar item (group or session)."""
     truncated_style = {
         "max_width": "180px",
         "overflow": "hidden",
@@ -28,22 +30,19 @@ def _session_label(s: CheckSession) -> rx.Component:
         "white_space": "nowrap",
     }
     sublabel = rx.cond(
-        label != "",
+        item["label"] != "",
         rx.tooltip(
-            rx.text(label, size="1", color="gray", style=truncated_style),
-            content=label,
+            rx.text(item["label"], size="1", color="gray", style=truncated_style),
+            content=item["label"],
         ),
-        rx.tooltip(
-            rx.text(s.source_urls, size="1", color="gray", style=truncated_style),
-            content=s.source_urls,
-        ),
+        rx.fragment(),
     )
     return rx.cond(
-        s.name != "",
+        item["name"] != "",
         rx.vstack(
             rx.tooltip(
-                rx.text(s.name, size="1", weight="medium", style=truncated_style),
-                content=s.name,
+                rx.text(item["name"], size="1", weight="medium", style=truncated_style),
+                content=item["name"],
             ),
             sublabel,
             spacing="0",
@@ -52,45 +51,106 @@ def _session_label(s: CheckSession) -> rx.Component:
     )
 
 
-def session_entry(s: CheckSession) -> rx.Component:
-    is_active = SessionState.current_session_id == s.session_id
-    return rx.link(
-        rx.hstack(
-            session_status_icon(s.status),
-            rx.vstack(
-                _session_label(s),
-                rx.moment(
-                    s.created_at,
-                    from_now=True,
-                    with_title=True,
-                    title_format="MMM D [at] h:mm:ss A",
-                ),
-                spacing="0",
-            ),
-            spacing="2",
-            align="center",
-            padding="0.5em 0.75em",
-            border_radius="var(--radius-2)",
-            width="100%",
-            bg=rx.cond(is_active, rx.color("accent", 3), "transparent"),
-            _hover={"bg": rx.cond(is_active, rx.color("accent", 4), rx.color("gray", 4))},
-        ),
-        href=rx.cond(
-            s.session_id != "",
-            "/session/" + s.session_id,
-            "/",
-        ),
-        on_click=SessionState.close_sidebar,
-        style={"text_decoration": "none", "color": "inherit", "width": "100%"},
+def _sidebar_item_icon(item: dict) -> rx.Component:
+    """Icon for a sidebar item — folder for groups, status icon for sessions."""
+    return rx.cond(
+        item["kind"] == "group",
+        rx.icon("folder", size=14, color=rx.color("accent", 9)),
+        _status_icon(item["status"]),
     )
 
 
-def session_group(title: str, sessions: rx.Var) -> rx.Component:
+def _pin_button(item: dict) -> rx.Component:
+    """Pin/unpin toggle — visible on hover, always visible when pinned."""
+    return rx.icon_button(
+        rx.cond(
+            item["pinned"].to(bool),
+            rx.icon("pin-off", size=12),
+            rx.icon("pin", size=12),
+        ),
+        size="1",
+        variant="ghost",
+        color_scheme="gray",
+        on_click=SessionState.toggle_pin(item["kind"], item["id"]),
+        style={
+            "opacity": rx.cond(item["pinned"].to(bool), "0.7", "0"),
+            "transition": "opacity 0.15s",
+            "flex_shrink": "0",
+        },
+    )
+
+
+def _sidebar_item(item: dict) -> rx.Component:
+    is_active_session = (
+        (item["kind"] == "session")
+        & (SessionState.current_session_id == item["id"])
+    )
+    is_active_group = (
+        (item["kind"] == "group")
+        & (GroupState.current_group_id == item["id"])
+    )
+    is_active = is_active_session | is_active_group
+
+    href = rx.cond(
+        item["kind"] == "group",
+        "/group/" + item["id"].to(str),
+        rx.cond(item["id"] != "", "/session/" + item["id"].to(str), "/"),
+    )
+
+    return rx.hstack(
+        rx.link(
+            rx.hstack(
+                _sidebar_item_icon(item),
+                rx.vstack(
+                    _sidebar_item_label(item),
+                    rx.moment(
+                        item["created_at"],
+                        from_now=True,
+                        with_title=True,
+                        title_format="MMM D [at] h:mm:ss A",
+                    ),
+                    spacing="0",
+                ),
+                spacing="2",
+                align="center",
+                flex="1",
+                min_width="0",
+            ),
+            href=href,
+            on_click=SessionState.close_sidebar,
+            style={"text_decoration": "none", "color": "inherit", "flex": "1", "min_width": "0"},
+        ),
+        _pin_button(item),
+        spacing="1",
+        align="center",
+        padding="0.5em 0.75em",
+        border_radius="var(--radius-2)",
+        width="100%",
+        bg=rx.cond(is_active, rx.color("accent", 3), "transparent"),
+        _hover={
+            "bg": rx.cond(is_active, rx.color("accent", 4), rx.color("gray", 4)),
+            "& button": {"opacity": "1 !important"},
+        },
+    )
+
+
+def _sidebar_group(title: str, items: rx.Var, icon_name: str = "") -> rx.Component:
+    header = (
+        rx.hstack(
+            rx.icon(icon_name, size=12, color="gray"),
+            rx.text(title, size="1", color="gray", weight="bold"),
+            spacing="1",
+            align="center",
+            padding_left="0.75em",
+        )
+        if icon_name
+        else rx.text(title, size="1", color="gray", weight="bold", padding_left="0.75em")
+    )
     return rx.cond(
-        sessions.length() > 0,
+        items.length() > 0,
         rx.vstack(
-            rx.text(title, size="1", color="gray", weight="bold", padding_left="0.75em"),
-            rx.foreach(sessions, session_entry),
+            header,
+            rx.foreach(items, _sidebar_item),
             spacing="1",
             width="100%",
         ),
@@ -154,9 +214,10 @@ def _sidebar_inner() -> rx.Component:
         rx.divider(margin_y="0.75em"),
         rx.box(
             rx.vstack(
-                session_group("Recent", SessionState.today_sessions),
-                session_group("Earlier", SessionState.yesterday_sessions),
-                session_group("Older", SessionState.older_sessions),
+                _sidebar_group("Pinned", SessionState.sidebar_pinned, icon_name="pin"),
+                _sidebar_group("Recent", SessionState.sidebar_today),
+                _sidebar_group("Earlier", SessionState.sidebar_yesterday),
+                _sidebar_group("Older", SessionState.sidebar_older),
                 spacing="3",
                 width="100%",
             ),

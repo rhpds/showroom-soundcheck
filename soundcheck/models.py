@@ -18,6 +18,65 @@ from sqlmodel import Field
 from .utils import utc_now
 
 
+class SessionGroup(rx.Model, table=True):
+    """A named collection of GUIDs/pools with shared check settings.
+
+    Running checks against a group creates a GroupRun containing one
+    CheckSession per GUID/pool.
+    """
+
+    __tablename__ = "session_groups"
+
+    group_id: str = Field(index=True)
+    name: str = ""
+    check_type: str = "readyz"  # readyz | healthz
+    check_mode: str = "manual"  # manual | showroom
+    babylon_cluster: str = ""
+    source_guids: str = "[]"  # JSON list of RC GUIDs
+    source_workshop_guids: str = "[]"  # JSON list of Workshop GUIDs
+    source_resource_pools: str = "[]"  # JSON list of pool names
+    member_metadata: str = "{}"  # JSON: {type:value -> metadata dict}
+    status: str = "pending"  # pending | running | completed | failed
+    pinned: bool = False
+    created_at: datetime = Field(default_factory=utc_now, sa_type=sa.DateTime(timezone=True))
+
+    def get_guids(self) -> list[str]:
+        try:
+            return json.loads(self.source_guids) if self.source_guids else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def get_workshop_guids(self) -> list[str]:
+        try:
+            return json.loads(self.source_workshop_guids) if self.source_workshop_guids else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def get_resource_pools(self) -> list[str]:
+        try:
+            return json.loads(self.source_resource_pools) if self.source_resource_pools else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def get_member_metadata(self) -> dict:
+        try:
+            return json.loads(self.member_metadata) if self.member_metadata else {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+
+class GroupRun(rx.Model, table=True):
+    """One batch of checks against a group (full or partial)."""
+
+    __tablename__ = "group_runs"
+
+    run_id: str = Field(index=True)
+    group_id: str = Field(index=True)
+    status: str = "pending"  # pending | running | completed | failed
+    created_at: datetime = Field(default_factory=utc_now, sa_type=sa.DateTime(timezone=True))
+    completed_at: Optional[datetime] = Field(default=None, sa_type=sa.DateTime(timezone=True))
+
+
 class CheckSession(rx.Model, table=True):
     """A health-check session initiated by a user.
 
@@ -29,6 +88,8 @@ class CheckSession(rx.Model, table=True):
 
     session_id: str = Field(index=True)
     name: str = ""
+    group_id: Optional[str] = Field(default=None, index=True)
+    group_run_id: Optional[str] = Field(default=None, index=True)
     check_type: str = "readyz"  # readyz | healthz
     check_mode: str = "manual"  # manual | showroom
     source_urls: str = "[]"  # JSON list of original input URLs
@@ -38,6 +99,7 @@ class CheckSession(rx.Model, table=True):
     babylon_cluster: str = ""  # Babylon cluster name for GUID resolution
     display_label: str = ""
     status: str = "pending"  # pending | running | completed | failed
+    pinned: bool = False
     created_at: datetime = Field(default_factory=utc_now, sa_type=sa.DateTime(timezone=True))
     completed_at: Optional[datetime] = Field(default=None, sa_type=sa.DateTime(timezone=True))
 

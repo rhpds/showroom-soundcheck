@@ -138,7 +138,7 @@ def target_row(target: SessionTarget) -> rx.Component:
                 rx.hstack(
                     rx.cond(
                         target.guid,
-                        rx.badge(target.guid, variant="outline", color_scheme="teal", size="1"),
+                        rx.badge(target.guid, variant="outline", color_scheme="purple", size="1"),
                     ),
                     rx.cond(
                         target.tier_used,
@@ -301,14 +301,14 @@ def _target_header() -> rx.Component:
                 TargetDetailState.selected_target.workshop_guid,
                 rx.badge(
                     TargetDetailState.selected_target.workshop_guid,
-                    variant="outline", color_scheme="purple", size="1",
+                    variant="outline", color_scheme="blue", size="1",
                 ),
             ),
             rx.cond(
                 TargetDetailState.selected_target.guid,
                 rx.badge(
                     TargetDetailState.selected_target.guid,
-                    variant="outline", color_scheme="teal", size="1",
+                    variant="outline", color_scheme="purple", size="1",
                 ),
             ),
             rx.cond(
