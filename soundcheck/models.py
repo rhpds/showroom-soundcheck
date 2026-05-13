@@ -9,13 +9,29 @@ Use the get_urls() / get_guids() helpers instead of raw json.loads().
 
 import json
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 import reflex as rx
 import sqlalchemy as sa
 from sqlmodel import Field
 
 from .utils import utc_now
+
+
+def _json_list(raw: str) -> list[str]:
+    """Safely decode a JSON string expected to be a list of strings."""
+    try:
+        return json.loads(raw) if raw else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+def _json_dict(raw: str) -> dict[str, Any]:
+    """Safely decode a JSON string expected to be a dict."""
+    try:
+        return json.loads(raw) if raw else {}
+    except (json.JSONDecodeError, TypeError):
+        return {}
 
 
 class SessionGroup(rx.Model, table=True):
@@ -41,28 +57,16 @@ class SessionGroup(rx.Model, table=True):
     created_at: datetime = Field(default_factory=utc_now, sa_type=sa.DateTime(timezone=True))
 
     def get_guids(self) -> list[str]:
-        try:
-            return json.loads(self.source_guids) if self.source_guids else []
-        except (json.JSONDecodeError, TypeError):
-            return []
+        return _json_list(self.source_guids)
 
     def get_workshop_guids(self) -> list[str]:
-        try:
-            return json.loads(self.source_workshop_guids) if self.source_workshop_guids else []
-        except (json.JSONDecodeError, TypeError):
-            return []
+        return _json_list(self.source_workshop_guids)
 
     def get_resource_pools(self) -> list[str]:
-        try:
-            return json.loads(self.source_resource_pools) if self.source_resource_pools else []
-        except (json.JSONDecodeError, TypeError):
-            return []
+        return _json_list(self.source_resource_pools)
 
     def get_member_metadata(self) -> dict:
-        try:
-            return json.loads(self.member_metadata) if self.member_metadata else {}
-        except (json.JSONDecodeError, TypeError):
-            return {}
+        return _json_dict(self.member_metadata)
 
 
 class GroupRun(rx.Model, table=True):
@@ -110,34 +114,19 @@ class CheckSession(rx.Model, table=True):
     resource_metadata: str = "{}"  # JSON dict of extra display fields from the CRD
 
     def get_urls(self) -> list[str]:
-        try:
-            return json.loads(self.source_urls) if self.source_urls else []
-        except (json.JSONDecodeError, TypeError):
-            return []
+        return _json_list(self.source_urls)
 
     def get_guids(self) -> list[str]:
-        try:
-            return json.loads(self.source_guids) if self.source_guids else []
-        except (json.JSONDecodeError, TypeError):
-            return []
+        return _json_list(self.source_guids)
 
     def get_workshop_guids(self) -> list[str]:
-        try:
-            return json.loads(self.source_workshop_guids) if self.source_workshop_guids else []
-        except (json.JSONDecodeError, TypeError):
-            return []
+        return _json_list(self.source_workshop_guids)
 
     def get_resource_pools(self) -> list[str]:
-        try:
-            return json.loads(self.source_resource_pools) if self.source_resource_pools else []
-        except (json.JSONDecodeError, TypeError):
-            return []
+        return _json_list(self.source_resource_pools)
 
     def get_resource_metadata(self) -> dict:
-        try:
-            return json.loads(self.resource_metadata) if self.resource_metadata else {}
-        except (json.JSONDecodeError, TypeError):
-            return {}
+        return _json_dict(self.resource_metadata)
 
     @staticmethod
     def encode_urls(urls: list[str]) -> str:
