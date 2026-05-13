@@ -345,13 +345,7 @@ class SessionState(rx.State):
 
     @rx.var
     def page_session_id(self) -> str:
-        route_session_id = getattr(self, "session_id", "")
-        if route_session_id:
-            return route_session_id
-        path = self.router.url.path or ""
-        if path.startswith("/session/"):
-            return path.removeprefix("/session/").split("/", 1)[0]
-        return ""
+        return self.router.page.params.get("session_id", "")
 
     # ---------- Session history loading ----------
 
@@ -976,13 +970,7 @@ class GroupState(SessionState):
 
     @rx.var
     def page_group_id(self) -> str:
-        route_group_id = getattr(self, "group_id", "")
-        if route_group_id:
-            return route_group_id
-        path = self.router.url.path or ""
-        if path.startswith("/group/"):
-            return path.removeprefix("/group/").split("/", 1)[0]
-        return ""
+        return self.router.page.params.get("group_id", "")
 
     @rx.event
     def on_group_load(self):
