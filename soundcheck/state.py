@@ -1180,67 +1180,9 @@ class GroupState(SessionState):
         self.all_groups = await _load_all_groups_async()
         return GroupState.sync_member_details
 
-    @rx.event
-    async def remove_member(self, member_type: str, member_value: str):
-        if not self.current_group:
-            return
-        gid = self.current_group.group_id
-        async with rx.asession() as session:
-            grp_result = await session.execute(
-                select(SessionGroup).where(SessionGroup.group_id == gid)
-            )
-            grp = grp_result.scalars().first()
-            if not grp:
-                return
-
-            if member_type == "rc_guid":
-                items = [g for g in grp.get_guids() if g != member_value]
-                grp.source_guids = json.dumps(items)
-            elif member_type == "workshop_guid":
-                items = [g for g in grp.get_workshop_guids() if g != member_value]
-                grp.source_workshop_guids = json.dumps(items)
-            elif member_type == "pool":
-                items = [p for p in grp.get_resource_pools() if p != member_value]
-                grp.source_resource_pools = json.dumps(items)
-
-            session.add(grp)
-            await session.commit()
-            self.current_group = grp
-
-        self.all_groups = await _load_all_groups_async()
-
-    # ---------- Member confirm remove ----------
-
-    @rx.event
-    def request_remove_member(self, member_type: str, member_value: str):
-        """Open the confirm dialog before removing a member."""
-        self.pending_remove_type = member_type
-        self.pending_remove_value = member_value
-        self.confirm_remove_open = True
-
-    @rx.event
-    def set_confirm_remove_open(self, is_open: bool):
-        self.confirm_remove_open = is_open
-
-    @rx.event
-    def set_show_add_member(self, is_open: bool):
-        self.show_add_member = is_open
-        if not is_open:
-            self.add_member_error = ""
-
-    @rx.event
-    async def confirm_remove_member(self):
-        """Remove the pending member after user confirmation."""
-        self.confirm_remove_open = False
-        member_type = self.pending_remove_type
-        member_value = self.pending_remove_value
-        self.pending_remove_type = ""
-        self.pending_remove_value = ""
-
-        if not self.current_group or not member_type or not member_value:
-            return
-
-        gid = self.current_group.group_id
+    async def _do_remove_member(self, member_type: str, member_value: str) -> None:
+        """Shared logic: remove a member's source entry and metadata from the group."""
+        gid = self.current_group.group_id  # type: ignore[union-attr]
         async with rx.asession() as session:
             grp_result = await session.execute(
                 select(SessionGroup).where(SessionGroup.group_id == gid)
@@ -1272,6 +1214,44 @@ class GroupState(SessionState):
             self.current_group = grp
 
         self.all_groups = await _load_all_groups_async()
+
+    @rx.event
+    async def remove_member(self, member_type: str, member_value: str):
+        if not self.current_group:
+            return
+        await self._do_remove_member(member_type, member_value)
+
+    # ---------- Member confirm remove ----------
+
+    @rx.event
+    def request_remove_member(self, member_type: str, member_value: str):
+        """Open the confirm dialog before removing a member."""
+        self.pending_remove_type = member_type
+        self.pending_remove_value = member_value
+        self.confirm_remove_open = True
+
+    @rx.event
+    def set_confirm_remove_open(self, is_open: bool):
+        self.confirm_remove_open = is_open
+
+    @rx.event
+    def set_show_add_member(self, is_open: bool):
+        self.show_add_member = is_open
+        if not is_open:
+            self.add_member_error = ""
+
+    @rx.event
+    async def confirm_remove_member(self):
+        """Remove the pending member after user confirmation."""
+        self.confirm_remove_open = False
+        member_type = self.pending_remove_type
+        member_value = self.pending_remove_value
+        self.pending_remove_type = ""
+        self.pending_remove_value = ""
+
+        if not self.current_group or not member_type or not member_value:
+            return
+        await self._do_remove_member(member_type, member_value)
 
     @rx.var
     def pending_remove_display(self) -> str:
