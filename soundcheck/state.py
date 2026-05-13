@@ -152,18 +152,18 @@ async def _fetch_session_data(sid: str) -> dict:
     """Load session, targets, and results from DB."""
     session_q = select(CheckSession).where(CheckSession.session_id == sid)
     targets_q = select(SessionTarget).where(SessionTarget.session_id == sid)
-    results_q = select(CheckResult).order_by(col(CheckResult.checked_at).desc())
     async with rx.asession() as session:
         cs = (await session.execute(session_q)).scalars().first()
         targets = list((await session.execute(targets_q)).scalars().all())
         target_ids = [t.id for t in targets]
         results: list[CheckResult] = []
         if target_ids:
-            results = list(
-                (await session.execute(
-                    results_q.where(CheckResult.target_id.in_(target_ids))  # type: ignore
-                )).scalars().all()
+            results_q = (
+                select(CheckResult)
+                .where(CheckResult.target_id.in_(target_ids))  # type: ignore
+                .order_by(col(CheckResult.checked_at).desc())
             )
+            results = list((await session.execute(results_q)).scalars().all())
     return {"session": cs, "targets": targets, "results": results}
 
 
