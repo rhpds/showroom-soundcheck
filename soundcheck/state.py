@@ -183,6 +183,41 @@ async def _load_all_groups_async() -> list[SessionGroup]:
         return list(result.scalars().all())
 
 
+async def _batch_load_run_data(
+    db_session, run_ids: list[str],
+) -> tuple[dict[str, list[CheckSession]], dict[str, list[SessionTarget]]]:
+    """Load all sessions and targets for a set of run IDs in batch queries.
+
+    Returns (run_sessions, targets_by_session) without N+1 query overhead.
+    """
+    run_sessions: dict[str, list[CheckSession]] = {}
+    targets_map: dict[str, list[SessionTarget]] = {}
+    if not run_ids:
+        return run_sessions, targets_map
+
+    all_cs_result = await db_session.execute(
+        select(CheckSession)
+        .where(CheckSession.group_run_id.in_(run_ids))  # type: ignore
+        .order_by(col(CheckSession.created_at).asc())
+    )
+    all_cs = list(all_cs_result.scalars().all())
+
+    for cs in all_cs:
+        run_sessions.setdefault(cs.group_run_id or "", []).append(cs)
+
+    session_ids = [cs.session_id for cs in all_cs]
+    if session_ids:
+        all_targets_result = await db_session.execute(
+            select(SessionTarget).where(
+                SessionTarget.session_id.in_(session_ids)  # type: ignore
+            )
+        )
+        for t in all_targets_result.scalars().all():
+            targets_map.setdefault(t.session_id, []).append(t)
+
+    return run_sessions, targets_map
+
+
 def _build_check_summaries(results: list[CheckResult]) -> dict[int, dict]:
     """Parse check result detail JSON into per-target display summaries.
 
@@ -991,21 +1026,8 @@ class GroupState(SessionState):
             )
             self.group_runs = list(runs_result.scalars().all())
 
-            run_sessions: dict[str, list[CheckSession]] = {}
-            targets_map: dict[str, list[SessionTarget]] = {}
-            for run in self.group_runs:
-                sessions_result = await session.execute(
-                    select(CheckSession)
-                    .where(CheckSession.group_run_id == run.run_id)
-                    .order_by(col(CheckSession.created_at).asc())
-                )
-                run_cs = list(sessions_result.scalars().all())
-                run_sessions[run.run_id] = run_cs
-                for cs in run_cs:
-                    targets_result = await session.execute(
-                        select(SessionTarget).where(SessionTarget.session_id == cs.session_id)
-                    )
-                    targets_map[cs.session_id] = list(targets_result.scalars().all())
+            run_ids = [r.run_id for r in self.group_runs]
+            run_sessions, targets_map = await _batch_load_run_data(session, run_ids)
             self.group_run_sessions = run_sessions
             self.group_targets_by_session = targets_map
 
@@ -1606,21 +1628,8 @@ class GroupState(SessionState):
             )
             runs = list(runs_result.scalars().all())
 
-            run_sessions: dict[str, list[CheckSession]] = {}
-            targets_map: dict[str, list[SessionTarget]] = {}
-            for run in runs:
-                sessions_result = await db.execute(
-                    select(CheckSession)
-                    .where(CheckSession.group_run_id == run.run_id)
-                    .order_by(col(CheckSession.created_at).asc())
-                )
-                run_cs = list(sessions_result.scalars().all())
-                run_sessions[run.run_id] = run_cs
-                for cs in run_cs:
-                    targets_result = await db.execute(
-                        select(SessionTarget).where(SessionTarget.session_id == cs.session_id)
-                    )
-                    targets_map[cs.session_id] = list(targets_result.scalars().all())
+            run_ids = [r.run_id for r in runs]
+            run_sessions, targets_map = await _batch_load_run_data(db, run_ids)
 
         async with self:
             if self.current_group_id == gid:
