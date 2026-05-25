@@ -10,8 +10,4 @@ else
 fi
 
 echo "==> Starting Soundcheck API..."
-exec uvicorn soundcheck.main:app \
-    --host 0.0.0.0 \
-    --port 8000 \
-    ${UVICORN_WORKERS:+--workers $UVICORN_WORKERS} \
-    ${UVICORN_RELOAD:+--reload}
+exec uvicorn soundcheck.main:app --host 0.0.0.0 --port 8000 ${UVICORN_RELOAD:+--reload}
