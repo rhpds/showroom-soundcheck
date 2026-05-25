@@ -10,19 +10,39 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .config import API_KEY, CORS_ORIGINS, warn_default_credentials
+from .config import API_KEY, CORS_ORIGINS, LOG_FORMAT, warn_default_credentials
 from .database import async_session_factory
 from .routes import check, groups, health, sessions
 from .services import babylon_client, session_service
 from .worker import checks_queue, orchestration_queue
 
-logger = logging.getLogger(__name__)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s [%(request_id)s]: %(message)s",
-    defaults={"request_id": "-"},
-)
+def _configure_logging() -> None:
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    if LOG_FORMAT == "json":
+        from pythonjsonlogger.json import JsonFormatter
+
+        handler.setFormatter(
+            JsonFormatter(
+                "%(asctime)s %(levelname)s %(name)s %(message)s",
+                rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
+                defaults={"request_id": "-"},
+            )
+        )
+    else:
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(levelname)s %(name)s [%(request_id)s]: %(message)s",
+                defaults={"request_id": "-"},
+            )
+        )
+    root.addHandler(handler)
+
+
+_configure_logging()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager

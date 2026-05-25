@@ -51,6 +51,7 @@ DB_POOL_SIZE = _positive_int_env("DB_POOL_SIZE", 10)
 DB_MAX_OVERFLOW = _positive_int_env("DB_MAX_OVERFLOW", 20)
 DB_POOL_RECYCLE = _positive_int_env("DB_POOL_RECYCLE", 3600)
 VERIFY_SSL = os.environ.get("VERIFY_SSL", "true").lower() in ("true", "1", "yes")
+LOG_FORMAT = os.environ.get("LOG_FORMAT", "text").lower()
 CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")]
 API_KEY = os.environ.get("API_KEY", "")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")

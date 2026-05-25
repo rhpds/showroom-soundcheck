@@ -9,3 +9,4 @@ pyyaml>=6.0,<7
 rich>=13.0,<14
 saq[redis,web,hiredis]>=0.26,<1
 redis[hiredis]>=5.0,<6
+python-json-logger>=3.0,<4
