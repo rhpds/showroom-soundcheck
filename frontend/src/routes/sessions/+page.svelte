@@ -4,7 +4,7 @@
 	import { listSessions, deleteSession, toggleSessionPin } from '$lib/api';
 	import { relativeTime } from '$lib/utils';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import type { SessionListItem, PaginatedResponse } from '$lib/types';
 
 	let data = $state.raw<PaginatedResponse<SessionListItem>>({ items: [], total: 0, page: 1, per_page: 20 });
@@ -138,9 +138,7 @@
 </div>
 
 {#if loading}
-	<div class="pf-v6-u-text-align-center pf-v6-u-p-xl">
-		<Spinner label="Loading sessions" text="Loading sessions..." />
-	</div>
+	<TableSkeleton headers={['Name', 'Status', 'Source', 'Created']} />
 {:else if error}
 	<div class="pf-v6-c-alert pf-m-danger pf-m-inline">
 		<div class="pf-v6-c-alert__icon">

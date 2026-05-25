@@ -12,7 +12,6 @@
 		syncGroupMetadata
 	} from '$lib/api';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
 	import GroupSourceList from '$lib/components/GroupSourceList.svelte';
 	import GroupRunHistory from '$lib/components/GroupRunHistory.svelte';
 	import SessionDrawer from '$lib/components/SessionDrawer.svelte';
@@ -214,8 +213,37 @@
 	</nav>
 
 	{#if loading}
-		<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">
-			<Spinner label="Loading group" size="lg" text="Loading group..." />
+		<div role="status" aria-label="Loading group">
+			<div class="group-header">
+				<div class="group-header__top">
+					<div class="group-header__title-group" style="flex: 1">
+						<div class="pf-v6-c-skeleton pf-m-text-2xl" style="--pf-v6-c-skeleton--Width: 200px"></div>
+						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 80px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+					</div>
+				</div>
+				<div class="group-header__meta">
+					<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 52px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+				</div>
+			</div>
+			<div class="skeleton-section">
+				<div class="skeleton-section__header">
+					<div class="pf-v6-c-skeleton pf-m-text-lg" style="--pf-v6-c-skeleton--Width: 100px"></div>
+					<div class="skeleton-section__header-right">
+						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 90px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 80px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+					</div>
+				</div>
+			</div>
+			<div class="skeleton-section">
+				<div class="pf-v6-c-skeleton pf-m-text-lg" style="--pf-v6-c-skeleton--Width: 100px; margin-bottom: 12px"></div>
+				{#each [280, 260, 270, 250] as w}
+					<div class="skeleton-row">
+						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 70px; --pf-v6-c-skeleton--Height: 20px; border-radius: 10px"></div>
+						<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: 70px"></div>
+						<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: {w}px"></div>
+					</div>
+				{/each}
+			</div>
 		</div>
 	{:else if notFound}
 		<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">
@@ -340,6 +368,38 @@
 </div>
 
 <style>
+	.skeleton-section {
+		padding: var(--pf-t--global--spacer--lg, 24px);
+		background: var(--pf-t--global--background--color--primary--default, #fff);
+		border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+		border-radius: var(--pf-t--global--border--radius--small, 3px);
+		margin-bottom: var(--pf-t--global--spacer--md, 16px);
+	}
+
+	.skeleton-section__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.skeleton-section__header-right {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.skeleton-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 12px 0;
+		border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+	}
+
+	.skeleton-row:last-child {
+		border-bottom: none;
+	}
+
 	.group-header {
 		padding: var(--pf-t--global--spacer--lg, 24px);
 		background: var(--pf-t--global--background--color--primary--default, #fff);

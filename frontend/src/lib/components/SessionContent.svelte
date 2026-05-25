@@ -199,8 +199,45 @@
 </script>
 
 {#if loading}
-	<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">
-		<Spinner label="Loading session" size="lg" text="Loading session..." />
+	<div class="session-skeleton" role="status" aria-label="Loading session">
+		<div class="session-header">
+			<div class="session-header__top">
+				<div class="session-header__title-group" style="flex: 1">
+					<div class="pf-v6-c-skeleton pf-m-text-2xl" style="--pf-v6-c-skeleton--Width: 340px; max-width: 60%"></div>
+					<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 80px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+				</div>
+			</div>
+			<div class="session-header__meta" style="margin-top: 12px">
+				<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: 48px"></div>
+				<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: 150px"></div>
+			</div>
+			<div style="display: flex; align-items: center; gap: 8px; margin-top: 12px">
+				<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 90px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+				<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: 60px"></div>
+			</div>
+			<div class="session-header__counts" style="margin-top: 16px">
+				{#each [90, 80, 72] as w}
+					<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: {w}px; --pf-v6-c-skeleton--Height: 24px; border-radius: 12px"></div>
+				{/each}
+			</div>
+		</div>
+		<div class="session-targets">
+			<div class="skeleton-tabs">
+				{#each [48, 72, 56, 80] as w}
+					<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: {w}px"></div>
+				{/each}
+			</div>
+			{#each [220, 200, 190, 210, 195, 185, 205, 215] as w}
+				<div class="skeleton-target-row">
+					<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 56px; --pf-v6-c-skeleton--Height: 20px; border-radius: 10px"></div>
+					<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: {w}px"></div>
+					<div class="skeleton-target-row__right">
+						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 42px; --pf-v6-c-skeleton--Height: 18px; border-radius: 10px"></div>
+						<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: 50px"></div>
+					</div>
+				</div>
+			{/each}
+		</div>
 	</div>
 {:else if notFound}
 	<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">
@@ -528,6 +565,32 @@
 {/if}
 
 <style>
+	.skeleton-tabs {
+		display: flex;
+		gap: 24px;
+		padding: 12px var(--pf-t--global--spacer--lg, 24px);
+		border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+	}
+
+	.skeleton-target-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 12px var(--pf-t--global--spacer--lg, 24px);
+		border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+	}
+
+	.skeleton-target-row:last-child {
+		border-bottom: none;
+	}
+
+	.skeleton-target-row__right {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-left: auto;
+	}
+
 	.session-header {
 		padding: var(--pf-t--global--spacer--lg, 24px);
 		background: var(--pf-t--global--background--color--primary--default, #fff);
