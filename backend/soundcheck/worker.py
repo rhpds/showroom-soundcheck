@@ -80,7 +80,7 @@ async def run_session_checks(ctx, *, session_id: str) -> None:
         await _publish_group_event(redis, group_id, "session_running")
         await _enqueue_target_checks(session_factory, redis, session_id)
     except Exception as e:
-        logger.exception("Error in session orchestration %s: %s", session_id, e)
+        logger.exception("Error in session orchestration: %s", e, extra={"request_id": session_id})
         await _mark_session_failed(session_factory, session_id)
         async with session_factory() as db:
             cs = (await db.execute(select(CheckSession).where(CheckSession.session_id == session_id))).scalars().first()
@@ -229,7 +229,12 @@ async def check_target(ctx, *, target_id: int, session_id: str, url: str, check_
         )
         await _publish_group_event(redis, group_id, "target_update")
     except Exception as e:
-        logger.exception("Error writing result for target %s: %s", target_id, e)
+        logger.exception(
+            "Error writing result for target %s: %s",
+            target_id,
+            e,
+            extra={"request_id": session_id},
+        )
         safe_error = sanitize_error(str(e)[:500])
         async with session_factory() as db:
             t_result = await db.execute(select(SessionTarget).where(SessionTarget.id == target_id))
