@@ -11,14 +11,20 @@
 		onClose: () => void;
 	} = $props();
 
-	let activeSessionId = $state(sessionId);
+	let overrideId = $state<string | null>(null);
+	let activeSessionId = $derived(overrideId ?? sessionId);
+
+	$effect(() => {
+		void sessionId;
+		overrideId = null;
+	});
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onClose();
 	}
 
 	function handleNavigate(id: string) {
-		activeSessionId = id;
+		overrideId = id;
 	}
 </script>
 
