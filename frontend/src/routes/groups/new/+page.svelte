@@ -159,17 +159,17 @@
 						</div>
 					{/if}
 
-				{#if showAdvanced}
-					<div class="pf-v6-c-form__group">
-						<label class="pf-v6-c-form__label" for="g-check-type">Check Type</label>
-						<span class="pf-v6-c-form-control">
-							<select id="g-check-type" bind:value={groupForm.check_type}>
-								<option value="readyz">readyz (readiness)</option>
-								<option value="healthz">healthz (liveness)</option>
-							</select>
-						</span>
-					</div>
-				{/if}
+					{#if showAdvanced}
+						<div class="pf-v6-c-form__group">
+							<label class="pf-v6-c-form__label" for="g-check-type">Check Type</label>
+							<span class="pf-v6-c-form-control">
+								<select id="g-check-type" bind:value={groupForm.check_type}>
+									<option value="readyz">readyz (readiness)</option>
+									<option value="healthz">healthz (liveness)</option>
+								</select>
+							</span>
+						</div>
+					{/if}
 
 					<div class="pf-v6-u-mt-sm">
 						<button

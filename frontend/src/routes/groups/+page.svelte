@@ -128,7 +128,9 @@
 		</div>
 		<a href="/groups/new" class="pf-v6-c-button pf-m-primary create-btn">
 			<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
-				<path d="M8 2a.5.5 0 0 1 .5.5V7H13a.5.5 0 0 1 0 1H8.5v4.5a.5.5 0 0 1-1 0V8H3a.5.5 0 0 1 0-1h4.5V2.5A.5.5 0 0 1 8 2z" />
+				<path
+					d="M8 2a.5.5 0 0 1 .5.5V7H13a.5.5 0 0 1 0 1H8.5v4.5a.5.5 0 0 1-1 0V8H3a.5.5 0 0 1 0-1h4.5V2.5A.5.5 0 0 1 8 2z"
+				/>
 			</svg>
 			<span class="create-btn__label">Create group</span>
 		</a>
@@ -208,7 +210,11 @@
 							title={group.pinned ? 'Unpin' : 'Pin to top'}
 							onclick={(e) => handlePin(e, group)}
 						>
-							<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1-.707.707l-.71-.71-3.18 3.18a5.5 5.5 0 0 1-1.32 4.988.5.5 0 0 1-.707 0L5.57 11.045l-3.863 3.863a.5.5 0 1 1-.707-.708l3.863-3.862L1.93 7.4a.5.5 0 0 1 0-.708 5.5 5.5 0 0 1 4.988-1.32L10.1 2.19l-.71-.71a.5.5 0 0 1 .44-.858Z"/></svg>
+							<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"
+								><path
+									d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1-.707.707l-.71-.71-3.18 3.18a5.5 5.5 0 0 1-1.32 4.988.5.5 0 0 1-.707 0L5.57 11.045l-3.863 3.863a.5.5 0 1 1-.707-.708l3.863-3.862L1.93 7.4a.5.5 0 0 1 0-.708 5.5 5.5 0 0 1 4.988-1.32L10.1 2.19l-.71-.71a.5.5 0 0 1 .44-.858Z"
+								/></svg
+							>
 						</button>
 					</td>
 					<td class="pf-v6-c-table__td" data-label="Name">
@@ -232,7 +238,13 @@
 							title="Delete"
 							onclick={(e) => handleDelete(e, group)}
 						>
-							<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M5.5 5.5a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1 0-2H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM7 1.5a.5.5 0 0 0-.5.5h3a.5.5 0 0 0-.5-.5H7Z"/></svg>
+							<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"
+								><path
+									d="M5.5 5.5a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Z"
+								/><path
+									d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1 0-2H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM7 1.5a.5.5 0 0 0-.5.5h3a.5.5 0 0 0-.5-.5H7Z"
+								/></svg
+							>
 						</button>
 					</td>
 				</tr>

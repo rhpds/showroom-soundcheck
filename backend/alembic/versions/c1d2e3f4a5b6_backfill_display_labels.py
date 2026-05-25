@@ -9,21 +9,21 @@ Revises: b5c6d7e8f9a0
 Create Date: 2026-05-10 00:00:00.000000
 
 """
+
 import json
 import re
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 
-revision: str = "c1d2e3f4a5b6"
-down_revision: Union[str, Sequence[str], None] = "b5c6d7e8f9a0"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+from alembic import op
 
-_GUID_RE = re.compile(
-    r"(?:-([a-z0-9]{4,6})(?:-\d+)?\.apps\.|\.cluster-([a-z0-9]+)\.)"
-)
+revision: str = "c1d2e3f4a5b6"
+down_revision: str | Sequence[str] | None = "b5c6d7e8f9a0"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+_GUID_RE = re.compile(r"(?:-([a-z0-9]{4,6})(?:-\d+)?\.apps\.|\.cluster-([a-z0-9]+)\.)")
 
 
 def _extract_guid(url: str) -> str | None:

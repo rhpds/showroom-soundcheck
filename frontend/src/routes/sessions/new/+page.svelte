@@ -191,28 +191,28 @@
 						</div>
 					{/if}
 
-				{#if showAdvanced}
-					<div class="pf-v6-c-form__group">
-						<label class="pf-v6-c-form__label" for="check-type">Check Type</label>
-						<span class="pf-v6-c-form-control">
-							<select id="check-type" bind:value={checkForm.check_type}>
-								<option value="readyz">readyz (readiness)</option>
-								<option value="healthz">healthz (liveness)</option>
-							</select>
-						</span>
-					</div>
-				{/if}
+					{#if showAdvanced}
+						<div class="pf-v6-c-form__group">
+							<label class="pf-v6-c-form__label" for="check-type">Check Type</label>
+							<span class="pf-v6-c-form-control">
+								<select id="check-type" bind:value={checkForm.check_type}>
+									<option value="readyz">readyz (readiness)</option>
+									<option value="healthz">healthz (liveness)</option>
+								</select>
+							</span>
+						</div>
+					{/if}
 
-				<div class="pf-v6-u-mt-sm">
-					<button
-						class="pf-v6-c-button pf-m-link pf-m-inline"
-						type="button"
-						aria-expanded={showAdvanced}
-						onclick={() => (showAdvanced = !showAdvanced)}
-					>
-						{showAdvanced ? '▾ Hide Advanced Settings' : '▸ Show Advanced Settings'}
-					</button>
-				</div>
+					<div class="pf-v6-u-mt-sm">
+						<button
+							class="pf-v6-c-button pf-m-link pf-m-inline"
+							type="button"
+							aria-expanded={showAdvanced}
+							onclick={() => (showAdvanced = !showAdvanced)}
+						>
+							{showAdvanced ? '▾ Hide Advanced Settings' : '▸ Show Advanced Settings'}
+						</button>
+					</div>
 
 					<div class="pf-v6-u-mt-md">
 						<button

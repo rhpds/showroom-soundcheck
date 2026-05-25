@@ -3,11 +3,11 @@
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlmodel import SQLModel
 
+from alembic import context
 from soundcheck.config import get_async_db_url
 from soundcheck.models import (  # noqa: F401 — ensure models register metadata
     CheckResult,
