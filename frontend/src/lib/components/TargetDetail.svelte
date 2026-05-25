@@ -63,7 +63,7 @@
 					<button
 						class="pf-v6-c-button pf-m-plain pf-m-sm"
 						aria-label="Copy URL"
-						onclick={() => copyToClipboard(target!.url!, 'url')}
+						onclick={() => copyToClipboard(target?.url ?? '', 'url')}
 						>{#if copiedField === 'url'}<svg
 								viewBox="0 0 16 16"
 								width="14"
@@ -87,7 +87,7 @@
 					<button
 						class="td__copy"
 						aria-label="Copy GUID"
-						onclick={() => copyToClipboard(target!.guid!, 'guid')}
+						onclick={() => copyToClipboard(target?.guid ?? '', 'guid')}
 					>
 						{#if copiedField === 'guid'}<svg
 								viewBox="0 0 16 16"
@@ -109,7 +109,7 @@
 					<button
 						class="td__copy"
 						aria-label="Copy Workshop GUID"
-						onclick={() => copyToClipboard(target!.workshop_guid!, 'workshop')}
+						onclick={() => copyToClipboard(target?.workshop_guid ?? '', 'workshop')}
 					>
 						{#if copiedField === 'workshop'}<svg
 								viewBox="0 0 16 16"
