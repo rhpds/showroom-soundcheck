@@ -17,7 +17,10 @@
 	const titleId = `modal-title-${Math.random().toString(36).slice(2, 9)}`;
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') onClose();
+		if (e.key === 'Escape') {
+			e.stopPropagation();
+			onClose();
+		}
 	}
 </script>
 
