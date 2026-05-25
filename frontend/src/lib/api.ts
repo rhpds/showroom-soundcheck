@@ -26,18 +26,19 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export async function listSessions(
-	params: ListParams = {}
+	params: ListParams = {},
+	init?: RequestInit
 ): Promise<PaginatedResponse<SessionListItem>> {
 	const searchParams = new URLSearchParams();
 	if (params.page) searchParams.set('page', String(params.page));
 	if (params.per_page) searchParams.set('per_page', String(params.per_page));
 	if (params.search) searchParams.set('search', params.search);
 	const qs = searchParams.toString();
-	return fetchJson(`${BASE}/sessions${qs ? `?${qs}` : ''}`);
+	return fetchJson(`${BASE}/sessions${qs ? `?${qs}` : ''}`, init);
 }
 
-export async function getSession(sessionId: string): Promise<SessionDetail> {
-	return fetchJson(`${BASE}/sessions/${sessionId}`);
+export async function getSession(sessionId: string, init?: RequestInit): Promise<SessionDetail> {
+	return fetchJson(`${BASE}/sessions/${sessionId}`, init);
 }
 
 export async function createSession(body: {
@@ -69,18 +70,19 @@ export async function toggleSessionPin(sessionId: string): Promise<{ pinned: boo
 }
 
 export async function listGroups(
-	params: ListParams = {}
+	params: ListParams = {},
+	init?: RequestInit
 ): Promise<PaginatedResponse<GroupListItem>> {
 	const searchParams = new URLSearchParams();
 	if (params.page) searchParams.set('page', String(params.page));
 	if (params.per_page) searchParams.set('per_page', String(params.per_page));
 	if (params.search) searchParams.set('search', params.search);
 	const qs = searchParams.toString();
-	return fetchJson(`${BASE}/groups${qs ? `?${qs}` : ''}`);
+	return fetchJson(`${BASE}/groups${qs ? `?${qs}` : ''}`, init);
 }
 
-export async function getGroup(groupId: string): Promise<GroupDetail> {
-	return fetchJson(`${BASE}/groups/${groupId}`);
+export async function getGroup(groupId: string, init?: RequestInit): Promise<GroupDetail> {
+	return fetchJson(`${BASE}/groups/${groupId}`, init);
 }
 
 export async function createGroup(body: {
@@ -169,7 +171,10 @@ export function groupStream(groupId: string): EventSource {
 	return new EventSource(`${BASE}/groups/${groupId}/stream`);
 }
 
-export async function checkRedirect(params: URLSearchParams): Promise<string> {
-	const resp = await fetchJson<{ session_id: string }>(`${BASE}/check?${params.toString()}`);
+export async function checkRedirect(params: URLSearchParams, init?: RequestInit): Promise<string> {
+	const resp = await fetchJson<{ session_id: string }>(
+		`${BASE}/check?${params.toString()}`,
+		init
+	);
 	return resp.session_id;
 }

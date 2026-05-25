@@ -24,6 +24,7 @@
 	let retryCount = 0;
 	const MAX_RETRIES = 5;
 	let currentLoadId = 0;
+	let abortController: AbortController | null = null;
 
 	let selectedTargetId = $state<number | null>(null);
 	let cloneError = $state('');
@@ -48,6 +49,8 @@
 	});
 
 	function closeStream() {
+		abortController?.abort();
+		abortController = null;
 		eventSource?.close();
 		eventSource = null;
 		if (retryTimeout) {
@@ -58,11 +61,13 @@
 
 	async function loadSession() {
 		const myLoadId = ++currentLoadId;
+		abortController?.abort();
+		abortController = new AbortController();
 		loading = true;
 		notFound = false;
 		loadError = '';
 		try {
-			const result = await getSession(sessionId);
+			const result = await getSession(sessionId, { signal: abortController.signal });
 			if (myLoadId !== currentLoadId) return;
 			data = result;
 			if (!result.session) {
@@ -72,6 +77,7 @@
 			}
 		} catch (e) {
 			if (myLoadId !== currentLoadId) return;
+			if (e instanceof DOMException && e.name === 'AbortError') return;
 			loadError = e instanceof Error ? e.message : 'Failed to load session';
 		}
 		loading = false;

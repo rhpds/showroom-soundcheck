@@ -28,6 +28,7 @@
 	let previewSessionId = $state<string | null>(null);
 	let streamFailed = $state(false);
 	let currentLoadId = 0;
+	let abortController: AbortController | null = null;
 	let eventSource: EventSource | null = null;
 	let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 	let retryCount = 0;
@@ -42,6 +43,8 @@
 	}
 
 	function closeStream() {
+		abortController?.abort();
+		abortController = null;
 		eventSource?.close();
 		eventSource = null;
 		if (retryTimeout) {
@@ -81,8 +84,10 @@
 
 	async function loadGroup() {
 		const myLoadId = ++currentLoadId;
+		abortController?.abort();
+		abortController = new AbortController();
 		try {
-			const result = await getGroup(groupId);
+			const result = await getGroup(groupId, { signal: abortController.signal });
 			if (myLoadId !== currentLoadId) return;
 			data = result;
 			if (!result.group) {
@@ -92,6 +97,7 @@
 			}
 		} catch (e) {
 			if (myLoadId !== currentLoadId) return;
+			if (e instanceof DOMException && e.name === 'AbortError') return;
 			if (loading) {
 				loadError = e instanceof Error ? e.message : 'Failed to load group';
 			}
