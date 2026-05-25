@@ -62,8 +62,7 @@
 	async function handlePin(e: Event, group: GroupListItem) {
 		e.stopPropagation();
 		try {
-			const result = await toggleGroupPin(group.group_id);
-			group.pinned = result.pinned;
+			await toggleGroupPin(group.group_id);
 			await loadData();
 		} catch (err: unknown) {
 			error = err instanceof Error ? err.message : 'Failed to toggle pin';
