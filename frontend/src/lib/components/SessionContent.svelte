@@ -193,8 +193,7 @@
 
 {#if loading}
 	<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">
-		<Spinner label="Loading session" />
-		<p class="pf-v6-u-mt-md">Loading session...</p>
+		<Spinner label="Loading session" size="lg" />
 	</div>
 {:else if notFound}
 	<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">
@@ -350,19 +349,17 @@
 		).length}
 		{@const percent = counts.total ? Math.round((checked / counts.total) * 100) : 0}
 		<div class="session-progress">
-			<div class="session-progress__label">
-				<Spinner label="Checking targets" />
-				<span>Checking {checked} of {counts.total} targets...</span>
-			</div>
-			<div class="pf-v6-c-progress">
+			<Spinner label="Checking targets" size="sm" />
+			<span class="session-progress__text">Checking {checked} of {counts.total} targets...</span>
+			<div class="session-progress__bar">
 				<div
-					class="pf-v6-c-progress__bar"
+					class="session-progress__bar-track"
 					role="progressbar"
 					aria-valuemin={0}
 					aria-valuemax={100}
 					aria-valuenow={percent}
 				>
-					<div class="pf-v6-c-progress__indicator" style="width: {percent}%"></div>
+					<div class="session-progress__bar-fill" style="width: {percent}%"></div>
 				</div>
 			</div>
 		</div>
@@ -671,18 +668,40 @@
 	}
 
 	.session-progress {
-		padding: var(--pf-t--global--spacer--md, 16px) var(--pf-t--global--spacer--lg, 24px);
-		background: var(--pf-t--global--background--color--primary--default, #fff);
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 16px;
+		background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
 		border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
 		border-radius: var(--pf-t--global--border--radius--small, 3px);
 		margin-bottom: var(--pf-t--global--spacer--md, 16px);
+		font-size: var(--pf-t--global--font--size--sm, 0.875rem);
+		color: var(--pf-t--global--text--color--subtle, #6a6e73);
 	}
 
-	.session-progress__label {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		margin-bottom: 8px;
+	.session-progress__text {
+		white-space: nowrap;
+	}
+
+	.session-progress__bar {
+		flex: 1;
+		min-width: 60px;
+		max-width: 200px;
+	}
+
+	.session-progress__bar-track {
+		height: 4px;
+		background: var(--pf-t--global--border--color--default, #d2d2d2);
+		border-radius: 2px;
+		overflow: hidden;
+	}
+
+	.session-progress__bar-fill {
+		height: 100%;
+		background: var(--pf-t--global--color--brand--default, #0066cc);
+		border-radius: 2px;
+		transition: width 0.3s ease;
 	}
 
 	.session-targets {
