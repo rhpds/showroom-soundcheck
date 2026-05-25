@@ -1,71 +1,75 @@
 # Showroom Soundcheck
 
-Session-based health check tool for showroom environments. Supports direct URL checks and Babylon GUID discovery.
+Session-based health check tool for showroom environments. Resolves Babylon GUIDs, workshops, and resource pools to showroom URLs and runs async health checks with live-streamed results.
+
+---
+
+## Quick Start
+
+```bash
+podman compose up -d   # or: docker compose up -d
+```
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| API docs | http://localhost:8000/docs |
+| SAQ monitor | http://localhost:8080 |
 
 ---
 
 ## User Guide
 
-### Web App
+### Creating Sessions
 
-The web app is available at your deployment's endpoint (e.g. `https://soundcheck.example.com`). From there you can:
+From the UI at `/sessions/new`, provide one of:
 
-- **Create sessions** using the landing page form (provide URLs, GUIDs, or Workshop GUIDs)
-- **View session results** at `/session/<uuid>` — each session has a unique shareable URL
-- **Browse session history** in the sidebar, grouped by date
+- **URLs** — direct showroom URLs to check
+- **GUID** — Babylon ResourceClaim provision GUID
+- **Workshop GUID** — Babylon workshop GUID
+- **Resource Pool** — Babylon resource pool name
 
-#### Creating Sessions via URL
+### Deep-Link Creation
 
-You can create sessions by navigating directly to `/check` with query parameters. This is useful for linking from external systems.
+Create sessions via URL by navigating to `/check` with query parameters:
 
 ```
 /check?urls=https://showroom1.example.com,https://showroom2.example.com
-/check?guid=abc12,def34
+/check?guid=abc12
 /check?workshop=9ucgv5
-/check?guid=abc12&cluster=east
-/check?guid=abc12&type=healthz&name=My+Workshop
-/check?urls=https://showroom1.example.com&mode=showroom
+/check?pool=my-pool
+/check?guid=abc12&cluster=east&type=healthz&name=My+Session
 ```
 
-| Parameter  | Values                    | Description                                                         |
-|------------|---------------------------|---------------------------------------------------------------------|
-| `urls`     | comma-separated URLs      | Showroom URLs to check directly                                     |
-| `guid`     | comma-separated strings   | Babylon ResourceClaim provision GUIDs                               |
-| `workshop` | comma-separated strings   | Babylon Workshop GUIDs                                              |
-| `type`     | `readyz` \| `healthz`     | Check type (default: `readyz`)                                      |
-| `mode`     | `manual` \| `showroom`    | Check mode (default: `manual`)                                      |
-| `name`     | string                    | Optional session label                                              |
-| `cluster`  | string                    | Babylon cluster name — optional, searches all in priority order if omitted |
+| Parameter  | Description |
+|------------|-------------|
+| `urls`     | Comma-separated showroom URLs |
+| `guid`     | Babylon ResourceClaim provision GUID |
+| `workshop` | Babylon workshop GUID |
+| `pool`     | Babylon resource pool name |
+| `type`     | `readyz` (default) or `healthz` |
+| `name`     | Optional session label |
+| `cluster`  | Babylon cluster name (searches all if omitted) |
 
-At least one of `urls`, `guid`, or `workshop` is required. If none are provided, you are redirected to `/`.
+At least one of `urls`, `guid`, `workshop`, or `pool` is required.
 
-### Check Modes
+### Groups
 
-- **`manual`** — Performs local nookbag-style checks directly (Tier 2 only). Use when the showroom has no health sidecar.
-- **`showroom`** — Delegates to the showroom's `/readyz` or `/healthz` sidecar first (Tier 1). Falls back to local checks (Tier 2) if the sidecar is unavailable.
+Groups are named collections of sources (GUIDs, workshops, pools) that can be run repeatedly. Each run creates child sessions for every source. Manage groups at `/groups`.
 
 ### Check Types
 
-- **`readyz`** — Full readiness check (config, content, tabs).
-- **`healthz`** — Liveness check.
+- **`readyz`** — Full readiness check (config, content pages, tabs)
+- **`healthz`** — Liveness check (base URL reachability only)
 
 ---
 
 ## Developer Guide
 
-### Quick Start
-
-```bash
-# Start the web app and database
-podman compose up -d
-
-# App + API: http://localhost:8000
-# API docs:  http://localhost:8000/docs
-```
-
 ### Local Development (without containers)
 
-Requires a running PostgreSQL instance. Set `DATABASE_URL` or individual `POSTGRES_*` env vars.
+Requires PostgreSQL and Redis running locally.
 
 ```bash
 # Backend
@@ -73,6 +77,10 @@ cd backend
 pip install -r requirements.txt
 alembic upgrade head
 uvicorn soundcheck.main:app --reload --port 8000
+
+# Workers (separate terminals)
+saq soundcheck.worker.orchestration_settings --workers 1
+saq soundcheck.worker.check_settings --workers 1
 
 # Frontend (separate terminal)
 cd frontend
@@ -82,82 +90,95 @@ npm run dev
 
 ### Environment Variables
 
-| Variable               | Default              | Description                                                  |
-|------------------------|----------------------|--------------------------------------------------------------|
-| `DATABASE_URL`         | _(built from below)_ | Full Postgres connection URL (overrides individual vars)     |
-| `POSTGRES_USER`        | `soundcheck`         | PostgreSQL username                                          |
-| `POSTGRES_PASSWORD`    | `soundcheck_dev`     | PostgreSQL password                                          |
-| `POSTGRES_DB`          | `soundcheck`         | Database name                                                |
-| `POSTGRES_HOST`        | `localhost`          | PostgreSQL host                                              |
-| `POSTGRES_PORT`        | `5432`               | PostgreSQL port                                              |
-| `APP_PORT`             | `8000`               | App port (compose only)                                      |
-| `CHECK_CONCURRENCY`    | `10`                 | Max concurrent health checks per session                     |
-| `VERIFY_SSL`           | `true`               | TLS verification; set to `false`/`0`/`no` to disable (compose defaults to `false`) |
-| `BABYLON_CLUSTERS`     | `[]`                 | JSON array of kubeconfig paths (order = search priority)     |
-| `BABYLON_KUBECONFIG_DIR` | `./secrets`        | Host directory mounted for kubeconfigs                       |
+#### Database
 
-#### Babylon Cluster Configuration
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | _(built from below)_ | Full Postgres URL (overrides individual vars) |
+| `POSTGRES_USER` | `soundcheck` | PostgreSQL username |
+| `POSTGRES_PASSWORD` | `soundcheck_dev` | PostgreSQL password |
+| `POSTGRES_DB` | `soundcheck` | Database name |
+| `POSTGRES_HOST` | `localhost` | PostgreSQL host |
+| `POSTGRES_PORT` | `5432` | PostgreSQL port |
 
-To enable GUID resolution, provide a JSON array of kubeconfig file paths. **Array order determines search priority** — when no cluster is specified, clusters are tried in order and the first match wins:
+#### Application
 
-```json
-["/secrets/west.kubeconfig", "/secrets/east.kubeconfig"]
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_URL` | `redis://localhost:6379` | Redis URL for SAQ + Pub/Sub |
+| `CHECK_CONCURRENCY` | `20` | Max concurrent health checks per worker |
+| `ORCHESTRATION_CONCURRENCY` | `10` | Max concurrent orchestration tasks |
+| `VERIFY_SSL` | `true` | TLS verification for checks (compose defaults to `false`) |
+| `ALLOWED_URL_PATTERNS` | _(none)_ | Comma-separated hostname globs for URL allowlist |
+| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins |
+| `API_KEY` | _(empty)_ | If set, required via `X-API-Key` header for mutating requests |
 
-Cluster names are derived from filenames by stripping the `.kubeconfig` extension (e.g. `east.kubeconfig` → `east`). Any leading `NN-` numeric prefix is also stripped if present.
+#### Babylon
 
-Kubeconfig files are mounted from `BABYLON_KUBECONFIG_DIR` into `/secrets` in the container.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BABYLON_CLUSTERS` | `[]` | JSON array of kubeconfig paths; order = search priority |
+| `BABYLON_CATALOG_URLS` | _(empty)_ | JSON object mapping cluster name to catalog UI base URL |
+| `BABYLON_KUBECONFIG_DIR` | `./secrets` | Host directory mounted for kubeconfigs (compose only) |
 
-The legacy JSON object format (`{"east": "/secrets/east.kubeconfig"}`) is still accepted.
+Cluster names are derived from filenames by stripping `.kubeconfig` (and any leading `NN-` prefix). The legacy JSON object format is also accepted.
 
 ### Architecture
 
 ```
-backend/soundcheck/           # FastAPI REST API
-├── main.py                   # FastAPI app entry point (uvicorn)
-├── config.py                 # Settings from env vars
-├── database.py               # AsyncSession factory
-├── models.py                 # SQLModel: CheckSession, SessionTarget, CheckResult, ...
-├── schemas.py                # Pydantic request/response models
-├── utils.py                  # Shared utilities: input parsing, GUID extraction, validation
+backend/soundcheck/
+├── main.py                     # FastAPI entry point
+├── config.py                   # Settings from env vars
+├── database.py                 # Async SQLAlchemy session
+├── models.py                   # SQLModel tables
+├── schemas.py                  # Pydantic request/response models
+├── utils.py                    # Input parsing, URL validation
+├── worker.py                   # SAQ queue definitions
 ├── routes/
-│   ├── sessions.py           # Session CRUD + SSE streaming
-│   ├── groups.py             # Group CRUD + run management
-│   ├── health.py             # /api/ping, /api/health, /api/config/clusters
-│   └── check.py              # Deep-link /api/check?... redirect
-└── services/
-    ├── check_service.py      # Async three-tier health check logic (no DB deps)
-    ├── babylon_service.py    # GUID-to-URLs resolver (concurrent)
-    ├── babylon_client.py     # K8s API client via kubeconfigs
-    └── session_service.py    # Session/group orchestration
+│   ├── sessions.py             # Session CRUD + SSE streaming
+│   ├── groups.py               # Group CRUD + run management
+│   ├── health.py               # /api/ping, /api/health, /api/config/clusters
+│   └── check.py                # Deep-link /api/check redirect
+├── services/
+│   ├── check_service.py        # Two-tier health check logic
+│   ├── babylon_service.py      # GUID/workshop/pool → URL resolution
+│   ├── babylon_client.py       # K8s API client via kubeconfigs
+│   └── session_service.py      # Session/group orchestration
+└── tasks/                      # SAQ task handlers
 
-frontend/src/                 # SvelteKit SPA + PatternFly
-├── routes/                   # File-based routing
-│   ├── +page.svelte          # Landing page with check/group forms
-│   ├── +layout.svelte        # App shell + sidebar
-│   ├── session/[id]/         # Session detail page
-│   ├── group/[id]/           # Group management page
-│   └── check/                # Deep-link redirect
+frontend/src/                   # SvelteKit SPA + PatternFly 6
+├── routes/
+│   ├── sessions/               # Session list
+│   ├── sessions/new/           # Create session form
+│   ├── session/[id]/           # Session detail with live updates
+│   ├── groups/                 # Group list + create
+│   ├── group/[id]/             # Group management + run history
+│   └── check/                  # Deep-link redirect
 └── lib/
-    ├── api.ts                # Typed API client
-    ├── types.ts              # TypeScript types
-    └── components/           # Sidebar, StatusBadge, TargetDetail
+    ├── api.ts                  # Typed API client
+    ├── types.ts                # TypeScript types
+    └── components/             # Shared UI components
 ```
 
-### Two-Tier Health Check Strategy
+### Two-Tier Readiness Check (`readyz`)
 
-**Tier 1 (delegate):** Hits `{showroom_url}/readyz` or `/healthz`. If the nookbag health sidecar is running, it handles all checks and returns a comprehensive result.
+**Tier 1 (nookbag-style):** Fetches `ui-config.yml` (or `zero-touch-config.yml`) from the showroom, parses it, probes the Antora content URLs and tab URLs for reachability and iframe-blocking headers.
 
-**Tier 2 (local fallback):** If Tier 1 returns 404 or a connection error (no sidecar), Soundcheck performs checks itself:
-1. Fetch `{showroom_url}/nookbag/ui-config.yml` (or `zero-touch-config.yml`)
-2. Parse the config, resolve the Antora content URL, probe it
-3. Resolve tab URLs from config, probe each for reachability and iframe-blocking headers
+**Tier 2 (legacy Antora fallback):** If Tier 1 finds no config on a non-nookbag showroom, falls back to probing the root URL and `/content/` path.
 
-Both tiers retry failed requests (2 retries with linear backoff) before marking a target as unhealthy.
+Both tiers retry failed requests (2 retries with linear backoff).
 
 ### Database
 
-Five tables: `sessions`, `session_targets`, `check_results`, `session_groups`, `group_runs`. Migrations are managed via Alembic (`alembic upgrade head`) and run automatically on startup via `backend/entrypoint.sh`.
+Five tables: `sessions`, `session_targets`, `check_results`, `session_groups`, `group_runs`. Migrations are managed via Alembic and run automatically on container startup via `backend/entrypoint.sh`.
+
+### Linting
+
+```bash
+make lint       # ruff + eslint + svelte-check
+make format     # ruff format + prettier
+make check      # lint + format-check
+```
 
 ### Container Images
 
@@ -166,16 +187,20 @@ Five tables: `sessions`, `session_targets`, `check_results`, `session_groups`, `
 | Backend  | `quay.io/rhpds/showroom-soundcheck-backend` |
 | Frontend | `quay.io/rhpds/showroom-soundcheck-frontend` |
 
-Images are built and pushed on tagged releases (`v*`) via GitHub Actions. A GitHub Release is also created automatically with auto-generated release notes and a table of the published image tags. Each release produces `latest` plus semver tags (e.g. `v1.0.0`, `v1.0`, `v1`).
+Built and pushed on tagged releases (`v*`) via GitHub Actions. Each release produces `latest` plus semver tags (e.g. `v1.0.0`, `v1.0`, `v1`).
+
+### OpenShift Deployment
+
+See `deploy/` directory for Kubernetes/OpenShift manifests.
 
 ### Standalone URL Discovery Script
 
-For users who can `oc login` to a Babylon cluster directly but don't have kubeconfigs configured in Soundcheck:
+For users with `oc` CLI access to a Babylon cluster:
 
 ```bash
-./scripts/showroom-urls.sh -w <workshop-guid>           # by workshop GUID
-./scripts/showroom-urls.sh -r <rc-guid>                  # by ResourceClaim provision GUID
-./scripts/showroom-urls.sh -w <workshop-guid> -n <ns>    # limit to a namespace
+./scripts/showroom-urls.sh -w <workshop-guid>
+./scripts/showroom-urls.sh -r <rc-guid>
+./scripts/showroom-urls.sh -w <workshop-guid> -n <namespace>
 ```
 
 Requires `oc` (logged in) and `jq`. Run `./scripts/showroom-urls.sh -h` for full usage.
