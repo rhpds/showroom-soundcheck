@@ -154,8 +154,7 @@
 
 	{#if loading}
 		<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">
-			<Spinner label="Loading group" />
-			<p class="pf-v6-u-mt-md">Loading group...</p>
+			<Spinner label="Loading group" size="lg" text="Loading group..." />
 		</div>
 	{:else if notFound}
 		<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">

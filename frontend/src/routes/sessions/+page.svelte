@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { listSessions, deleteSession, toggleSessionPin } from '$lib/api';
 	import { relativeTime } from '$lib/utils';
@@ -6,11 +7,13 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import type { SessionListItem, PaginatedResponse } from '$lib/types';
 
-	let { data: pageData } = $props();
-
-	let data = $state.raw<PaginatedResponse<SessionListItem>>(pageData.initialData);
-	let loading = $state(false);
+	let data = $state.raw<PaginatedResponse<SessionListItem>>({ items: [], total: 0, page: 1, per_page: 20 });
+	let loading = $state(true);
 	let error = $state('');
+
+	onMount(() => {
+		loadData();
+	});
 
 	let page = $state(1);
 	let perPage = $state(20);
@@ -136,7 +139,7 @@
 
 {#if loading}
 	<div class="pf-v6-u-text-align-center pf-v6-u-p-xl">
-		<Spinner label="Loading sessions" />
+		<Spinner label="Loading sessions" text="Loading sessions..." />
 	</div>
 {:else if error}
 	<div class="pf-v6-c-alert pf-m-danger pf-m-inline">

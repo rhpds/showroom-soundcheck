@@ -193,7 +193,7 @@
 
 {#if loading}
 	<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">
-		<Spinner label="Loading session" size="lg" />
+		<Spinner label="Loading session" size="lg" text="Loading session..." />
 	</div>
 {:else if notFound}
 	<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">

@@ -46,7 +46,6 @@
 	</div>
 {:else}
 	<div class="pf-v6-u-text-align-center pf-v6-u-mt-2xl">
-		<Spinner label="Creating session" />
-		<p class="pf-v6-u-mt-md">Creating session...</p>
+		<Spinner label="Creating session" size="lg" text="Creating session..." />
 	</div>
 {/if}
