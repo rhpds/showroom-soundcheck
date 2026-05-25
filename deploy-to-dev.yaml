@@ -6,11 +6,13 @@
 cd /home/andrew/src/github.com/rhpds/showroom-soundcheck
 git add <files>
 git commit -m "your message"
-git tag v1.0.X
-git push origin main v1.0.X
+git tag v1.X.Y
+git push origin main v1.X.Y
 ```
 
-The tag push triggers the `app-image-publish` GitHub Actions workflow, which builds the Dockerfile and pushes to `quay.io/rhpds/showroom-soundcheck-app:v1.0.X`.
+The tag push triggers the `app-image-publish` GitHub Actions workflow, which builds and pushes:
+- `quay.io/rhpds/showroom-soundcheck-backend:v1.X.Y`
+- `quay.io/rhpds/showroom-soundcheck-frontend:v1.X.Y`
 
 ### 2. Wait for CI
 
@@ -22,11 +24,17 @@ Wait until it shows `completed success`.
 
 ### 3. Update the deployment manifests
 
-Edit `deploy/app-deployment.yaml` and `deploy/worker-deployment.yaml` -- update the image tag and version labels to match:
+Edit `deploy/app-deployment.yaml`, `deploy/worker-deployment.yaml`, and `deploy/frontend-deployment.yaml` -- update the image tags and version labels to match:
 
 ```
-image: quay.io/rhpds/showroom-soundcheck-app:v1.0.X
-app.kubernetes.io/version: v1.0.X
+# app-deployment.yaml + worker-deployment.yaml
+image: quay.io/rhpds/showroom-soundcheck-backend:v1.X.Y
+
+# frontend-deployment.yaml
+image: quay.io/rhpds/showroom-soundcheck-frontend:v1.X.Y
+
+# all of the above
+app.kubernetes.io/version: v1.X.Y
 ```
 
 ### 4. Apply to OCP
@@ -42,17 +50,31 @@ for f in deploy/*.yaml; do
 done
 ```
 
-Or to just update the app deployment:
+Or to just update individual deployments:
 
 ```bash
-sed 's/namespace: showroom-soundcheck$/namespace: showroom-soundcheck-dev/' \
-  deploy/app-deployment.yaml | oc apply -n showroom-soundcheck-dev -f -
+oc set image deployment/showroom-soundcheck-app \
+  app=quay.io/rhpds/showroom-soundcheck-backend:v1.X.Y \
+  -n showroom-soundcheck-dev
+
+oc set image deployment/showroom-soundcheck-frontend \
+  frontend=quay.io/rhpds/showroom-soundcheck-frontend:v1.X.Y \
+  -n showroom-soundcheck-dev
+
+oc set image deployment/showroom-soundcheck-orchestration-worker \
+  worker=quay.io/rhpds/showroom-soundcheck-backend:v1.X.Y \
+  -n showroom-soundcheck-dev
+
+oc set image deployment/showroom-soundcheck-check-worker \
+  worker=quay.io/rhpds/showroom-soundcheck-backend:v1.X.Y \
+  -n showroom-soundcheck-dev
 ```
 
 ### 5. Verify
 
 ```bash
 oc rollout status deployment/showroom-soundcheck-app -n showroom-soundcheck-dev --timeout=120s
+oc rollout status deployment/showroom-soundcheck-frontend -n showroom-soundcheck-dev --timeout=120s
 oc rollout status deployment/showroom-soundcheck-orchestration-worker -n showroom-soundcheck-dev --timeout=120s
 oc rollout status deployment/showroom-soundcheck-check-worker -n showroom-soundcheck-dev --timeout=120s
 oc get pods -n showroom-soundcheck-dev
@@ -62,7 +84,7 @@ Route URL: `https://showroom-soundcheck-dev.apps.ocpv-infra01.dal12.infra.demo.r
 
 ### Current state
 
-- **Latest deployed**: v1.0.21
+- **Latest deployed**: backend v1.1.0, frontend v1.1.2
 - **Cluster**: `showroom-soundcheck-dev` on `api.ocpv-infra01.dal12.infra.demo.redhat.com:6443`
-- **Architecture**: Separate oauth-proxy Deployment (HTTP :4180, edge TLS on Route) + app Deployment (FastAPI on :8000) + orchestration-worker + check-worker (SAQ) + redis + postgres StatefulSet
+- **Architecture**: oauth-proxy (HTTP :4180, edge TLS on Route) → frontend (Node.js :5173, static + /api proxy) → backend (FastAPI :8000) + orchestration-worker + check-worker (SAQ) + redis + postgres StatefulSet
 - **Secrets** (already created, don't need to recreate): `postgres-credentials`, `showroom-soundcheck-proxy`, `babylon-kubeconfigs`
