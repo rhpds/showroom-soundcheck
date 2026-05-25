@@ -6,7 +6,7 @@ metadata:
   namespace: showroom-soundcheck
   labels:
     app.kubernetes.io/name: showroom-soundcheck-app
-    app.kubernetes.io/version: v1.0.20
+    app.kubernetes.io/version: v2.0.0
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: web
 spec:
@@ -23,17 +23,17 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: showroom-soundcheck-app
-        app.kubernetes.io/version: v1.0.20
+        app.kubernetes.io/version: v2.0.0
         app.kubernetes.io/part-of: showroom-soundcheck
         app.kubernetes.io/component: web
     spec:
       containers:
         - name: app
-          image: quay.io/rhpds/showroom-soundcheck-app:v1.0.20
+          image: quay.io/rhpds/showroom-soundcheck-app:v2.0.0
           imagePullPolicy: IfNotPresent
           ports:
-            - name: frontend
-              containerPort: 3000
+            - name: http
+              containerPort: 8000
           envFrom:
             - configMapRef:
                 name: showroom-soundcheck-config
@@ -50,20 +50,20 @@ spec:
               readOnly: true
           startupProbe:
             httpGet:
-              path: /ping
-              port: frontend
+              path: /api/health
+              port: http
             failureThreshold: 30
             periodSeconds: 2
           readinessProbe:
             httpGet:
-              path: /ping
-              port: frontend
+              path: /api/health
+              port: http
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
-              path: /ping
-              port: frontend
+              path: /api/health
+              port: http
             periodSeconds: 15
             timeoutSeconds: 5
           resources:

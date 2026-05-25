@@ -20,9 +20,9 @@ gh run list --repo rhpds/showroom-soundcheck --workflow app-image-publish --limi
 
 Wait until it shows `completed success`.
 
-### 3. Update the deployment manifest
+### 3. Update the deployment manifests
 
-Edit `deploy/app-deployment.yaml` -- update the image tag and version labels to match:
+Edit `deploy/app-deployment.yaml` and `deploy/worker-deployment.yaml` -- update the image tag and version labels to match:
 
 ```
 image: quay.io/rhpds/showroom-soundcheck-app:v1.0.X
@@ -53,6 +53,8 @@ sed 's/namespace: showroom-soundcheck$/namespace: showroom-soundcheck-dev/' \
 
 ```bash
 oc rollout status deployment/showroom-soundcheck-app -n showroom-soundcheck-dev --timeout=120s
+oc rollout status deployment/showroom-soundcheck-orchestration-worker -n showroom-soundcheck-dev --timeout=120s
+oc rollout status deployment/showroom-soundcheck-check-worker -n showroom-soundcheck-dev --timeout=120s
 oc get pods -n showroom-soundcheck-dev
 ```
 
@@ -60,7 +62,7 @@ Route URL: `https://showroom-soundcheck-dev.apps.ocpv-infra01.dal12.infra.demo.r
 
 ### Current state
 
-- **Latest deployed**: v1.0.20
+- **Latest deployed**: v1.0.21
 - **Cluster**: `showroom-soundcheck-dev` on `api.ocpv-infra01.dal12.infra.demo.redhat.com:6443`
-- **Architecture**: Separate oauth-proxy Deployment (HTTP :4180, edge TLS on Route) + app Deployment (Reflex on :3000) + postgres StatefulSet
+- **Architecture**: Separate oauth-proxy Deployment (HTTP :4180, edge TLS on Route) + app Deployment (FastAPI on :8000) + orchestration-worker + check-worker (SAQ) + redis + postgres StatefulSet
 - **Secrets** (already created, don't need to recreate): `postgres-credentials`, `showroom-soundcheck-proxy`, `babylon-kubeconfigs`

@@ -38,8 +38,8 @@ jobs:
 
           | Image | Tag |
           |-------|-----|
-          | \`quay.io/rhpds/showroom-soundcheck-app\` | \`${TAG}\` |
-          | \`quay.io/rhpds/showroom-soundcheck-cli\` | \`${TAG}\` |
+          | \`quay.io/rhpds/showroom-soundcheck-backend\` | \`${TAG}\` |
+          | \`quay.io/rhpds/showroom-soundcheck-frontend\` | \`${TAG}\` |
 
           ${NOTES}"
 

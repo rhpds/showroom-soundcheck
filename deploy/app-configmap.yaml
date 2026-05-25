@@ -8,10 +8,11 @@ metadata:
     app.kubernetes.io/name: showroom-soundcheck-app
     app.kubernetes.io/part-of: showroom-soundcheck
 data:
-  CHECK_CONCURRENCY: "10"
+  REDIS_URL: "redis://redis:6379"
+  CHECK_CONCURRENCY: "20"
+  ORCHESTRATION_CONCURRENCY: "10"
   VERIFY_SSL: "false"
   ALLOWED_URL_PATTERNS: "*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io"
-  REFLEX_ENV: "prod"
   POSTGRES_HOST: "postgres"
   POSTGRES_PORT: "5432"
   BABYLON_CLUSTERS: '["/secrets/west.kubeconfig","/secrets/east.kubeconfig"]'

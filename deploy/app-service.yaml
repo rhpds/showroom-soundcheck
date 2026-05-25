@@ -12,9 +12,6 @@ spec:
   selector:
     app.kubernetes.io/name: showroom-soundcheck-app
   ports:
-    - name: frontend
-      port: 3000
-      targetPort: 3000
-    - name: backend
+    - name: http
       port: 8000
       targetPort: 8000

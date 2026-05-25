@@ -1,6 +1,6 @@
 # Showroom Soundcheck
 
-Session-based health check tool for showroom environments. Supports direct URL checks, Babylon GUID discovery, and a CLI interface.
+Session-based health check tool for showroom environments. Supports direct URL checks and Babylon GUID discovery.
 
 ---
 
@@ -39,46 +39,10 @@ You can create sessions by navigating directly to `/check` with query parameters
 
 At least one of `urls`, `guid`, or `workshop` is required. If none are provided, you are redirected to `/`.
 
-### CLI
-
-The CLI is distributed as a container image (`quay.io/rhpds/showroom-soundcheck-cli`). It checks showroom URLs directly — no database or Babylon integration required.
-
-> **Note:** Use `-t` (allocate a TTY) so the results table renders correctly. Without it, the container has no terminal and the table columns collapse.
-
-```bash
-# Check multiple showroom URLs
-podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
-  --urls https://showroom1.example.com,https://showroom2.example.com
-
-# healthz (liveness) check instead of the default readyz (readiness)
-podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
-  --urls https://showroom1.example.com --check-type healthz
-
-# Delegate to the showroom health sidecar first, fall back to local checks
-podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
-  --urls https://showroom1.example.com --check-mode showroom
-
-# Skip TLS verification (e.g. self-signed certs)
-podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
-  --urls https://showroom1.example.com --insecure
-```
-
-| Option          | Description                                                              |
-|-----------------|--------------------------------------------------------------------------|
-| `--urls`        | **Required.** Comma-separated showroom URLs                              |
-| `--check-type`  | `readyz` or `healthz` (default: `readyz`)                                |
-| `--check-mode`  | `manual`, `showroom`, or `auto` (default: `manual`)                      |
-| `-c`, `--concurrency` | Max concurrent checks (default: `10`, env: `CHECK_CONCURRENCY`)   |
-| `--insecure`    | Disable TLS certificate verification (env: `VERIFY_SSL`)                 |
-| `-v`, `--verbose` | Print detailed Tier 2 JSON results for each target                     |
-
-**Exit codes:** `0` = all healthy, `1` = one or more unhealthy, `2` = invalid input.
-
 ### Check Modes
 
 - **`manual`** — Performs local nookbag-style checks directly (Tier 2 only). Use when the showroom has no health sidecar.
 - **`showroom`** — Delegates to the showroom's `/readyz` or `/healthz` sidecar first (Tier 1). Falls back to local checks (Tier 2) if the sidecar is unavailable.
-- **`auto`** (CLI only) — Behaves the same as `showroom`.
 
 ### Check Types
 
@@ -95,8 +59,8 @@ podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
 # Start the web app and database
 podman compose up -d
 
-# UI:      http://localhost:3000
-# Backend: http://localhost:8000
+# App + API: http://localhost:8000
+# API docs:  http://localhost:8000/docs
 ```
 
 ### Local Development (without containers)
@@ -104,16 +68,16 @@ podman compose up -d
 Requires a running PostgreSQL instance. Set `DATABASE_URL` or individual `POSTGRES_*` env vars.
 
 ```bash
+# Backend
+cd backend
 pip install -r requirements.txt
-reflex init
-reflex run --env dev
-```
+alembic upgrade head
+uvicorn soundcheck.main:app --reload --port 8000
 
-### Building the CLI Image
-
-```bash
-podman build -f Dockerfile.cli -t showroom-soundcheck-cli .
-podman run --rm -t showroom-soundcheck-cli --urls https://showroom1.example.com
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
 ```
 
 ### Environment Variables
@@ -126,11 +90,9 @@ podman run --rm -t showroom-soundcheck-cli --urls https://showroom1.example.com
 | `POSTGRES_DB`          | `soundcheck`         | Database name                                                |
 | `POSTGRES_HOST`        | `localhost`          | PostgreSQL host                                              |
 | `POSTGRES_PORT`        | `5432`               | PostgreSQL port                                              |
-| `APP_PORT`             | `3000`               | Frontend port (compose only)                                 |
-| `BACKEND_PORT`         | `8000`               | Backend API port (compose only)                              |
+| `APP_PORT`             | `8000`               | App port (compose only)                                      |
 | `CHECK_CONCURRENCY`    | `10`                 | Max concurrent health checks per session                     |
 | `VERIFY_SSL`           | `true`               | TLS verification; set to `false`/`0`/`no` to disable (compose defaults to `false`) |
-| `REFLEX_ENV`           | `dev`                | `dev` enables auto-migrations; `prod` runs migrations only (compose hardcodes `dev`) |
 | `BABYLON_CLUSTERS`     | `[]`                 | JSON array of kubeconfig paths (order = search priority)     |
 | `BABYLON_KUBECONFIG_DIR` | `./secrets`        | Host directory mounted for kubeconfigs                       |
 
@@ -151,22 +113,35 @@ The legacy JSON object format (`{"east": "/secrets/east.kubeconfig"}`) is still 
 ### Architecture
 
 ```
-soundcheck/
-├── soundcheck.py         # Reflex app entry point
-├── state.py              # SessionState: application state and event handlers
-├── models.py             # SQLModel: CheckSession, SessionTarget, CheckResult
-├── check_service.py      # Async two-tier health check logic (no DB deps)
-├── babylon_service.py    # GUID-to-URLs resolver (concurrent)
-├── babylon_client.py     # K8s API client via kubeconfigs
-├── cli.py                # CLI entry point (showroom-soundcheck command)
-├── utils.py              # Shared utilities: input parsing, GUID extraction, validation
-├── styles.py             # Theme and component styles
-├── pages.py              # Page definitions (home, session, check redirect)
-└── components/
-    ├── sidebar.py        # Session history sidebar
-    ├── target.py         # Target row, status badges, detail dialog
-    ├── session.py        # Session summary, targets list
-    └── landing.py        # Landing page form
+backend/soundcheck/           # FastAPI REST API
+├── main.py                   # FastAPI app entry point (uvicorn)
+├── config.py                 # Settings from env vars
+├── database.py               # AsyncSession factory
+├── models.py                 # SQLModel: CheckSession, SessionTarget, CheckResult, ...
+├── schemas.py                # Pydantic request/response models
+├── utils.py                  # Shared utilities: input parsing, GUID extraction, validation
+├── routes/
+│   ├── sessions.py           # Session CRUD + SSE streaming
+│   ├── groups.py             # Group CRUD + run management
+│   ├── health.py             # /api/ping, /api/health, /api/config/clusters
+│   └── check.py              # Deep-link /api/check?... redirect
+└── services/
+    ├── check_service.py      # Async three-tier health check logic (no DB deps)
+    ├── babylon_service.py    # GUID-to-URLs resolver (concurrent)
+    ├── babylon_client.py     # K8s API client via kubeconfigs
+    └── session_service.py    # Session/group orchestration
+
+frontend/src/                 # SvelteKit SPA + PatternFly
+├── routes/                   # File-based routing
+│   ├── +page.svelte          # Landing page with check/group forms
+│   ├── +layout.svelte        # App shell + sidebar
+│   ├── session/[id]/         # Session detail page
+│   ├── group/[id]/           # Group management page
+│   └── check/                # Deep-link redirect
+└── lib/
+    ├── api.ts                # Typed API client
+    ├── types.ts              # TypeScript types
+    └── components/           # Sidebar, StatusBadge, TargetDetail
 ```
 
 ### Two-Tier Health Check Strategy
@@ -182,14 +157,14 @@ Both tiers retry failed requests (2 retries with linear backoff) before marking 
 
 ### Database
 
-Three tables: `sessions`, `session_targets`, `check_results`. Migrations are managed via Reflex's database commands (`reflex db init`, `reflex db migrate`, `reflex db makemigrations`) which wrap Alembic. They run automatically on startup via `entrypoint.sh`.
+Five tables: `sessions`, `session_targets`, `check_results`, `session_groups`, `group_runs`. Migrations are managed via Alembic (`alembic upgrade head`) and run automatically on startup via `backend/entrypoint.sh`.
 
 ### Container Images
 
 | Image | Pull URL |
 |-------|----------|
-| Web app | `quay.io/rhpds/showroom-soundcheck-app` |
-| CLI     | `quay.io/rhpds/showroom-soundcheck-cli` |
+| Backend  | `quay.io/rhpds/showroom-soundcheck-backend` |
+| Frontend | `quay.io/rhpds/showroom-soundcheck-frontend` |
 
 Images are built and pushed on tagged releases (`v*`) via GitHub Actions. A GitHub Release is also created automatically with auto-generated release notes and a table of the published image tags. Each release produces `latest` plus semver tags (e.g. `v1.0.0`, `v1.0`, `v1`).
 

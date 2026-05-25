@@ -36,7 +36,7 @@ spec:
         - protocol: TCP
           port: 4180
 ---
-# Allow oauth-proxy to reach the app on port 3000
+# Allow oauth-proxy to reach the app on port 8000
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -58,7 +58,7 @@ spec:
               app.kubernetes.io/name: oauth-proxy
       ports:
         - protocol: TCP
-          port: 3000
+          port: 8000
 ---
 # Allow app pods to reach postgres on port 5432
 apiVersion: networking.k8s.io/v1
@@ -80,6 +80,42 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: showroom-soundcheck-app
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: showroom-soundcheck-orchestration-worker
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: showroom-soundcheck-check-worker
       ports:
         - protocol: TCP
           port: 5432
+---
+# Allow app and workers to reach redis on port 6379
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-redis
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: showroom-soundcheck
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: showroom-soundcheck-app
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: showroom-soundcheck-orchestration-worker
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: showroom-soundcheck-check-worker
+      ports:
+        - protocol: TCP
+          port: 6379

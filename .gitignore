@@ -1,12 +1,15 @@
-.web
-.states
-assets/external/
-# Reflex
-.web/
 __pycache__/
 *.py[cod]
 *.pyc
+
+# Old reflex app
+.archive
 .states/
+
+# SvelteKit
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
 
 # Environment
 .env
@@ -34,3 +37,6 @@ secrets/
 
 # Plaintext Kubernetes secrets (never commit real credentials)
 deploy/*-secret.yaml
+
+# Playwright MCP logs
+.playwright-mcp/
