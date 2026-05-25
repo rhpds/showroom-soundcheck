@@ -1,0 +1,17 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: showroom-soundcheck-frontend
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/name: showroom-soundcheck-frontend
+    app.kubernetes.io/part-of: showroom-soundcheck
+    app.kubernetes.io/component: frontend
+spec:
+  selector:
+    app.kubernetes.io/name: showroom-soundcheck-frontend
+  ports:
+    - name: http
+      port: 5173
+      targetPort: 5173

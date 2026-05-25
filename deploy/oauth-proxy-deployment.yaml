@@ -34,7 +34,7 @@ spec:
             - -https-address=
             - -provider=openshift
             - -openshift-service-account=showroom-soundcheck-proxy
-            - -upstream=http://showroom-soundcheck-app:8000/
+            - -upstream=http://showroom-soundcheck-frontend:5173/
             - -upstream-timeout=3600s
             - -cookie-secret-file=/etc/proxy/secrets/session-secret
             - -email-domain=*

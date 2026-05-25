@@ -6,7 +6,7 @@ metadata:
   namespace: showroom-soundcheck
   labels:
     app.kubernetes.io/name: showroom-soundcheck-orchestration-worker
-    app.kubernetes.io/version: v2.0.0
+    app.kubernetes.io/version: v1.1.0
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: worker
 spec:
@@ -23,13 +23,13 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: showroom-soundcheck-orchestration-worker
-        app.kubernetes.io/version: v2.0.0
+        app.kubernetes.io/version: v1.1.0
         app.kubernetes.io/part-of: showroom-soundcheck
         app.kubernetes.io/component: worker
     spec:
       containers:
         - name: worker
-          image: quay.io/rhpds/showroom-soundcheck-app:v2.0.0
+          image: quay.io/rhpds/showroom-soundcheck-backend:v1.1.0
           imagePullPolicy: IfNotPresent
           command:
             - saq
@@ -68,7 +68,7 @@ metadata:
   namespace: showroom-soundcheck
   labels:
     app.kubernetes.io/name: showroom-soundcheck-check-worker
-    app.kubernetes.io/version: v2.0.0
+    app.kubernetes.io/version: v1.1.0
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: worker
 spec:
@@ -85,13 +85,13 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: showroom-soundcheck-check-worker
-        app.kubernetes.io/version: v2.0.0
+        app.kubernetes.io/version: v1.1.0
         app.kubernetes.io/part-of: showroom-soundcheck
         app.kubernetes.io/component: worker
     spec:
       containers:
         - name: worker
-          image: quay.io/rhpds/showroom-soundcheck-app:v2.0.0
+          image: quay.io/rhpds/showroom-soundcheck-backend:v1.1.0
           imagePullPolicy: IfNotPresent
           command:
             - saq

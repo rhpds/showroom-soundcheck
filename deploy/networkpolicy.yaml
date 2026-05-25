@@ -36,11 +36,35 @@ spec:
         - protocol: TCP
           port: 4180
 ---
-# Allow oauth-proxy to reach the app on port 8000
+# Allow oauth-proxy to reach the frontend on port 5173
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-proxy-to-app
+  name: allow-proxy-to-frontend
+  namespace: showroom-soundcheck
+  labels:
+    app.kubernetes.io/name: showroom-soundcheck-frontend
+    app.kubernetes.io/part-of: showroom-soundcheck
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: showroom-soundcheck-frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: oauth-proxy
+      ports:
+        - protocol: TCP
+          port: 5173
+---
+# Allow frontend to reach the backend on port 8000
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-app
   namespace: showroom-soundcheck
   labels:
     app.kubernetes.io/name: showroom-soundcheck-app
@@ -55,7 +79,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: oauth-proxy
+              app.kubernetes.io/name: showroom-soundcheck-frontend
       ports:
         - protocol: TCP
           port: 8000
