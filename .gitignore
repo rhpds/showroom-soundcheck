@@ -2,6 +2,10 @@ __pycache__/
 *.py[cod]
 *.pyc
 
+# Old reflex app
+.archive
+.states/
+
 # SvelteKit
 frontend/node_modules/
 frontend/.svelte-kit/

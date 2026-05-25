@@ -26,7 +26,6 @@ soundcheck/
 ├── models.py            # SQLModel table models, JSON helpers
 ├── schemas.py           # Pydantic request/response schemas
 ├── utils.py             # GUID extraction, URL allowlist (SSRF), input validation
-├── cli.py               # Standalone CLI (argparse, rich output)
 ├── worker.py            # SAQ worker definitions: two queues, task functions, lifecycle hooks
 ├── tasks.py             # DEPRECATED tombstone (in-process tasks replaced by SAQ)
 ├── routes/

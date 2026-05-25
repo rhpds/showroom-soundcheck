@@ -1,6 +1,6 @@
 # Showroom Soundcheck
 
-Session-based health check tool for showroom environments. Supports direct URL checks, Babylon GUID discovery, and a CLI interface.
+Session-based health check tool for showroom environments. Supports direct URL checks and Babylon GUID discovery.
 
 ---
 
@@ -39,46 +39,10 @@ You can create sessions by navigating directly to `/check` with query parameters
 
 At least one of `urls`, `guid`, or `workshop` is required. If none are provided, you are redirected to `/`.
 
-### CLI
-
-The CLI is distributed as a container image (`quay.io/rhpds/showroom-soundcheck-cli`). It checks showroom URLs directly — no database or Babylon integration required.
-
-> **Note:** Use `-t` (allocate a TTY) so the results table renders correctly. Without it, the container has no terminal and the table columns collapse.
-
-```bash
-# Check multiple showroom URLs
-podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
-  --urls https://showroom1.example.com,https://showroom2.example.com
-
-# healthz (liveness) check instead of the default readyz (readiness)
-podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
-  --urls https://showroom1.example.com --check-type healthz
-
-# Delegate to the showroom health sidecar first, fall back to local checks
-podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
-  --urls https://showroom1.example.com --check-mode showroom
-
-# Skip TLS verification (e.g. self-signed certs)
-podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
-  --urls https://showroom1.example.com --insecure
-```
-
-| Option          | Description                                                              |
-|-----------------|--------------------------------------------------------------------------|
-| `--urls`        | **Required.** Comma-separated showroom URLs                              |
-| `--check-type`  | `readyz` or `healthz` (default: `readyz`)                                |
-| `--check-mode`  | `manual`, `showroom`, or `auto` (default: `manual`)                      |
-| `-c`, `--concurrency` | Max concurrent checks (default: `10`, env: `CHECK_CONCURRENCY`)   |
-| `--insecure`    | Disable TLS certificate verification (env: `VERIFY_SSL`)                 |
-| `-v`, `--verbose` | Print detailed Tier 2 JSON results for each target                     |
-
-**Exit codes:** `0` = all healthy, `1` = one or more unhealthy, `2` = invalid input.
-
 ### Check Modes
 
 - **`manual`** — Performs local nookbag-style checks directly (Tier 2 only). Use when the showroom has no health sidecar.
 - **`showroom`** — Delegates to the showroom's `/readyz` or `/healthz` sidecar first (Tier 1). Falls back to local checks (Tier 2) if the sidecar is unavailable.
-- **`auto`** (CLI only) — Behaves the same as `showroom`.
 
 ### Check Types
 
@@ -114,13 +78,6 @@ uvicorn soundcheck.main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev
-```
-
-### Building the CLI Image
-
-```bash
-podman build -f Dockerfile.cli -t showroom-soundcheck-cli .
-podman run --rm -t showroom-soundcheck-cli --urls https://showroom1.example.com
 ```
 
 ### Environment Variables
@@ -163,7 +120,6 @@ backend/soundcheck/           # FastAPI REST API
 ├── models.py                 # SQLModel: CheckSession, SessionTarget, CheckResult, ...
 ├── schemas.py                # Pydantic request/response models
 ├── utils.py                  # Shared utilities: input parsing, GUID extraction, validation
-├── cli.py                    # CLI entry point (showroom-soundcheck command)
 ├── routes/
 │   ├── sessions.py           # Session CRUD + SSE streaming
 │   ├── groups.py             # Group CRUD + run management
@@ -207,8 +163,8 @@ Five tables: `sessions`, `session_targets`, `check_results`, `session_groups`, `
 
 | Image | Pull URL |
 |-------|----------|
-| Web app | `quay.io/rhpds/showroom-soundcheck-app` |
-| CLI     | `quay.io/rhpds/showroom-soundcheck-cli` |
+| Backend  | `quay.io/rhpds/showroom-soundcheck-backend` |
+| Frontend | `quay.io/rhpds/showroom-soundcheck-frontend` |
 
 Images are built and pushed on tagged releases (`v*`) via GitHub Actions. A GitHub Release is also created automatically with auto-generated release notes and a table of the published image tags. Each release produces `latest` plus semver tags (e.g. `v1.0.0`, `v1.0`, `v1`).
 

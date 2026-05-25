@@ -11,5 +11,4 @@ deploy/
 .env
 *.env
 docker-compose.yml
-Dockerfile.cli
 README.md
