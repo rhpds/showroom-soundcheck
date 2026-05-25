@@ -83,13 +83,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     )
 
 
-try:
-    from saq.web.starlette import saq_web
-
-    app.mount("/monitor", saq_web("/monitor", queues=[orchestration_queue, checks_queue]))
-except ImportError:
-    pass
-
 static_dir = Path(__file__).parent.parent / "static"
 if static_dir.is_dir():
     app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="frontend")
