@@ -21,12 +21,13 @@ from ..services.session_service import (
     sync_source_metadata,
 )
 from ..utils import utc_now
+from . import TaskContext
 from .events import publish_group_event, publish_session_event
 
 logger = logging.getLogger(__name__)
 
 
-async def run_session_checks(ctx, *, session_id: str) -> None:
+async def run_session_checks(ctx: TaskContext, *, session_id: str) -> None:
     """Resolve targets and fan out check jobs for a single session."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
@@ -55,7 +56,7 @@ async def run_session_checks(ctx, *, session_id: str) -> None:
         )
 
 
-async def run_group(ctx, *, group_id: str) -> None:
+async def run_group(ctx: TaskContext, *, group_id: str) -> None:
     """Create child sessions for every group source and enqueue them."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
@@ -71,7 +72,7 @@ async def run_group(ctx, *, group_id: str) -> None:
         await orchestration_queue.enqueue("run_session_checks", session_id=sid, timeout=900)
 
 
-async def run_single_source(ctx, *, group_id: str, source_type: str, source_value: str) -> None:
+async def run_single_source(ctx: TaskContext, *, group_id: str, source_type: str, source_value: str) -> None:
     """Create a session for one group source and enqueue it."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
@@ -85,12 +86,12 @@ async def run_single_source(ctx, *, group_id: str, source_type: str, source_valu
     await orchestration_queue.enqueue("run_session_checks", session_id=sid, timeout=900)
 
 
-async def sync_metadata(ctx, *, group_id: str) -> None:
+async def sync_metadata(ctx: TaskContext, *, group_id: str) -> None:
     """Refresh K8s metadata for all group sources."""
     await sync_source_metadata(ctx["session_factory"], group_id)
 
 
-async def sweep_stale_sessions(ctx) -> None:
+async def sweep_stale_sessions(ctx: TaskContext) -> None:
     """Periodically mark sessions stuck in 'running' as failed and finalize
     orphaned group runs. Runs every 5 minutes on the orchestration worker."""
     count = await cleanup_stale_sessions(ctx["session_factory"], max_age_minutes=30)

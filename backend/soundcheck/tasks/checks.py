@@ -15,12 +15,13 @@ from ..models import CheckResult, SessionTarget
 from ..services.check_service import TargetCheckResult, check_single_target, create_client
 from ..services.session_service import _mark_session_failed, _try_finalize_group_run, _try_finalize_session
 from ..utils import sanitize_error, utc_now
+from . import TaskContext
 from .events import publish_group_event, publish_session_event
 
 logger = logging.getLogger(__name__)
 
 
-async def check_target(ctx, *, target_id: int, session_id: str, url: str, check_type: str, group_id: str = "") -> None:
+async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url: str, check_type: str, group_id: str = "") -> None:
     """Check a single target URL, write the result, and try to finalize."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
