@@ -7,7 +7,8 @@
 
 	let error = $state('');
 
-	onMount(async () => {
+	onMount(() => {
+		const controller = new AbortController();
 		const params = page.url.searchParams;
 		if (
 			!params.has('urls') &&
@@ -18,12 +19,17 @@
 			goto('/');
 			return;
 		}
-		try {
-			const sessionId = await checkRedirect(params);
-			goto(sessionId ? `/session/${sessionId}` : '/');
-		} catch (e: unknown) {
-			error = e instanceof Error ? e.message : 'Failed to create session';
-		}
+		(async () => {
+			try {
+				const sessionId = await checkRedirect(params, { signal: controller.signal });
+				if (controller.signal.aborted) return;
+				goto(sessionId ? `/session/${sessionId}` : '/');
+			} catch (e: unknown) {
+				if (e instanceof DOMException && e.name === 'AbortError') return;
+				error = e instanceof Error ? e.message : 'Failed to create session';
+			}
+		})();
+		return () => controller.abort();
 	});
 </script>
 
