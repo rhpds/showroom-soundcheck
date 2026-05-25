@@ -59,21 +59,18 @@
 								{#each sessions as cs}
 									{@const sessionTargets = targetsBySession[cs.session_id] || []}
 									{@const healthy = sessionTargets.filter((t) => t.status === 'healthy').length}
-									<div
-										class="run-list__session"
-										onclick={() => onPreview(cs.session_id)}
-										onkeydown={(e) => e.key === 'Enter' && onPreview(cs.session_id)}
-										role="button"
-										tabindex="0"
+								<button
+									class="run-list__session"
+									onclick={() => onPreview(cs.session_id)}
+								>
+									<span class="run-list__session-left">
+										<StatusBadge status={cs.status} size="sm" />
+										<span>{cs.name || cs.display_label}</span>
+									</span>
+									<span class="run-list__session-stat"
+										>{healthy}/{sessionTargets.length} healthy</span
 									>
-										<div class="run-list__session-left">
-											<StatusBadge status={cs.status} size="sm" />
-											<span>{cs.name || cs.display_label}</span>
-										</div>
-										<span class="run-list__session-stat"
-											>{healthy}/{sessionTargets.length} healthy</span
-										>
-									</div>
+								</button>
 								{/each}
 							</div>
 						{/if}
@@ -171,7 +168,12 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		width: 100%;
 		padding: 8px 12px;
+		border: none;
+		background: none;
+		font: inherit;
+		text-align: left;
 		border-radius: var(--pf-t--global--border--radius--small, 3px);
 		cursor: pointer;
 		transition: background-color 0.1s ease;
