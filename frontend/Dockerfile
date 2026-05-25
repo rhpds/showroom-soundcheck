@@ -2,14 +2,14 @@
 # Showroom Soundcheck Frontend
 #
 # Multi-stage build:
-#   1. Build SvelteKit static output
-#   2. Serve with nginx (reverse-proxies /api to backend)
+#   1. Build SvelteKit static output (full Node image with npm)
+#   2. Serve with a zero-dependency Node.js server (minimal image)
 ##
 
 # ---------------------------------------------------------------------------
 # Stage 1: build SvelteKit frontend
 # ---------------------------------------------------------------------------
-FROM node:22-alpine AS build
+FROM registry.access.redhat.com/ubi10/nodejs-22:latest AS build
 
 WORKDIR /app
 COPY package.json package-lock.json* ./
@@ -19,12 +19,17 @@ RUN cp node_modules/@patternfly/patternfly/dist/patternfly.min.css static/patter
 RUN npm run build
 
 # ---------------------------------------------------------------------------
-# Stage 2: nginx runtime
+# Stage 2: Node.js runtime — static files + /api reverse proxy
 # ---------------------------------------------------------------------------
-FROM nginx:1-alpine
+FROM registry.access.redhat.com/ubi10/nodejs-22-minimal:latest
 
-RUN rm /etc/nginx/conf.d/default.conf
-COPY .docker/nginx.conf.template /etc/nginx/templates/default.conf.template
-COPY --from=build /app/build /usr/share/nginx/html
+WORKDIR /app
+
+COPY .docker/server.js .
+COPY --from=build /app/build ./build
 
 EXPOSE 5173
+
+USER 1001
+
+CMD ["node", "server.js"]
