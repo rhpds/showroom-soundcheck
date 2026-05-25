@@ -37,7 +37,7 @@ from .services.session_service import (
     resolve_session_targets,
     sync_source_metadata,
 )
-from .utils import utc_now
+from .utils import sanitize_error, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +173,7 @@ async def check_target(ctx, *, target_id: int, session_id: str, url: str, check_
             result = TargetCheckResult(
                 url=url,
                 check_type=check_type,
-                error_message=str(e)[:500],
+                error_message=sanitize_error(str(e)[:500]),
             )
 
     completed_at = utc_now()
@@ -230,12 +230,13 @@ async def check_target(ctx, *, target_id: int, session_id: str, url: str, check_
         await _publish_group_event(redis, group_id, "target_update")
     except Exception as e:
         logger.exception("Error writing result for target %s: %s", target_id, e)
+        safe_error = sanitize_error(str(e)[:500])
         async with session_factory() as db:
             t_result = await db.execute(select(SessionTarget).where(SessionTarget.id == target_id))
             t = t_result.scalars().first()
             if t:
                 t.status = "error"
-                t.error_message = str(e)[:500]
+                t.error_message = safe_error
                 t.check_completed_at = utc_now()
                 db.add(t)
                 await db.commit()
@@ -247,7 +248,7 @@ async def check_target(ctx, *, target_id: int, session_id: str, url: str, check_
             {
                 "target_id": target_id,
                 "status": "error",
-                "error_message": str(e)[:500],
+                "error_message": safe_error,
             },
         )
         await _publish_group_event(redis, group_id, "target_update")

@@ -37,6 +37,26 @@ def escape_like(value: str) -> str:
 VALID_CHECK_TYPES = ("readyz", "healthz")
 
 # ---------------------------------------------------------------------------
+# Error message sanitization
+# ---------------------------------------------------------------------------
+
+_K8S_URL_RE = re.compile(r"https?://[^\s'\"]+/apis?/[^\s'\"]*")
+_FILE_PATH_RE = re.compile(r"(?:/[\w.-]+){3,}")
+
+
+def sanitize_error(msg: str | None) -> str | None:
+    """Strip internal details from error messages before exposing to clients.
+
+    Removes K8s API server URLs and absolute file paths that could leak
+    infrastructure topology or deployment internals.
+    """
+    if not msg:
+        return msg
+    msg = _K8S_URL_RE.sub("<k8s-api>", msg)
+    msg = _FILE_PATH_RE.sub("<path>", msg)
+    return msg
+
+# ---------------------------------------------------------------------------
 # URL allowlist (SSRF prevention)
 # ---------------------------------------------------------------------------
 

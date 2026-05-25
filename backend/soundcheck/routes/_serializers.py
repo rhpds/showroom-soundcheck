@@ -1,11 +1,8 @@
 """Shared model-to-schema serializers for route modules."""
 
-import re
-
 from ..models import CheckSession, SessionTarget
 from ..schemas import SessionListItem, TargetPublic
-
-_K8S_URL_RE = re.compile(r"https?://[^\s'\"]+/apis?/[^\s'\"]*")
+from ..utils import sanitize_error
 
 
 def _first_source_id(cs: CheckSession) -> str:
@@ -32,13 +29,6 @@ def session_to_list_item(cs: CheckSession) -> SessionListItem:
     )
 
 
-def _sanitize_error(msg: str | None) -> str | None:
-    """Strip K8s API server URLs from error messages before exposing to clients."""
-    if not msg:
-        return msg
-    return _K8S_URL_RE.sub("<k8s-api>", msg)
-
-
 def target_to_public(t: SessionTarget) -> TargetPublic:
     return TargetPublic(
         id=t.id,
@@ -54,7 +44,7 @@ def target_to_public(t: SessionTarget) -> TargetPublic:
         status=t.status,
         tier_used=t.tier_used,
         response_time_ms=t.response_time_ms,
-        error_message=_sanitize_error(t.error_message),
+        error_message=sanitize_error(t.error_message),
         check_started_at=t.check_started_at,
         check_completed_at=t.check_completed_at,
     )
