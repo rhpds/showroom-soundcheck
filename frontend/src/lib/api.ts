@@ -147,11 +147,10 @@ export async function removeGroupSource(
 	sourceType: string,
 	sourceValue: string
 ): Promise<void> {
-	await fetchJson(`${BASE}/groups/${groupId}/sources`, {
-		method: 'DELETE',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ source_type: sourceType, source_value: sourceValue })
-	});
+	await fetchJson(
+		`${BASE}/groups/${groupId}/sources/${encodeURIComponent(sourceType)}/${encodeURIComponent(sourceValue)}`,
+		{ method: 'DELETE' }
+	);
 }
 
 export async function syncGroupMetadata(groupId: string): Promise<void> {

@@ -3,6 +3,7 @@
 import json
 import time
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.sse import EventSourceResponse
@@ -325,22 +326,27 @@ async def add_source(group_id: str, body: SourceRequest, db: DbSession):
     return StatusResponse(status="added")
 
 
-@router.delete("/{group_id}/sources", response_model=StatusResponse)
-async def remove_source(group_id: str, body: SourceRequest, db: DbSession):
+@router.delete("/{group_id}/sources/{source_type}/{source_value}", response_model=StatusResponse)
+async def remove_source(
+    group_id: str,
+    source_type: Literal["rc_guid", "workshop_guid", "pool"],
+    source_value: str,
+    db: DbSession,
+):
     """Remove a source from the group."""
     grp_result = await db.execute(select(SessionGroup).where(SessionGroup.group_id == group_id))
     grp = grp_result.scalars().first()
     if not grp:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    if body.source_type == "rc_guid":
-        grp.source_guids = [g for g in grp.get_guids() if g != body.source_value]
-    elif body.source_type == "workshop_guid":
-        grp.source_workshop_guids = [g for g in grp.get_workshop_guids() if g != body.source_value]
-    elif body.source_type == "pool":
-        grp.source_resource_pools = [p for p in grp.get_resource_pools() if p != body.source_value]
+    if source_type == "rc_guid":
+        grp.source_guids = [g for g in grp.get_guids() if g != source_value]
+    elif source_type == "workshop_guid":
+        grp.source_workshop_guids = [g for g in grp.get_workshop_guids() if g != source_value]
+    elif source_type == "pool":
+        grp.source_resource_pools = [p for p in grp.get_resource_pools() if p != source_value]
 
-    meta_key = f"{body.source_type}:{body.source_value}"
+    meta_key = f"{source_type}:{source_value}"
     meta_map = dict(grp.get_source_metadata())
     meta_map.pop(meta_key, None)
     grp.member_metadata = meta_map
