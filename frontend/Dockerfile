@@ -11,6 +11,7 @@
 # ---------------------------------------------------------------------------
 FROM registry.access.redhat.com/ubi10/nodejs-22:latest AS build
 
+USER 0
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci 2>/dev/null || npm install
