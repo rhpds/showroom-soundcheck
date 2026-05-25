@@ -26,6 +26,7 @@
 	let editingName = $state(false);
 	let syncing = $state(false);
 	let previewSessionId = $state<string | null>(null);
+	let streamFailed = $state(false);
 	let currentLoadId = 0;
 	let eventSource: EventSource | null = null;
 	let retryTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -62,6 +63,7 @@
 		notFound = false;
 		loadError = '';
 		error = '';
+		streamFailed = false;
 		retryCount = 0;
 		loadGroup();
 		return () => {
@@ -128,6 +130,8 @@
 			if (retryCount < MAX_RETRIES) {
 				retryCount++;
 				retryTimeout = setTimeout(loadGroup, 3000 * retryCount);
+			} else {
+				streamFailed = true;
 			}
 		};
 	}
@@ -276,6 +280,26 @@
 					>
 				</div>
 				<h4 class="pf-v6-c-alert__title">{error}</h4>
+			</div>
+		{/if}
+
+		{#if streamFailed}
+			<div class="group-stream-notice" role="status">
+				<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"
+					><path
+						d="M8.58 1.55a.67.67 0 0 0-1.16 0l-6.25 11A.67.67 0 0 0 1.75 14h12.5a.67.67 0 0 0 .58-1.01l-6.25-11ZM8 5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm.56 5.56a.56.56 0 1 1-1.12 0 .56.56 0 0 1 1.12 0Z"
+					/></svg
+				>
+				<span>Live updates paused.</span>
+				<button
+					class="pf-v6-c-button pf-m-link pf-m-inline pf-m-sm"
+					onclick={() => {
+						streamFailed = false;
+						loadGroup();
+					}}
+				>
+					Retry
+				</button>
 			</div>
 		{/if}
 
@@ -450,5 +474,18 @@
 		margin-top: 12px;
 		padding-top: 12px;
 		border-top: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+	}
+
+	.group-stream-notice {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px var(--pf-t--global--spacer--lg, 24px);
+		background: #fef6e6;
+		border: 1px solid #f0c75e;
+		border-radius: var(--pf-t--global--border--radius--small, 3px);
+		margin-bottom: var(--pf-t--global--spacer--md, 16px);
+		font-size: var(--pf-t--global--font--size--sm, 0.875rem);
+		color: #6b4400;
 	}
 </style>
