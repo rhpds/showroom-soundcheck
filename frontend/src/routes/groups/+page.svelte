@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { listGroups, deleteGroup, toggleGroupPin } from '$lib/api';
 	import { relativeTime } from '$lib/utils';
@@ -7,18 +6,16 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import type { GroupListItem, PaginatedResponse } from '$lib/types';
 
-	let data = $state.raw<PaginatedResponse<GroupListItem>>({ items: [], total: 0, page: 1, per_page: 20 });
-	let loading = $state(true);
+	let { data: pageData } = $props();
+
+	let data = $state.raw<PaginatedResponse<GroupListItem>>(pageData.groups);
+	let loading = $state(false);
 	let error = $state('');
 
-	onMount(() => {
-		loadData();
-	});
-
-	let page = $state(1);
-	let perPage = $state(20);
-	let search = $state('');
-	let searchInput = $state('');
+	let page = $state(pageData.initialPage);
+	let perPage = $state(pageData.initialPerPage);
+	let search = $state(pageData.initialSearch);
+	let searchInput = $state(pageData.initialSearch);
 
 	async function loadData() {
 		loading = true;
