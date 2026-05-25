@@ -8,10 +8,12 @@
 
 	let {
 		sessionId,
-		onNavigate
+		onNavigate,
+		onRerun
 	}: {
 		sessionId: string;
 		onNavigate?: (sessionId: string) => void;
+		onRerun?: (sourceType: string, sourceValue: string) => void;
 	} = $props();
 
 	let data = $state.raw<SessionDetail | null>(null);
@@ -124,6 +126,22 @@
 	async function handleClone() {
 		cloneError = '';
 		try {
+			if (onRerun && data?.session) {
+				const s = data.session;
+				const sourceType = s.source_guids.length
+					? 'rc_guid'
+					: s.source_workshop_guids.length
+						? 'workshop_guid'
+						: s.source_resource_pools.length
+							? 'pool'
+							: null;
+				const sourceValue =
+					s.source_guids[0] ?? s.source_workshop_guids[0] ?? s.source_resource_pools[0];
+				if (sourceType && sourceValue) {
+					onRerun(sourceType, sourceValue);
+					return;
+				}
+			}
 			const result = await cloneSession(sessionId);
 			if (result.session_id && onNavigate) {
 				onNavigate(result.session_id);

@@ -5,10 +5,12 @@
 
 	let {
 		sessionId,
-		onClose
+		onClose,
+		onRerun
 	}: {
 		sessionId: string;
 		onClose: () => void;
+		onRerun?: (sourceType: string, sourceValue: string) => void;
 	} = $props();
 
 	let overrideId = $state<string | null>(null);
@@ -55,7 +57,7 @@
 			<button class="pf-v6-c-button pf-m-plain" onclick={onClose} aria-label="Close">✕</button>
 		</div>
 		<div class="drawer__body">
-			<SessionContent sessionId={activeSessionId} onNavigate={handleNavigate} />
+			<SessionContent sessionId={activeSessionId} onNavigate={handleNavigate} {onRerun} />
 		</div>
 	</aside>
 </div>

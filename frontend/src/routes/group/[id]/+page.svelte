@@ -34,6 +34,7 @@
 	let retryCount = 0;
 	const MAX_RETRIES = 5;
 	let pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
+	let rerunKnownRunIds: Set<string> | null = null;
 
 	let groupId = $derived(page.params.id!);
 
@@ -117,6 +118,20 @@
 			try {
 				const update = JSON.parse(event.data);
 				data = update;
+
+				if (rerunKnownRunIds) {
+					const newRun = update.runs.find(
+						(r: { run_id: string }) => !rerunKnownRunIds!.has(r.run_id)
+					);
+					if (newRun) {
+						const sessions = update.run_sessions[newRun.run_id];
+						if (sessions?.length) {
+							previewSessionId = sessions[0].session_id;
+							rerunKnownRunIds = null;
+						}
+					}
+				}
+
 				const active = isGroupActive(update);
 				if (active) sawActive = true;
 				if (sawActive && !active) {
@@ -394,7 +409,14 @@
 		/>
 
 		{#if previewSessionId}
-			<SessionDrawer sessionId={previewSessionId} onClose={() => (previewSessionId = null)} />
+			<SessionDrawer
+				sessionId={previewSessionId}
+				onClose={() => (previewSessionId = null)}
+				onRerun={(type, value) => {
+					rerunKnownRunIds = new Set(data?.runs.map((r) => r.run_id) ?? []);
+					handleRunSource(type, value);
+				}}
+			/>
 		{/if}
 	{/if}
 </div>
