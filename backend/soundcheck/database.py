@@ -6,14 +6,14 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from .config import get_async_db_url
+from .config import DB_MAX_OVERFLOW, DB_POOL_RECYCLE, DB_POOL_SIZE, get_async_db_url
 
 engine = create_async_engine(
     get_async_db_url(),
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=3600,
+    pool_size=DB_POOL_SIZE,
+    max_overflow=DB_MAX_OVERFLOW,
+    pool_recycle=DB_POOL_RECYCLE,
 )
 
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
