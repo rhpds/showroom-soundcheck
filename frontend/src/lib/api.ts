@@ -166,6 +166,10 @@ export function sessionStream(sessionId: string): EventSource {
 	return new EventSource(`${BASE}/sessions/${sessionId}/stream`);
 }
 
+export function groupStream(groupId: string): EventSource {
+	return new EventSource(`${BASE}/groups/${groupId}/stream`);
+}
+
 export async function checkRedirect(params: URLSearchParams): Promise<string> {
 	const resp = await fetchJson<{ session_id: string }>(`${BASE}/check?${params.toString()}`);
 	return resp.session_id;

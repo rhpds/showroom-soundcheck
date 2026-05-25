@@ -73,8 +73,11 @@ async def run_session_checks(ctx, *, session_id: str) -> None:
     try:
         async with session_factory() as db:
             await resolve_session_targets(db, session_id)
+            cs = (await db.execute(select(CheckSession).where(CheckSession.session_id == session_id))).scalars().first()
+        group_id = cs.group_id if cs else None
 
         await _publish_session_event(redis, session_id, "session_running", {})
+        await _publish_group_event(redis, group_id, "session_running")
         await _enqueue_target_checks(session_factory, redis, session_id)
     except Exception as e:
         logger.exception("Error in session orchestration %s: %s", session_id, e)
@@ -99,10 +102,13 @@ async def run_group(ctx, *, group_id: str) -> None:
     run_session_checks to complete (fire-and-finalize pattern).
     """
     session_factory = ctx["session_factory"]
+    redis = ctx["redis"]
 
     run_id, session_ids = await _create_group_sessions(session_factory, group_id)
     if not run_id:
         return
+
+    await _publish_group_event(redis, group_id, "run_started")
 
     for sid in session_ids:
         await orchestration_queue.enqueue(
@@ -119,6 +125,7 @@ async def run_single_source(ctx, *, group_id: str, source_type: str, source_valu
     when the session completes.
     """
     session_factory = ctx["session_factory"]
+    redis = ctx["redis"]
 
     run_id, sid = await _create_single_source_session(
         session_factory,
@@ -128,6 +135,8 @@ async def run_single_source(ctx, *, group_id: str, source_type: str, source_valu
     )
     if not run_id:
         return
+
+    await _publish_group_event(redis, group_id, "run_started")
 
     await orchestration_queue.enqueue(
         "run_session_checks",
@@ -147,7 +156,7 @@ async def sync_metadata(ctx, *, group_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def check_target(ctx, *, target_id: int, session_id: str, url: str, check_type: str) -> None:
+async def check_target(ctx, *, target_id: int, session_id: str, url: str, check_type: str, group_id: str = "") -> None:
     """Check a single target URL, write the result, and try to finalize.
 
     This is a leaf task -- one HTTP health check for one target.
@@ -218,6 +227,7 @@ async def check_target(ctx, *, target_id: int, session_id: str, url: str, check_
                 "error_message": result.error_message,
             },
         )
+        await _publish_group_event(redis, group_id, "target_update")
     except Exception as e:
         logger.exception("Error writing result for target %s: %s", target_id, e)
         async with session_factory() as db:
@@ -240,8 +250,9 @@ async def check_target(ctx, *, target_id: int, session_id: str, url: str, check_
                 "error_message": str(e)[:500],
             },
         )
+        await _publish_group_event(redis, group_id, "target_update")
 
-    finalized, final_status, group_run_id, group_id = await _try_finalize_session(
+    finalized, final_status, group_run_id, _group_id = await _try_finalize_session(
         session_factory,
         session_id,
     )
@@ -482,6 +493,8 @@ async def _enqueue_target_checks(
                 db.add(t)
         await db.commit()
 
+    group_id = cs.group_id if cs else None
+
     await _publish_session_event(
         redis,
         sid,
@@ -490,6 +503,7 @@ async def _enqueue_target_checks(
             "target_ids": [t.id for t in targets],
         },
     )
+    await _publish_group_event(redis, group_id, "targets_running")
 
     for t in targets:
         await checks_queue.enqueue(
@@ -498,6 +512,7 @@ async def _enqueue_target_checks(
             session_id=sid,
             url=t.url,
             check_type=check_type,
+            group_id=group_id or "",
             timeout=300,
         )
 
@@ -521,6 +536,7 @@ async def _on_session_finalized(
     )
     if group_run_id and group_id:
         await _try_finalize_group_run(session_factory, group_run_id, group_id)
+        await _publish_group_event(redis, group_id, "group_updated")
 
 
 # ---------------------------------------------------------------------------
@@ -532,6 +548,14 @@ async def _publish_session_event(redis, session_id: str, event_type: str, data: 
     """Publish a progress event to the Redis Pub/Sub channel for this session."""
     payload = json.dumps({"type": event_type, "session_id": session_id, **data})
     await redis.publish(f"session:{session_id}", payload)
+
+
+async def _publish_group_event(redis, group_id: str, event_type: str) -> None:
+    """Publish a notification to the group's Redis Pub/Sub channel."""
+    if not group_id:
+        return
+    payload = json.dumps({"type": event_type, "group_id": group_id})
+    await redis.publish(f"group:{group_id}", payload)
 
 
 # ---------------------------------------------------------------------------

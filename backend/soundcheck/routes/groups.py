@@ -1,11 +1,14 @@
 """Group API routes."""
 
+import json
+import time
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.sse import EventSourceResponse
 from sqlmodel import col, select
 
-from ..database import DbSession
+from ..database import DbSession, async_session_factory
 from ..models import CheckSession, GroupRun, SessionGroup, SessionTarget
 from ..schemas import (
     GroupCreate,
@@ -122,50 +125,123 @@ async def list_groups(
     )
 
 
+async def _fetch_group_detail(group_id: str) -> GroupDetail | None:
+    """Fetch full group detail from DB. Returns None if group not found."""
+    async with async_session_factory() as db:
+        grp_result = await db.execute(select(SessionGroup).where(SessionGroup.group_id == group_id))
+        grp = grp_result.scalars().first()
+        if not grp:
+            return None
+
+        runs_result = await db.execute(
+            select(GroupRun).where(GroupRun.group_id == group_id).order_by(col(GroupRun.created_at).desc())
+        )
+        runs = list(runs_result.scalars().all())
+
+        run_ids = [r.run_id for r in runs]
+        run_sessions: dict[str, list[SessionListItem]] = {}
+        targets_by_session: dict[str, list[TargetPublic]] = {}
+
+        if run_ids:
+            all_cs_result = await db.execute(
+                select(CheckSession)
+                .where(CheckSession.group_run_id.in_(run_ids))  # type: ignore[union-attr]
+                .order_by(col(CheckSession.created_at).asc())
+            )
+            all_cs = list(all_cs_result.scalars().all())
+
+            for cs in all_cs:
+                run_sessions.setdefault(cs.group_run_id or "", []).append(session_to_list_item(cs))
+
+            session_ids = [cs.session_id for cs in all_cs]
+            if session_ids:
+                all_targets_result = await db.execute(
+                    select(SessionTarget).where(
+                        SessionTarget.session_id.in_(session_ids)  # type: ignore[union-attr]
+                    )
+                )
+                for t in all_targets_result.scalars().all():
+                    targets_by_session.setdefault(t.session_id, []).append(target_to_public(t))
+
+        return GroupDetail(
+            group=_group_to_public(grp),
+            runs=[_run_to_public(r) for r in runs],
+            run_sessions=run_sessions,
+            targets_by_session=targets_by_session,
+        )
+
+
 @router.get("/{group_id}", response_model=GroupDetail)
 async def get_group(group_id: str, db: DbSession):
     """Get full group detail with runs, sessions, and targets."""
-    grp_result = await db.execute(select(SessionGroup).where(SessionGroup.group_id == group_id))
-    grp = grp_result.scalars().first()
-    if not grp:
+    detail = await _fetch_group_detail(group_id)
+    if not detail:
         raise HTTPException(status_code=404, detail="Group not found")
+    return detail
 
-    runs_result = await db.execute(
-        select(GroupRun).where(GroupRun.group_id == group_id).order_by(col(GroupRun.created_at).desc())
-    )
-    runs = list(runs_result.scalars().all())
 
-    run_ids = [r.run_id for r in runs]
-    run_sessions: dict[str, list[SessionListItem]] = {}
-    targets_by_session: dict[str, list[TargetPublic]] = {}
+@router.get("/{group_id}/stream")
+async def stream_group(group_id: str, request: Request):
+    """SSE stream for live group progress updates.
 
-    if run_ids:
-        all_cs_result = await db.execute(
-            select(CheckSession)
-            .where(CheckSession.group_run_id.in_(run_ids))  # type: ignore[union-attr]
-            .order_by(col(CheckSession.created_at).asc())
-        )
-        all_cs = list(all_cs_result.scalars().all())
+    Subscribes to the group's Redis Pub/Sub channel and re-fetches
+    the full GroupDetail on each event.  Throttled to at most one
+    DB refresh per second to handle bursts of target completions.
+    """
+    MAX_WAIT_SECONDS = 600
+    THROTTLE_SECONDS = 1.0
 
-        for cs in all_cs:
-            run_sessions.setdefault(cs.group_run_id or "", []).append(session_to_list_item(cs))
+    async def event_generator():
+        redis = queue.redis
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(f"group:{group_id}")
+        try:
+            detail = await _fetch_group_detail(group_id)
+            if not detail:
+                return
 
-        session_ids = [cs.session_id for cs in all_cs]
-        if session_ids:
-            all_targets_result = await db.execute(
-                select(SessionTarget).where(
-                    SessionTarget.session_id.in_(session_ids)  # type: ignore[union-attr]
+            payload = detail.model_dump_json()
+            yield f"data: {payload}\n\n"
+
+            elapsed = 0
+            last_yield = time.monotonic()
+            pending_refresh = False
+
+            while elapsed < MAX_WAIT_SECONDS:
+                if await request.is_disconnected():
+                    return
+
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if msg and msg.get("data"):
+                    now = time.monotonic()
+                    if now - last_yield < THROTTLE_SECONDS:
+                        pending_refresh = True
+                        continue
+                elif pending_refresh:
+                    pass
+                else:
+                    elapsed += 1
+                    continue
+
+                pending_refresh = False
+                detail = await _fetch_group_detail(group_id)
+                if not detail:
+                    return
+
+                payload = detail.model_dump_json()
+                yield f"data: {payload}\n\n"
+                last_yield = time.monotonic()
+
+                has_active = detail.group.status == "running" or any(
+                    r.status == "running" for r in detail.runs
                 )
-            )
-            for t in all_targets_result.scalars().all():
-                targets_by_session.setdefault(t.session_id, []).append(target_to_public(t))
+                if not has_active:
+                    return
+        finally:
+            await pubsub.unsubscribe(f"group:{group_id}")
+            await pubsub.close()
 
-    return GroupDetail(
-        group=_group_to_public(grp),
-        runs=[_run_to_public(r) for r in runs],
-        run_sessions=run_sessions,
-        targets_by_session=targets_by_session,
-    )
+    return EventSourceResponse(event_generator())
 
 
 @router.post("/{group_id}/run", response_model=StatusResponse)

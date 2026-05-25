@@ -197,13 +197,16 @@ def _build_sse_update(
     status: str,
     targets_cache: dict[int, SessionTarget],
     results_cache: dict[int, CheckResult],
+    session: "CheckSession | None" = None,
 ) -> str:
-    return SessionUpdate(
+    payload = SessionUpdate(
         session_id=session_id,
         status=status,
+        session=_session_to_public(session) if session else None,
         targets=[target_to_public(t) for t in targets_cache.values()],
         results=[_result_to_public(r) for r in results_cache.values()],
     ).model_dump_json()
+    return f"data: {payload}\n\n"
 
 
 @router.get("/{session_id}/stream")
@@ -217,27 +220,35 @@ async def stream_session(session_id: str, request: Request):
     """
     MAX_WAIT_SECONDS = 600
 
-    async def event_generator():
+    async def _full_refresh(session_id):
+        """Re-fetch all session data from DB and rebuild caches."""
         async with async_session_factory() as db:
-            data = await session_service.fetch_session_data(db, session_id)
+            return await session_service.fetch_session_data(db, session_id)
 
-        cs = data["session"]
-        if not cs:
-            return
-
-        session_status = cs.status
-        targets_cache: dict[int, SessionTarget] = {t.id: t for t in data["targets"]}
-        results_cache: dict[int, CheckResult] = {r.id: r for r in data["results"]}
-
-        yield _build_sse_update(session_id, session_status, targets_cache, results_cache)
-
-        if session_status in ("completed", "failed"):
-            return
-
+    async def event_generator():
+        # Subscribe BEFORE fetching initial data so events published
+        # during the DB query are buffered and not lost.
         redis = queue.redis
         pubsub = redis.pubsub()
         await pubsub.subscribe(f"session:{session_id}")
         try:
+            data = await _full_refresh(session_id)
+
+            cs = data["session"]
+            if not cs:
+                return
+
+            session_status = cs.status
+            targets_cache: dict[int, SessionTarget] = {t.id: t for t in data["targets"]}
+            results_cache: dict[int, CheckResult] = {r.id: r for r in data["results"]}
+
+            yield _build_sse_update(
+                session_id, session_status, targets_cache, results_cache, session=cs,
+            )
+
+            if session_status in ("completed", "failed"):
+                return
+
             elapsed = 0
             while elapsed < MAX_WAIT_SECONDS:
                 if await request.is_disconnected():
@@ -252,8 +263,7 @@ async def stream_session(session_id: str, request: Request):
                     event_type = event_data.get("type")
 
                     if event_type == "session_complete":
-                        async with async_session_factory() as db:
-                            data = await session_service.fetch_session_data(db, session_id)
+                        data = await _full_refresh(session_id)
                         if data["session"]:
                             targets_cache = {t.id: t for t in data["targets"]}
                             results_cache = {r.id: r for r in data["results"]}
@@ -262,6 +272,7 @@ async def stream_session(session_id: str, request: Request):
                                 data["session"].status,
                                 targets_cache,
                                 results_cache,
+                                session=data["session"],
                             )
                         return
 
@@ -285,17 +296,32 @@ async def stream_session(session_id: str, request: Request):
                         )
 
                     elif event_type == "session_running":
-                        session_status = "running"
+                        # Full refresh: target resolution and session metadata
+                        # (name, resource_kind, etc.) are now committed to DB.
+                        data = await _full_refresh(session_id)
+                        if data["session"]:
+                            cs = data["session"]
+                            session_status = cs.status
+                            targets_cache = {t.id: t for t in data["targets"]}
+                            results_cache = {r.id: r for r in data["results"]}
                         yield _build_sse_update(
                             session_id,
                             session_status,
                             targets_cache,
                             results_cache,
+                            session=cs,
                         )
 
                     elif event_type == "targets_running":
-                        for tid in event_data.get("target_ids", []):
-                            if tid in targets_cache:
+                        target_ids = event_data.get("target_ids", [])
+                        has_unknown = any(tid not in targets_cache for tid in target_ids)
+                        if has_unknown:
+                            data = await _full_refresh(session_id)
+                            if data["session"]:
+                                targets_cache = {t.id: t for t in data["targets"]}
+                                results_cache = {r.id: r for r in data["results"]}
+                        else:
+                            for tid in target_ids:
                                 targets_cache[tid].status = "running"
                         yield _build_sse_update(
                             session_id,

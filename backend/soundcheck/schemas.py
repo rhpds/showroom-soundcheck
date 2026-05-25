@@ -221,6 +221,7 @@ class SessionUpdate(BaseModel):
 
     session_id: str
     status: str
+    session: SessionPublic | None = None
     targets: list[TargetPublic]
     results: list[CheckResultPublic]
 

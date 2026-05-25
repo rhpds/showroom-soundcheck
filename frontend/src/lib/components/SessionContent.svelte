@@ -39,19 +39,22 @@
 		streamFailed = false;
 		loadSession();
 		return () => {
-			eventSource?.close();
-			eventSource = null;
-			if (retryTimeout) {
-				clearTimeout(retryTimeout);
-				retryTimeout = null;
-			}
+			closeStream();
 		};
 	});
 
 	onDestroy(() => {
-		eventSource?.close();
-		if (retryTimeout) clearTimeout(retryTimeout);
+		closeStream();
 	});
+
+	function closeStream() {
+		eventSource?.close();
+		eventSource = null;
+		if (retryTimeout) {
+			clearTimeout(retryTimeout);
+			retryTimeout = null;
+		}
+	}
 
 	async function loadSession() {
 		const myLoadId = ++currentLoadId;
@@ -75,30 +78,34 @@
 	}
 
 	function startStreaming() {
-		eventSource?.close();
+		closeStream();
+		retryCount = 0;
 		eventSource = sessionStream(sessionId);
+
 		eventSource.onmessage = (event) => {
 			try {
 				const update = JSON.parse(event.data);
 				if (data) {
 					data = {
-						session: { ...data.session, status: update.status },
+						session: update.session ?? { ...data.session, status: update.status },
 						targets: update.targets,
 						results: update.results
 					};
 				}
 				if (update.status === 'completed' || update.status === 'failed') {
-					eventSource?.close();
-					eventSource = null;
-					retryCount = 0;
+					closeStream();
 				}
 			} catch (e) {
 				console.error('Failed to parse SSE message', e);
 			}
 		};
+
 		eventSource.onerror = () => {
 			eventSource?.close();
 			eventSource = null;
+			if (data?.session?.status === 'completed' || data?.session?.status === 'failed') {
+				return;
+			}
 			if (retryCount < MAX_RETRIES) {
 				retryCount++;
 				retryTimeout = setTimeout(loadSession, 3000 * retryCount);
@@ -377,7 +384,6 @@
 				class="pf-v6-c-button pf-m-link pf-m-inline pf-m-sm"
 				onclick={() => {
 					streamFailed = false;
-					retryCount = 0;
 					loadSession();
 				}}
 			>

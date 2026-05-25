@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import {
 		getGroup,
+		groupStream,
 		runGroupChecks,
 		runGroupSource,
 		renameGroup,
@@ -26,6 +28,10 @@
 	let syncing = $state(false);
 	let previewSessionId = $state<string | null>(null);
 	let currentLoadId = 0;
+	let eventSource: EventSource | null = null;
+	let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+	let retryCount = 0;
+	const MAX_RETRIES = 5;
 	let pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
 
 	let groupId = $derived(page.params.id!);
@@ -35,19 +41,39 @@
 		pendingTimeouts.push(id);
 	}
 
+	function closeStream() {
+		eventSource?.close();
+		eventSource = null;
+		if (retryTimeout) {
+			clearTimeout(retryTimeout);
+			retryTimeout = null;
+		}
+	}
+
+	function isGroupActive(detail: GroupDetail): boolean {
+		return (
+			detail.group.status === 'running' ||
+			detail.runs.some((r) => r.status === 'running')
+		);
+	}
+
 	$effect(() => {
 		const _id = groupId;
 		loading = true;
 		notFound = false;
 		loadError = '';
 		error = '';
+		retryCount = 0;
 		loadGroup();
-		const interval = setInterval(loadGroup, 5000);
 		return () => {
-			clearInterval(interval);
+			closeStream();
 			pendingTimeouts.forEach(clearTimeout);
 			pendingTimeouts = [];
 		};
+	});
+
+	onDestroy(() => {
+		closeStream();
 	});
 
 	async function loadGroup() {
@@ -56,7 +82,11 @@
 			const result = await getGroup(groupId);
 			if (myLoadId !== currentLoadId) return;
 			data = result;
-			if (!result.group) notFound = true;
+			if (!result.group) {
+				notFound = true;
+			} else if (isGroupActive(result)) {
+				startStreaming();
+			}
 		} catch (e) {
 			if (myLoadId !== currentLoadId) return;
 			if (loading) {
@@ -66,14 +96,49 @@
 		loading = false;
 	}
 
+	let sawActive = false;
+
+	function startStreaming() {
+		closeStream();
+		retryCount = 0;
+		sawActive = false;
+		eventSource = groupStream(groupId);
+
+		eventSource.onmessage = (event) => {
+			try {
+				const update = JSON.parse(event.data);
+				data = update;
+				const active = isGroupActive(update);
+				if (active) sawActive = true;
+				if (sawActive && !active) {
+					closeStream();
+				}
+			} catch (e) {
+				console.error('Failed to parse group SSE message', e);
+			}
+		};
+
+		eventSource.onerror = () => {
+			eventSource?.close();
+			eventSource = null;
+			if (sawActive && data && !isGroupActive(data)) {
+				return;
+			}
+			if (retryCount < MAX_RETRIES) {
+				retryCount++;
+				retryTimeout = setTimeout(loadGroup, 3000 * retryCount);
+			}
+		};
+	}
+
 	async function handleRunAll() {
 		runningAll = true;
 		error = '';
 		try {
 			await runGroupChecks(groupId);
+			startStreaming();
 			trackTimeout(() => {
 				runningAll = false;
-				loadGroup();
 			}, 3000);
 		} catch (e) {
 			runningAll = false;
@@ -85,11 +150,7 @@
 		error = '';
 		runGroupSource(groupId, type, value)
 			.then(() => {
-				const myId = currentLoadId;
-				trackTimeout(() => {
-					if (myId !== currentLoadId) return;
-					loadGroup();
-				}, 2000);
+				startStreaming();
 			})
 			.catch((e) => {
 				error = e instanceof Error ? e.message : 'Failed to run source check';
