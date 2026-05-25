@@ -73,6 +73,8 @@
 
 	onDestroy(() => {
 		closeStream();
+		pendingTimeouts.forEach(clearTimeout);
+		pendingTimeouts = [];
 	});
 
 	async function loadGroup() {
