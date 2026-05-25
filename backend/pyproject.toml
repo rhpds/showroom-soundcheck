@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "showroom-soundcheck"
+version = "0.2.0"
+description = "Session-based health check tool for showroom environments"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+    "sqlmodel>=0.0.22,<1",
+    "sqlalchemy[asyncio]>=2.0,<3",
+    "alembic>=1.13,<2",
+    "asyncpg>=0.29,<1",
+    "httpx>=0.27,<1",
+    "pyyaml>=6.0,<7",
+    "rich>=13.0,<14",
+    "saq[redis,web,hiredis]>=0.26,<1",
+    "redis[hiredis]>=5.0,<6",
+]
+
+[project.optional-dependencies]
+cli = [
+    "httpx>=0.27,<1",
+    "pyyaml>=6.0,<7",
+    "rich>=13.0,<14",
+]
+dev = [
+    "ruff",
+]
+
+[project.scripts]
+showroom-soundcheck = "soundcheck.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["soundcheck*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "UP046",  # Generic[T] subclass -- required by Pydantic BaseModel
+    "SIM105", # contextlib.suppress -- try/except/pass is often clearer
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["soundcheck"]

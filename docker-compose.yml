@@ -6,9 +6,9 @@ services:
     container_name: showroom-soundcheck-app
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${APP_PORT:-8000}:8000"
     environment:
+      REDIS_URL: redis://redis:6379
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: ${POSTGRES_USER:-soundcheck}
@@ -19,18 +19,35 @@ services:
       CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-10}
       VERIFY_SSL: ${VERIFY_SSL:-false}
       ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io,localhost}
-      REFLEX_ENV: dev
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8000}
+      API_KEY: ${API_KEY:-}
       PYTHONPATH: /app
+      UVICORN_RELOAD: "true"
       PYTHONUNBUFFERED: 1
-    user: "0:0"
-    working_dir: /app
-    command: ["bash", "/app/entrypoint.sh"]
     volumes:
-      - ./:/app:Z
-      - ${BABYLON_KUBECONFIG_DIR:-./secrets}:/secrets:ro,Z
+      - ${BABYLON_KUBECONFIG_DIR:-./secrets}:/secrets:ro,z
+      - ./backend/soundcheck:/app/soundcheck:z
+      - ./backend/alembic:/app/alembic:z
     depends_on:
+      redis:
+        condition: service_healthy
       postgres:
         condition: service_healthy
+
+  frontend:
+    image: node:22-alpine
+    container_name: showroom-soundcheck-frontend
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    environment:
+      VITE_API_TARGET: http://app:8000
+    volumes:
+      - ./frontend:/app:z
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - app
 
   postgres:
     image: docker.io/library/postgres:16-alpine
@@ -44,9 +61,97 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro,Z
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro,z
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-soundcheck} -d ${POSTGRES_DB:-soundcheck}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  orchestration-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: showroom-soundcheck-orchestration-worker
+    restart: unless-stopped
+    command: >-
+      saq soundcheck.worker.orchestration_settings
+      --web --port 8080
+      --extra-web-settings soundcheck.worker.check_settings
+      --workers ${SAQ_WORKERS:-1}
+    ports:
+      - "${SAQ_WEB_PORT:-8080}:8080"
+    environment:
+      REDIS_URL: redis://redis:6379
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-soundcheck}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soundcheck_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-soundcheck}
+      BABYLON_CLUSTERS: "${BABYLON_CLUSTERS:-}"
+      ORCHESTRATION_CONCURRENCY: ${ORCHESTRATION_CONCURRENCY:-10}
+      VERIFY_SSL: ${VERIFY_SSL:-false}
+      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io,localhost}
+      AUTH_USER: ${SAQ_AUTH_USER:-admin}
+      AUTH_PASSWORD: ${SAQ_AUTH_PASSWORD:-}
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ${BABYLON_KUBECONFIG_DIR:-./secrets}:/secrets:ro,z
+      - ./backend/soundcheck:/app/soundcheck:z
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  check-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: showroom-soundcheck-check-worker
+    restart: unless-stopped
+    command: saq soundcheck.worker.check_settings --workers ${SAQ_WORKERS:-1}
+    environment:
+      REDIS_URL: redis://redis:6379
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-soundcheck}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soundcheck_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-soundcheck}
+      CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-20}
+      VERIFY_SSL: ${VERIFY_SSL:-false}
+      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io,localhost}
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ./backend/soundcheck:/app/soundcheck:z
+    healthcheck:
+      test: ["CMD-SHELL", "saq soundcheck.worker.check_settings --check || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: showroom-soundcheck-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -57,7 +162,7 @@ services:
       dockerfile: Dockerfile.cli
     restart: "no"
     volumes:
-      - ./soundcheck:/app/soundcheck:Z
+      - ./backend/soundcheck:/app/soundcheck:z
     environment:
       VERIFY_SSL: ${VERIFY_SSL:-false}
       CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-10}
@@ -65,3 +170,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

@@ -4,19 +4,23 @@ on:
   push:
     paths:
       - Dockerfile.cli
-      - soundcheck/__init__.py
-      - soundcheck/cli.py
-      - soundcheck/check_service.py
-      - pyproject.toml
+      - backend/soundcheck/__init__.py
+      - backend/soundcheck/cli.py
+      - backend/soundcheck/utils.py
+      - backend/soundcheck/services/__init__.py
+      - backend/soundcheck/services/check_service.py
+      - backend/pyproject.toml
     tags:
       - v*
   pull_request:
     paths:
       - Dockerfile.cli
-      - soundcheck/__init__.py
-      - soundcheck/cli.py
-      - soundcheck/check_service.py
-      - pyproject.toml
+      - backend/soundcheck/__init__.py
+      - backend/soundcheck/cli.py
+      - backend/soundcheck/utils.py
+      - backend/soundcheck/services/__init__.py
+      - backend/soundcheck/services/check_service.py
+      - backend/pyproject.toml
 jobs:
   build:
     runs-on: ubuntu-24.04

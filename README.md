@@ -95,8 +95,8 @@ podman run --rm -t quay.io/rhpds/showroom-soundcheck-cli:latest \
 # Start the web app and database
 podman compose up -d
 
-# UI:      http://localhost:3000
-# Backend: http://localhost:8000
+# App + API: http://localhost:8000
+# API docs:  http://localhost:8000/docs
 ```
 
 ### Local Development (without containers)
@@ -104,9 +104,16 @@ podman compose up -d
 Requires a running PostgreSQL instance. Set `DATABASE_URL` or individual `POSTGRES_*` env vars.
 
 ```bash
+# Backend
+cd backend
 pip install -r requirements.txt
-reflex init
-reflex run --env dev
+alembic upgrade head
+uvicorn soundcheck.main:app --reload --port 8000
+
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
 ```
 
 ### Building the CLI Image
@@ -126,11 +133,9 @@ podman run --rm -t showroom-soundcheck-cli --urls https://showroom1.example.com
 | `POSTGRES_DB`          | `soundcheck`         | Database name                                                |
 | `POSTGRES_HOST`        | `localhost`          | PostgreSQL host                                              |
 | `POSTGRES_PORT`        | `5432`               | PostgreSQL port                                              |
-| `APP_PORT`             | `3000`               | Frontend port (compose only)                                 |
-| `BACKEND_PORT`         | `8000`               | Backend API port (compose only)                              |
+| `APP_PORT`             | `8000`               | App port (compose only)                                      |
 | `CHECK_CONCURRENCY`    | `10`                 | Max concurrent health checks per session                     |
 | `VERIFY_SSL`           | `true`               | TLS verification; set to `false`/`0`/`no` to disable (compose defaults to `false`) |
-| `REFLEX_ENV`           | `dev`                | `dev` enables auto-migrations; `prod` runs migrations only (compose hardcodes `dev`) |
 | `BABYLON_CLUSTERS`     | `[]`                 | JSON array of kubeconfig paths (order = search priority)     |
 | `BABYLON_KUBECONFIG_DIR` | `./secrets`        | Host directory mounted for kubeconfigs                       |
 
@@ -151,22 +156,36 @@ The legacy JSON object format (`{"east": "/secrets/east.kubeconfig"}`) is still 
 ### Architecture
 
 ```
-soundcheck/
-├── soundcheck.py         # Reflex app entry point
-├── state.py              # SessionState: application state and event handlers
-├── models.py             # SQLModel: CheckSession, SessionTarget, CheckResult
-├── check_service.py      # Async two-tier health check logic (no DB deps)
-├── babylon_service.py    # GUID-to-URLs resolver (concurrent)
-├── babylon_client.py     # K8s API client via kubeconfigs
-├── cli.py                # CLI entry point (showroom-soundcheck command)
-├── utils.py              # Shared utilities: input parsing, GUID extraction, validation
-├── styles.py             # Theme and component styles
-├── pages.py              # Page definitions (home, session, check redirect)
-└── components/
-    ├── sidebar.py        # Session history sidebar
-    ├── target.py         # Target row, status badges, detail dialog
-    ├── session.py        # Session summary, targets list
-    └── landing.py        # Landing page form
+backend/soundcheck/           # FastAPI REST API
+├── main.py                   # FastAPI app entry point (uvicorn)
+├── config.py                 # Settings from env vars
+├── database.py               # AsyncSession factory
+├── models.py                 # SQLModel: CheckSession, SessionTarget, CheckResult, ...
+├── schemas.py                # Pydantic request/response models
+├── utils.py                  # Shared utilities: input parsing, GUID extraction, validation
+├── cli.py                    # CLI entry point (showroom-soundcheck command)
+├── routes/
+│   ├── sessions.py           # Session CRUD + SSE streaming
+│   ├── groups.py             # Group CRUD + run management
+│   ├── health.py             # /api/ping, /api/health, /api/config/clusters
+│   └── check.py              # Deep-link /api/check?... redirect
+└── services/
+    ├── check_service.py      # Async three-tier health check logic (no DB deps)
+    ├── babylon_service.py    # GUID-to-URLs resolver (concurrent)
+    ├── babylon_client.py     # K8s API client via kubeconfigs
+    └── session_service.py    # Session/group orchestration
+
+frontend/src/                 # SvelteKit SPA + PatternFly
+├── routes/                   # File-based routing
+│   ├── +page.svelte          # Landing page with check/group forms
+│   ├── +layout.svelte        # App shell + sidebar
+│   ├── session/[id]/         # Session detail page
+│   ├── group/[id]/           # Group management page
+│   └── check/                # Deep-link redirect
+└── lib/
+    ├── api.ts                # Typed API client
+    ├── types.ts              # TypeScript types
+    └── components/           # Sidebar, StatusBadge, TargetDetail
 ```
 
 ### Two-Tier Health Check Strategy
@@ -182,7 +201,7 @@ Both tiers retry failed requests (2 retries with linear backoff) before marking 
 
 ### Database
 
-Three tables: `sessions`, `session_targets`, `check_results`. Migrations are managed via Reflex's database commands (`reflex db init`, `reflex db migrate`, `reflex db makemigrations`) which wrap Alembic. They run automatically on startup via `entrypoint.sh`.
+Five tables: `sessions`, `session_targets`, `check_results`, `session_groups`, `group_runs`. Migrations are managed via Alembic (`alembic upgrade head`) and run automatically on startup via `backend/entrypoint.sh`.
 
 ### Container Images
 

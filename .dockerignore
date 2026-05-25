@@ -1,13 +1,10 @@
 .git
-.web
-.states
 __pycache__
 *.pyc
 *.pyo
 secrets/
 postgres_data/
 deploy/
-healthcheck/
 .github/
 .gitignore
 .dockerignore
