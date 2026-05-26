@@ -22,9 +22,9 @@
 			setTimeout(() => {
 				copiedField = null;
 			}, 1500);
-		} catch {
-			/* clipboard may not be available */
-		}
+	} catch (e) {
+		console.warn('Clipboard write failed:', e);
+	}
 	}
 
 	let detail = $derived(result?.detail ?? null);
