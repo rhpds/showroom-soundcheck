@@ -188,7 +188,12 @@ class BabylonClientManager:
         self._initialized = False
 
     def init_clients(self) -> None:
-        """Initialize from the BABYLON_CLUSTERS env var. No-op after first call."""
+        """Initialize from the BABYLON_CLUSTERS env var. No-op after first call.
+
+        This performs synchronous file I/O (kubeconfig reading + YAML parsing).
+        In async contexts, prefer :meth:`init_clients_async` which offloads
+        the blocking work to a thread.
+        """
         if self._initialized:
             return
         self._initialized = True
@@ -221,6 +226,16 @@ class BabylonClientManager:
 
         logger.info("Babylon: %d cluster(s) configured", len(self._cluster_configs))
         atexit.register(self._sync_close_clients)
+
+    async def init_clients_async(self) -> None:
+        """Async wrapper around :meth:`init_clients`.
+
+        Offloads the blocking kubeconfig file I/O and YAML parsing to a
+        thread so the event loop is not blocked during startup.
+        """
+        if self._initialized:
+            return
+        await asyncio.to_thread(self.init_clients)
 
     def _ensure_initialized(self) -> None:
         if self._initialized:

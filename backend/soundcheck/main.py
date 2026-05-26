@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     warn_default_credentials()
-    babylon_client._default_manager.init_clients()
+    await babylon_client._default_manager.init_clients_async()
     await orchestration_queue.connect()
     await checks_queue.connect()
     await session_service.cleanup_stale_sessions(async_session_factory)

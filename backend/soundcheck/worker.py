@@ -33,7 +33,7 @@ queue = orchestration_queue
 
 
 async def _orchestration_startup(ctx) -> None:
-    babylon_client._default_manager.init_clients()
+    await babylon_client._default_manager.init_clients_async()
     ctx["session_factory"] = async_session_factory
     ctx["redis"] = orchestration_queue.redis
     ctx["orchestration_queue"] = orchestration_queue
