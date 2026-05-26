@@ -11,10 +11,11 @@ authenticate to the cluster before they can reach the Soundcheck UI.
 Internet → Route (edge TLS)
             → Service :4180
               → oauth-proxy :4180  ← authenticates against OCP OAuth
-                → app :8000        ← FastAPI (serves API + static SvelteKit frontend)
+                → frontend :5173   ← Node.js (SvelteKit static + /api proxy)
+                    → backend :8000  ← FastAPI API server
 
-app ──┬──→ postgres :5432  (session/group/check data)
-      └──→ redis :6379     (SAQ task queue + pub/sub events)
+backend ──┬──→ postgres :5432  (session/group/check data)
+           └──→ redis :6379     (SAQ task queue + pub/sub events)
 
 orchestration-worker ──→ redis + postgres  (fan-out session/group orchestration)
 check-worker ──────────→ redis + postgres  (individual health checks)
@@ -23,7 +24,9 @@ check-worker ──────────→ redis + postgres  (individual hea
 ## Prerequisites
 
 - `oc` CLI logged into an OpenShift cluster
-- Images pushed to `quay.io/rhpds/showroom-soundcheck-app`
+- Images pushed to:
+  - `quay.io/rhpds/showroom-soundcheck-backend`
+  - `quay.io/rhpds/showroom-soundcheck-frontend`
 
 ## Quick Start
 
@@ -60,7 +63,7 @@ Update `stringData` values before deploying:
 
 ### ConfigMap (`app-configmap.yaml`)
 
-Shared by the app and both workers:
+Shared by the backend and both workers:
 
 | Key                       | Default | Description                                  |
 |---------------------------|---------|----------------------------------------------|
@@ -74,21 +77,27 @@ Shared by the app and both workers:
 | BABYLON_CLUSTERS          | (JSON)  | JSON array of kubeconfig paths               |
 | BABYLON_CATALOG_URLS      | (JSON)  | JSON map of cluster→catalog URL              |
 
-### Updating the Image Tag
+### Updating Image Tags
 
-After a new release, update the image across all deployments:
+After a new release, update the images across all deployments:
 
 ```bash
+# Backend (API server + workers share the same image)
 oc set image deployment/showroom-soundcheck-app \
-  app=quay.io/rhpds/showroom-soundcheck-app:v2.1.0 \
+  app=quay.io/rhpds/showroom-soundcheck-backend:v2.1.0 \
   -n showroom-soundcheck
 
 oc set image deployment/showroom-soundcheck-orchestration-worker \
-  worker=quay.io/rhpds/showroom-soundcheck-app:v2.1.0 \
+  worker=quay.io/rhpds/showroom-soundcheck-backend:v2.1.0 \
   -n showroom-soundcheck
 
 oc set image deployment/showroom-soundcheck-check-worker \
-  worker=quay.io/rhpds/showroom-soundcheck-app:v2.1.0 \
+  worker=quay.io/rhpds/showroom-soundcheck-backend:v2.1.0 \
+  -n showroom-soundcheck
+
+# Frontend
+oc set image deployment/showroom-soundcheck-frontend \
+  frontend=quay.io/rhpds/showroom-soundcheck-frontend:v2.1.0 \
   -n showroom-soundcheck
 ```
 
@@ -104,14 +113,16 @@ oc set image deployment/showroom-soundcheck-check-worker \
 | `redis-service.yaml`        | Service (redis)                            |
 | `app-serviceaccount.yaml`   | ServiceAccount (OAuth redirect annotation) |
 | `app-oauth-secret.yaml`     | Secret (proxy session cookie) — git-ignored |
-| `app-configmap.yaml`        | ConfigMap (shared app/worker settings)     |
-| `app-deployment.yaml`       | Deployment (FastAPI app)                   |
-| `app-service.yaml`          | Service (app HTTP)                         |
+| `app-configmap.yaml`        | ConfigMap (shared backend/worker settings) |
+| `app-deployment.yaml`       | Deployment (FastAPI backend)               |
+| `app-service.yaml`          | Service (backend HTTP)                     |
+| `frontend-deployment.yaml`  | Deployment (SvelteKit frontend)            |
+| `frontend-service.yaml`     | Service (frontend HTTP)                    |
 | `worker-deployment.yaml`    | Deployments (orchestration + check workers)|
 | `oauth-proxy-deployment.yaml` | Deployment (OAuth proxy)                 |
 | `oauth-proxy-service.yaml`  | Service (proxy port 4180)                  |
 | `app-route.yaml`            | Route (TLS edge → proxy)                   |
-| `app-pdb.yaml`              | PodDisruptionBudget (app availability)     |
+| `app-pdb.yaml`              | PodDisruptionBudget (backend availability) |
 | `networkpolicy.yaml`        | NetworkPolicies (ingress restrictions)     |
 
 ## How the OAuth Proxy Works
@@ -120,14 +131,17 @@ oc set image deployment/showroom-soundcheck-check-worker \
 Internet → Route (edge TLS)
             → Service :4180
               → oauth-proxy :4180  ← authenticates against OCP OAuth
-                → app :8000        ← only reachable after auth
+                → frontend :5173   ← only reachable after auth
+                    → backend :8000  ← /api requests proxied by frontend
 ```
 
 1. The Route terminates external TLS at the edge and routes to the Service on port 4180.
 2. The Service forwards to the `oauth-proxy` sidecar on port 4180.
 3. The proxy validates the user's OCP session. Unauthenticated users are
    redirected to the OpenShift login page.
-4. Authenticated requests are forwarded to the Soundcheck app on port 8000.
+4. Authenticated requests are forwarded to the frontend on port 5173.
+5. The frontend serves static assets directly and reverse-proxies `/api`
+   requests to the backend on port 8000.
 
 The serving certificate for the proxy is automatically provisioned by
 OpenShift via the `service.beta.openshift.io/serving-cert-secret-name`
@@ -145,5 +159,5 @@ needs access to Babylon kubeconfigs for metadata resolution.
 **check-worker** — Executes individual HTTP health checks. Higher concurrency,
 network-bound. Does not need kubeconfig access.
 
-Both workers use the same container image as the app — only the entrypoint
+Both workers use the same backend container image — only the entrypoint
 command differs.
