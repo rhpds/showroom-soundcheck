@@ -16,7 +16,11 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 		let message: string;
 		try {
 			const body = await resp.json();
-			message = body.detail || body.message || `Request failed (${resp.status})`;
+			const raw = body.detail || body.message || '';
+			message =
+				typeof raw === 'string' && raw.length > 0 && raw.length < 200
+					? raw
+					: `Request failed (${resp.status})`;
 		} catch {
 			message = `Request failed (${resp.status})`;
 		}
