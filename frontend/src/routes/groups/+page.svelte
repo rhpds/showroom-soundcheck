@@ -17,6 +17,10 @@
 	let search = $state(pageData.initialSearch);
 	let searchInput = $state(pageData.initialSearch);
 
+	$effect(() => {
+		data = pageData.groups;
+	});
+
 	async function loadData() {
 		loading = true;
 		error = '';
