@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypedDict
 
 from . import babylon_client  # noqa: I001 - relative within services/
 
@@ -35,6 +35,24 @@ LAB_UI_URL_KEYS = (
 )
 LAB_UI_URL_ANNOTATION = f"{BABYLON_GROUP}/labUserInterfaceUrl"
 LAB_UI_URLS_ANNOTATION = f"{BABYLON_GROUP}/labUserInterfaceUrls"
+
+
+class ResolvedEntry(TypedDict, total=False):
+    """A single resolved showroom URL entry from GUID/Workshop/Pool resolution.
+
+    Required keys are always present; optional keys depend on the source type
+    and resolution outcome.
+    """
+
+    url: str
+    label: str
+    rc_name: str
+    rc_namespace: str
+    rc_guid: str
+    handle_name: str
+    provision_status: str
+    resolved_cluster: str
+    resolution_error: str
 
 
 class ResolutionContext:
@@ -72,20 +90,20 @@ class ResolutionContext:
         return self._ws_cache[key]
 
 
-def extract_showroom_urls(rc_def: dict[str, Any]) -> list[dict[str, str]]:
+def extract_showroom_urls(rc_def: dict[str, Any]) -> list[ResolvedEntry]:
     """Extract showroom/lab UI URLs from a ResourceClaim definition.
 
     Each returned entry includes ``rc_name`` and ``rc_namespace`` so callers
     can build catalog links back to the source ResourceClaim.
     """
-    urls: list[dict[str, str]] = []
+    urls: list[ResolvedEntry] = []
     seen: set[str] = set()
     meta = rc_def.get("metadata", {})
     annotations = meta.get("annotations", {})
     rc_name = meta.get("name", "unknown")
     rc_namespace = meta.get("namespace", "")
 
-    base = {"rc_name": rc_name, "rc_namespace": rc_namespace}
+    base: ResolvedEntry = {"url": "", "label": "", "rc_name": rc_name, "rc_namespace": rc_namespace}
 
     for resource in rc_def.get("status", {}).get("resources", []):
         state = resource.get("state")
@@ -215,13 +233,13 @@ async def _search_cluster_for_rc_guid(
     cluster: str,
     guid: str,
     ctx: ResolutionContext | None = None,
-) -> tuple[list[dict[str, str]], list[str]]:
+) -> tuple[list[ResolvedEntry], list[str]]:
     """Search a single cluster for ResourceClaims matching a GUID.
 
     When a matching RC has no showroom URLs yet (e.g. still provisioning),
     a placeholder entry is returned with ``url=""`` and a ``provision_status``.
     """
-    urls: list[dict[str, str]] = []
+    urls: list[ResolvedEntry] = []
     try:
         if ctx:
             result = await ctx.get_rc_list(cluster)
@@ -260,7 +278,7 @@ async def _search_cluster_for_rc_guid(
 WORKSHOP_ID_LABEL = f"{BABYLON_GROUP}/workshop-id"
 
 
-def _resolution_error_entry(guid: str, errors: list[str]) -> dict[str, str]:
+def _resolution_error_entry(guid: str, errors: list[str]) -> ResolvedEntry:
     detail = "; ".join(errors)[:500]
     return {
         "url": "",
@@ -273,13 +291,13 @@ async def _search_cluster_for_workshop_guid(
     cluster: str,
     guid: str,
     ctx: ResolutionContext | None = None,
-) -> tuple[list[dict[str, str]], list[str]]:
+) -> tuple[list[ResolvedEntry], list[str]]:
     """Search a cluster for Workshops whose workshop-id label matches the GUID.
 
     When a Workshop is found, fetches each ResourceClaim listed in
     ``status.resourceClaims`` and extracts showroom URLs from them.
     """
-    urls: list[dict[str, str]] = []
+    urls: list[ResolvedEntry] = []
     errors: list[str] = []
     try:
         if ctx:
@@ -368,7 +386,7 @@ async def _search_cluster_for_guid(
     cluster: str,
     guid: str,
     ctx: ResolutionContext | None = None,
-) -> tuple[list[dict[str, str]], list[str]]:
+) -> tuple[list[ResolvedEntry], list[str]]:
     """Search a single cluster for a GUID, trying ResourceClaims first, then Workshops."""
     rc_urls, rc_errors = await _search_cluster_for_rc_guid(cluster, guid, ctx)
     if rc_urls:
@@ -383,7 +401,7 @@ async def resolve_guid(
     guid: str,
     cluster: str = "",
     ctx: ResolutionContext | None = None,
-) -> list[dict[str, str]]:
+) -> list[ResolvedEntry]:
     """Resolve a GUID to showroom URLs by searching configured clusters.
 
     When *cluster* is specified, only that cluster is searched.  Otherwise all
@@ -425,7 +443,7 @@ async def resolve_guids(
     guids: list[str],
     cluster: str = "",
     ctx: ResolutionContext | None = None,
-) -> dict[str, list[dict[str, str]]]:
+) -> dict[str, list[ResolvedEntry]]:
     """Resolve multiple GUIDs concurrently. Returns {guid: [{url, label}, ...]}."""
     if ctx is None:
         ctx = ResolutionContext()
@@ -437,7 +455,7 @@ async def resolve_workshop_guid(
     guid: str,
     cluster: str = "",
     ctx: ResolutionContext | None = None,
-) -> list[dict[str, str]]:
+) -> list[ResolvedEntry]:
     """Resolve a Workshop GUID (workshop-id label) to showroom URLs.
 
     Searches only for Workshop CRs — skips the ResourceClaim scan.
@@ -476,7 +494,7 @@ async def resolve_workshop_guids(
     guids: list[str],
     cluster: str = "",
     ctx: ResolutionContext | None = None,
-) -> dict[str, list[dict[str, str]]]:
+) -> dict[str, list[ResolvedEntry]]:
     """Resolve multiple Workshop GUIDs concurrently. Returns {guid: [{url, label}, ...]}."""
     if ctx is None:
         ctx = ResolutionContext()
@@ -491,7 +509,7 @@ async def resolve_workshop_guids(
 # ---------------------------------------------------------------------------
 
 
-def extract_showroom_urls_from_handle(rh_def: dict[str, Any]) -> dict[str, str]:
+def extract_showroom_urls_from_handle(rh_def: dict[str, Any]) -> ResolvedEntry:
     """Extract a showroom URL entry from a ResourceHandle's provision_data.
 
     Returns a single dict with ``url``, ``label``, and handle metadata.
@@ -522,7 +540,7 @@ def extract_showroom_urls_from_handle(rh_def: dict[str, Any]) -> dict[str, str]:
     else:
         provision_status = None
 
-    entry: dict[str, str] = {
+    entry: ResolvedEntry = {
         "url": url,
         "label": handle_name,
         "handle_name": handle_name,
@@ -535,7 +553,7 @@ def extract_showroom_urls_from_handle(rh_def: dict[str, Any]) -> dict[str, str]:
 async def resolve_resource_pool(
     pool_name: str,
     cluster: str = "",
-) -> tuple[list[dict[str, str]], list[str], str | None]:
+) -> tuple[list[ResolvedEntry], list[str], str | None]:
     """Resolve a ResourcePool name to showroom URLs via its ResourceHandles.
 
     Fetches the ResourcePool from the ``poolboy`` namespace, reads
@@ -587,7 +605,7 @@ async def resolve_resource_pool(
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        url_entries: list[dict[str, str]] = []
+        url_entries: list[ResolvedEntry] = []
         errors: list[str] = []
         for name, result in zip(handle_names, results, strict=True):
             if isinstance(result, Exception):

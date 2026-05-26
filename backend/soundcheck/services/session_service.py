@@ -16,6 +16,7 @@ from ..models import CheckResult, CheckSession, GroupRun, SessionGroup, SessionT
 from ..utils import escape_like, make_display_label, utc_now
 from . import babylon_client
 from .babylon_service import (
+    ResolvedEntry,
     ResolutionContext,
     extract_resource_claim_metadata,
     extract_resource_pool_metadata,
@@ -211,7 +212,7 @@ def _not_found_target(
 
 
 def _status_for_resolution_entry(
-    entry: dict[str, str],
+    entry: ResolvedEntry,
     *,
     fallback_label: str,
     resolution_error_prefix: str,
@@ -240,7 +241,7 @@ def _status_for_resolution_entry(
 
 def _resolved_target(
     sid: str,
-    entry: dict[str, str],
+    entry: ResolvedEntry,
     *,
     fallback_label: str,
     guid: str | None = None,
