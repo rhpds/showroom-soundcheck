@@ -59,8 +59,13 @@
 	async function handlePin(e: Event, session: SessionListItem) {
 		e.stopPropagation();
 		try {
-			await toggleSessionPin(session.session_id);
-			await loadData();
+			const result = await toggleSessionPin(session.session_id);
+			data = {
+				...data,
+				items: data.items.map((s) =>
+					s.session_id === session.session_id ? { ...s, pinned: result.pinned } : s
+				)
+			};
 		} catch (err: unknown) {
 			error = err instanceof Error ? err.message : 'Failed to toggle pin';
 		}
