@@ -9,69 +9,27 @@ from fastapi.sse import EventSourceResponse
 from sqlmodel import col, select
 
 from ..database import DbSession, async_session_factory
-from ..models import CheckSession, GroupRun, SessionGroup, SessionTarget
+from ..models import CheckSession, SessionGroup, SessionTarget
 from ..schemas import (
     GroupCreate,
     GroupDetail,
-    GroupListItem,
-    GroupPublic,
     GroupRename,
-    GroupRunPublic,
     NameResponse,
     PaginatedResponse,
     PinnedResponse,
-    SessionListItem,
     SourceRequest,
     StatusResponse,
-    TargetPublic,
 )
 from ..services import session_service
 from ..utils import utc_now
 from ..worker import queue
-from ._serializers import session_to_list_item, target_to_public
-
-router = APIRouter(prefix="/groups", tags=["groups"])
-
-
-def _group_to_public(g: SessionGroup) -> GroupPublic:
-    return GroupPublic(
-        id=g.id,
-        group_id=g.group_id,
-        name=g.name,
-        check_type=g.check_type,
-        babylon_cluster=g.babylon_cluster,
-        source_guids=g.get_guids(),
-        source_workshop_guids=g.get_workshop_guids(),
-        source_resource_pools=g.get_resource_pools(),
-        source_metadata=g.get_source_metadata(),
-        status=g.status,
-        pinned=g.pinned,
-        created_at=g.created_at,
-    )
-
-
-def _group_to_list_item(g: SessionGroup) -> GroupListItem:
-    source_count = len(g.get_guids()) + len(g.get_workshop_guids()) + len(g.get_resource_pools())
-    return GroupListItem(
-        id=g.id,
-        group_id=g.group_id,
-        name=g.name,
-        status=g.status,
-        pinned=g.pinned,
-        created_at=g.created_at,
-        source_count=source_count,
-    )
-
-
-def _run_to_public(r: GroupRun) -> GroupRunPublic:
-    return GroupRunPublic(
-        id=r.id,
-        run_id=r.run_id,
-        group_id=r.group_id,
-        status=r.status,
-        created_at=r.created_at,
-        completed_at=r.completed_at,
-    )
+from ._serializers import (
+    group_to_list_item,
+    group_to_public,
+    run_to_public,
+    session_to_list_item,
+    target_to_public,
+)
 
 
 @router.post("", response_model=GroupPublic, status_code=201)
@@ -100,7 +58,7 @@ async def create_group(body: GroupCreate, db: DbSession):
 
     await queue.enqueue("sync_metadata", group_id=gid)
 
-    return _group_to_public(grp)
+    return group_to_public(grp)
 
 
 @router.get("", response_model=PaginatedResponse[GroupListItem])
@@ -118,7 +76,7 @@ async def list_groups(
         search=search,
     )
     return PaginatedResponse(
-        items=[_group_to_list_item(g) for g in groups],
+        items=[group_to_list_item(g) for g in groups],
         total=total,
         page=page,
         per_page=per_page,
@@ -164,8 +122,8 @@ async def _fetch_group_detail(group_id: str) -> GroupDetail | None:
                     targets_by_session.setdefault(t.session_id, []).append(target_to_public(t))
 
         return GroupDetail(
-            group=_group_to_public(grp),
-            runs=[_run_to_public(r) for r in runs],
+            group=group_to_public(grp),
+            runs=[run_to_public(r) for r in runs],
             run_sessions=run_sessions,
             targets_by_session=targets_by_session,
         )

@@ -10,69 +10,17 @@ from ..database import DbSession, async_session_factory
 from ..models import CheckResult, CheckSession, SessionTarget
 from ..schemas import (
     CheckRedirectResponse,
-    CheckResultPublic,
     PaginatedResponse,
     PinnedResponse,
     SessionCreate,
     SessionDetail,
-    SessionListItem,
-    SessionPublic,
     SessionUpdate,
     StatusResponse,
 )
 from ..services import session_service
 from ..utils import InputValidationError, parse_check_params
 from ..worker import queue
-from ._serializers import session_to_list_item, target_to_public
-
-router = APIRouter(prefix="/sessions", tags=["sessions"])
-
-
-def _session_to_public(cs: CheckSession) -> SessionPublic:
-    return SessionPublic(
-        id=cs.id,
-        session_id=cs.session_id,
-        name=cs.name,
-        group_id=cs.group_id,
-        group_run_id=cs.group_run_id,
-        check_type=cs.check_type,
-        source_urls=cs.get_urls(),
-        source_guids=cs.get_guids(),
-        source_workshop_guids=cs.get_workshop_guids(),
-        source_resource_pools=cs.get_resource_pools(),
-        babylon_cluster=cs.babylon_cluster,
-        display_label=cs.display_label,
-        status=cs.status,
-        pinned=cs.pinned,
-        created_at=cs.created_at,
-        completed_at=cs.completed_at,
-        resource_name=cs.resource_name,
-        resource_namespace=cs.resource_namespace,
-        resource_kind=cs.resource_kind,
-        resource_display_name=cs.resource_display_name,
-        resource_metadata=cs.get_resource_metadata(),
-    )
-
-
-def _result_to_public(r: CheckResult) -> CheckResultPublic:
-    detail = None
-    if r.detail:
-        try:
-            detail = json.loads(r.detail)
-        except (json.JSONDecodeError, TypeError):
-            pass
-    return CheckResultPublic(
-        id=r.id,
-        target_id=r.target_id,
-        check_type=r.check_type,
-        tier=r.tier,
-        is_healthy=r.is_healthy,
-        status_code=r.status_code,
-        response_time_ms=r.response_time_ms,
-        error_message=r.error_message,
-        detail=detail,
-        checked_at=r.checked_at,
-    )
+from ._serializers import result_to_public, session_to_list_item, session_to_public, target_to_public
 
 
 @router.post("", response_model=CheckRedirectResponse, status_code=201)
@@ -138,9 +86,9 @@ async def get_session(session_id: str, db: DbSession):
     if not cs:
         raise HTTPException(status_code=404, detail="Session not found")
     return SessionDetail(
-        session=_session_to_public(cs),
+        session=session_to_public(cs),
         targets=[target_to_public(t) for t in data["targets"]],
-        results=[_result_to_public(r) for r in data["results"]],
+        results=[result_to_public(r) for r in data["results"]],
     )
 
 
@@ -202,9 +150,9 @@ def _build_sse_update(
     payload = SessionUpdate(
         session_id=session_id,
         status=status,
-        session=_session_to_public(session) if session else None,
+        session=session_to_public(session) if session else None,
         targets=[target_to_public(t) for t in targets_cache.values()],
-        results=[_result_to_public(r) for r in results_cache.values()],
+        results=[result_to_public(r) for r in results_cache.values()],
     ).model_dump_json()
     return f"data: {payload}\n\n"
 
