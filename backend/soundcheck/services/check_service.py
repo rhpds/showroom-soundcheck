@@ -1,7 +1,7 @@
 """Two-tier health check service for showroom URLs.
 
-Pure async module with no database dependencies.  Both the web UI
-and CLI import this module and supply their own progress callbacks.
+Pure async module with no database dependencies.  Used by the SAQ task
+worker for per-target health checks.
 
 Tier 1: replicate the nookbag healthz logic locally (fetch config, probe
          content page, probe tab URLs).
@@ -10,11 +10,10 @@ Tier 2: legacy Antora showroom fallback (probe root + /content/ paths when
 """
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any
 
 import httpx
 import yaml
@@ -109,10 +108,6 @@ class TargetCheckResult:
     detail: dict[str, Any] | None = None
     no_config: bool = False
     is_degraded: bool = False
-
-
-class ProgressCallback(Protocol):
-    async def __call__(self, url: str, status: str, result: TargetCheckResult | None) -> None: ...
 
 
 # ---------------------------------------------------------------------------
@@ -751,40 +746,3 @@ async def check_single_target(
     finally:
         if owns_client:
             await client.aclose()
-
-
-async def check_targets(
-    urls: list[str],
-    check_type: str = "readyz",
-    concurrency: int = 10,
-    verify_ssl: bool = True,
-    on_progress: ProgressCallback | None = None,
-) -> list[TargetCheckResult]:
-    """Check multiple targets with concurrency control and shared connection pool.
-
-    on_progress(url, status, result) is called for each target as it
-    transitions through statuses: "running" then "done".
-    """
-    if concurrency < 1:
-        raise ValueError(f"concurrency must be >= 1 (got {concurrency})")
-
-    semaphore = asyncio.Semaphore(concurrency)
-
-    async with create_client(verify_ssl=verify_ssl) as client:
-
-        async def _check_one(target_url: str) -> TargetCheckResult:
-            if on_progress:
-                await on_progress(target_url, "running", None)
-            async with semaphore:
-                result = await check_single_target(
-                    target_url,
-                    check_type,
-                    client=client,
-                )
-            if on_progress:
-                await on_progress(target_url, "done", result)
-            return result
-
-        tasks = [_check_one(u) for u in urls]
-        results = await asyncio.gather(*tasks, return_exceptions=False)
-    return list(results)

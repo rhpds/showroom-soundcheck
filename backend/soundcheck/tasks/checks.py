@@ -13,7 +13,7 @@ from sqlmodel import select
 from ..config import VERIFY_SSL
 from ..models import CheckResult, SessionTarget
 from ..services.check_service import TargetCheckResult, check_single_target, create_client
-from ..services.session_service import _mark_session_failed, _try_finalize_group_run, _try_finalize_session
+from ..services.session_service import _try_finalize_group_run, _try_finalize_session
 from ..utils import sanitize_error, utc_now
 from . import TaskContext
 from .events import publish_group_event, publish_session_event

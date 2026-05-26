@@ -27,7 +27,6 @@ class SessionGroup(SQLModel, table=True):
     group_id: str = Field(unique=True, index=True)
     name: str = ""
     check_type: str = "readyz"
-    check_mode: str = "manual"
     babylon_cluster: str = ""
     source_guids: list = Field(default=[], sa_type=sa.JSON)
     source_workshop_guids: list = Field(default=[], sa_type=sa.JSON)
@@ -94,7 +93,6 @@ class CheckSession(SQLModel, table=True):
     group_id: str | None = Field(default=None, index=True)
     group_run_id: str | None = Field(default=None, index=True)
     check_type: str = "readyz"
-    check_mode: str = "manual"
     source_urls: list = Field(default=[], sa_type=sa.JSON)
     source_guids: list = Field(default=[], sa_type=sa.JSON)
     source_workshop_guids: list = Field(default=[], sa_type=sa.JSON)

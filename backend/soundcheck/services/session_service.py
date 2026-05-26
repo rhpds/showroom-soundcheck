@@ -410,7 +410,7 @@ async def resolve_session_targets(db: AsyncSession, sid: str) -> None:
 
     if pools:
         for pool_name in pools:
-            url_entries, errors, resolved_cluster = await resolve_resource_pool(
+            url_entries, errors, _resolved_cluster = await resolve_resource_pool(
                 pool_name,
                 cluster=cluster,
             )
