@@ -135,7 +135,7 @@
 {#if loading}
 	<TableSkeleton headers={['Name', 'Status', 'Sources', 'Created']} />
 {:else if error}
-	<div class="pf-v6-c-alert pf-m-danger pf-m-inline">
+	<div class="pf-v6-c-alert pf-m-danger pf-m-inline" role="alert">
 		<div class="pf-v6-c-alert__icon">
 			<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"
 				><path
