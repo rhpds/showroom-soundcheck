@@ -172,7 +172,7 @@ async def _fetch_group_detail(group_id: str) -> GroupDetail | None:
 
 
 @router.get("/{group_id}", response_model=GroupDetail)
-async def get_group(group_id: str, db: DbSession):
+async def get_group(group_id: str):
     """Get full group detail with runs, sessions, and targets."""
     detail = await _fetch_group_detail(group_id)
     if not detail:
