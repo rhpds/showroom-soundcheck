@@ -14,17 +14,20 @@
 	} = $props();
 
 	let copiedField = $state<string | null>(null);
+	let copyTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	async function copyToClipboard(text: string, field: string) {
 		try {
 			await navigator.clipboard.writeText(text);
+			if (copyTimeout) clearTimeout(copyTimeout);
 			copiedField = field;
-			setTimeout(() => {
+			copyTimeout = setTimeout(() => {
 				copiedField = null;
+				copyTimeout = null;
 			}, 1500);
-	} catch (e) {
-		console.warn('Clipboard write failed:', e);
-	}
+		} catch (e) {
+			console.warn('Clipboard write failed:', e);
+		}
 	}
 
 	let detail = $derived(result?.detail ?? null);
