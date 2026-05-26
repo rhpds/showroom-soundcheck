@@ -4,7 +4,7 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import TargetDetail from '$lib/components/TargetDetail.svelte';
-	import type { SessionDetail, TargetPublic } from '$lib/types';
+	import type { SessionDetail, TargetPublic, Status } from '$lib/types';
 
 	let {
 		sessionId,
@@ -153,7 +153,7 @@
 
 	function filteredTargets(targets: TargetPublic[]): TargetPublic[] {
 		const sorted = [...targets].sort((a, b) => {
-			const order: Record<string, number> = {
+			const order: Partial<Record<Status, number>> = {
 				running: 0,
 				error: 1,
 				degraded: 2,
