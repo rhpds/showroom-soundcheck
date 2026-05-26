@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import logging
+import re
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -79,10 +80,14 @@ app.add_middleware(
 )
 
 
+_REQUEST_ID_RE = re.compile(r"^[a-zA-Z0-9._:/-]{1,128}$")
+
+
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
     """Attach a unique request ID (accept from client or generate) and return it in the response."""
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    raw = request.headers.get("X-Request-ID", "")
+    request_id = raw if _REQUEST_ID_RE.match(raw) else str(uuid.uuid4())
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
