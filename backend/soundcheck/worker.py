@@ -75,5 +75,4 @@ check_settings = {
     "concurrency": CHECK_CONCURRENCY,
     "startup": _check_startup,
     "shutdown": _check_shutdown,
-    "retry": {"max_retries": 2, "retry_backoff": True},
 }
