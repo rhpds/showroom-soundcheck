@@ -9,7 +9,7 @@
 		children
 	}: {
 		title: string;
-		size?: 'sm' | 'md' | 'lg';
+		size?: 'sm' | 'md';
 		onClose: () => void;
 		children: import('svelte').Snippet;
 	} = $props();

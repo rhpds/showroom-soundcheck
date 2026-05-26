@@ -9,8 +9,7 @@
 		red: 'pf-m-red',
 		blue: 'pf-m-blue',
 		gold: 'pf-m-gold',
-		orange: 'pf-m-orange',
-		grey: ''
+		orange: 'pf-m-orange'
 	};
 
 	const labelMap: Record<string, string> = {
@@ -154,12 +153,5 @@
 		color: #6e3101;
 		background: #fef3e8;
 		border-color: #f4a460;
-	}
-
-	.status-badge--grey,
-	.status-badge-- {
-		color: #3c3f42;
-		background: #f0f0f0;
-		border-color: #d2d2d2;
 	}
 </style>

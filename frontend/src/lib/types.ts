@@ -11,7 +11,7 @@ export type Status =
 
 export type CheckType = 'readyz' | 'healthz';
 
-export type ProvisionStatus =
+type ProvisionStatus =
 	| 'provisioning'
 	| 'ready'
 	| 'destroying'
@@ -32,7 +32,7 @@ export interface SessionListItem {
 	source_id: string;
 }
 
-export type TabInitialState = 'active' | 'deferred' | 'skip';
+type TabInitialState = 'active' | 'deferred' | 'skip';
 
 export interface TabDetail {
 	name: string;
@@ -52,7 +52,7 @@ export interface ContentPageDetail {
 	url?: string;
 }
 
-export type CheckDetail =
+type CheckDetail =
 	| { legacy: true; [key: string]: unknown }
 	| { legacy?: false; tabs?: TabDetail[]; content_pages?: ContentPageDetail[] };
 
@@ -88,7 +88,7 @@ export interface CheckResultPublic {
 	checked_at: string;
 }
 
-export interface SessionPublic {
+interface SessionPublic {
 	id: number;
 	session_id: string;
 	name: string;
@@ -172,7 +172,7 @@ export interface ListParams {
 	search?: string;
 }
 
-export type StatusColor = 'blue' | 'green' | 'red' | 'gold' | 'orange' | 'purple' | 'grey';
+type StatusColor = 'blue' | 'green' | 'red' | 'gold' | 'orange';
 
 export function statusColor(status: Status): StatusColor {
 	switch (status) {

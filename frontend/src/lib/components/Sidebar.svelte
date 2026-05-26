@@ -6,10 +6,9 @@
 	let currentPath = $derived(page.url.pathname);
 
 	function isActive(href: string): boolean {
-		if (href === '/') return currentPath === '/';
 		if (href === '/sessions') return currentPath.startsWith('/session');
 		if (href === '/groups') return currentPath.startsWith('/group');
-		return currentPath.startsWith(href);
+		return false;
 	}
 </script>
 

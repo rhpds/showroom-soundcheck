@@ -5,7 +5,7 @@
 		text
 	}: {
 		label?: string;
-		size?: 'sm' | 'md' | 'lg' | 'xl';
+		size?: 'sm' | 'lg';
 		text?: string;
 	} = $props();
 </script>
@@ -72,10 +72,6 @@
 
 	.heartbeat-spinner--lg svg {
 		width: 64px;
-	}
-
-	.heartbeat-spinner--xl svg {
-		width: 80px;
 	}
 
 	.heartbeat-spinner__text {
