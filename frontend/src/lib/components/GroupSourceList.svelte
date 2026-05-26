@@ -182,8 +182,7 @@
 <div class="group-section">
 	<div
 		class="group-section__header group-section__header--toggle"
-		role="region"
-		aria-expanded={!sourcesCollapsed}
+		class:group-section__header--expanded={!sourcesCollapsed}
 	>
 		<button
 			class="group-section__toggle"
@@ -590,11 +589,11 @@
 		gap: 8px;
 	}
 
-	.group-section__header--toggle[aria-expanded='true'] {
+	.group-section__header--toggle.group-section__header--expanded {
 		border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
 	}
 
-	.group-section__header--toggle[aria-expanded='false'] {
+	.group-section__header--toggle:not(.group-section__header--expanded) {
 		border-bottom: none;
 	}
 
