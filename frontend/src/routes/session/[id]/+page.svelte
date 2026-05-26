@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import SessionContent from '$lib/components/SessionContent.svelte';
 
-	let sessionId = $derived(page.params.id!);
+	let sessionId = $derived(page.params.id ?? '');
 </script>
 
 <div class="session-page">

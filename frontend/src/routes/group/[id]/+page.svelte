@@ -36,7 +36,7 @@
 	let pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
 	let rerunKnownRunIds: Set<string> | null = null;
 
-	let groupId = $derived(page.params.id!);
+	let groupId = $derived(page.params.id ?? '');
 
 	function trackTimeout(fn: () => void, ms: number) {
 		const id = setTimeout(fn, ms);
