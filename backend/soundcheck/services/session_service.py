@@ -677,46 +677,13 @@ async def _lookup_source_metadata(
 
 
 async def delete_session(db: AsyncSession, session_id: str) -> None:
-    """Delete a session and cascade to its targets and check results."""
-    target_ids_result = await db.execute(select(SessionTarget.id).where(SessionTarget.session_id == session_id))
-    target_ids = list(target_ids_result.scalars().all())
-
-    if target_ids:
-        await db.execute(
-            delete(CheckResult).where(CheckResult.target_id.in_(target_ids))  # type: ignore[union-attr]
-        )
-    await db.execute(delete(SessionTarget).where(SessionTarget.session_id == session_id))
+    """Delete a session — targets and results cascade via FK constraints."""
     await db.execute(delete(CheckSession).where(CheckSession.session_id == session_id))
     await db.commit()
 
 
 async def delete_group(db: AsyncSession, group_id: str) -> None:
-    """Delete a group and cascade to runs, sessions, targets, and results."""
-    session_ids_result = await db.execute(select(CheckSession.session_id).where(CheckSession.group_id == group_id))
-    session_ids = list(session_ids_result.scalars().all())
-
-    if session_ids:
-        target_ids_result = await db.execute(
-            select(SessionTarget.id).where(
-                SessionTarget.session_id.in_(session_ids)  # type: ignore[union-attr]
-            )
-        )
-        target_ids = list(target_ids_result.scalars().all())
-
-        if target_ids:
-            await db.execute(
-                delete(CheckResult).where(
-                    CheckResult.target_id.in_(target_ids)  # type: ignore[union-attr]
-                )
-            )
-        await db.execute(
-            delete(SessionTarget).where(
-                SessionTarget.session_id.in_(session_ids)  # type: ignore[union-attr]
-            )
-        )
-        await db.execute(delete(CheckSession).where(CheckSession.group_id == group_id))
-
-    await db.execute(delete(GroupRun).where(GroupRun.group_id == group_id))
+    """Delete a group — runs, sessions, targets, and results cascade via FK constraints."""
     await db.execute(delete(SessionGroup).where(SessionGroup.group_id == group_id))
     await db.commit()
 

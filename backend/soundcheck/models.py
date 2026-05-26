@@ -24,7 +24,7 @@ class SessionGroup(SQLModel, table=True):
     __tablename__ = "session_groups"
 
     id: int | None = Field(default=None, primary_key=True)
-    group_id: str = Field(index=True)
+    group_id: str = Field(unique=True, index=True)
     name: str = ""
     check_type: str = "readyz"
     check_mode: str = "manual"
@@ -55,9 +55,14 @@ class GroupRun(SQLModel, table=True):
     """One batch of checks against a group (full or partial)."""
 
     __tablename__ = "group_runs"
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ["group_id"], ["session_groups.group_id"], ondelete="CASCADE",
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
-    run_id: str = Field(index=True)
+    run_id: str = Field(unique=True, index=True)
     group_id: str = Field(index=True)
     status: str = "pending"
     created_at: datetime = Field(default_factory=utc_now, sa_type=sa.DateTime(timezone=True))
@@ -75,10 +80,16 @@ class CheckSession(SQLModel, table=True):
     __table_args__ = (
         sa.Index("ix_sessions_status", "status"),
         sa.Index("ix_sessions_created_at", "created_at"),
+        sa.ForeignKeyConstraint(
+            ["group_id"], ["session_groups.group_id"], ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["group_run_id"], ["group_runs.run_id"], ondelete="CASCADE",
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)
-    session_id: str = Field(index=True)
+    session_id: str = Field(unique=True, index=True)
     name: str = ""
     group_id: str | None = Field(default=None, index=True)
     group_run_id: str | None = Field(default=None, index=True)
@@ -126,6 +137,11 @@ class SessionTarget(SQLModel, table=True):
     """
 
     __tablename__ = "session_targets"
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ["session_id"], ["sessions.session_id"], ondelete="CASCADE",
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     session_id: str = Field(index=True)
@@ -149,6 +165,11 @@ class CheckResult(SQLModel, table=True):
     """A single check attempt for a session target."""
 
     __tablename__ = "check_results"
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ["target_id"], ["session_targets.id"], ondelete="CASCADE",
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     target_id: int = Field(index=True)
