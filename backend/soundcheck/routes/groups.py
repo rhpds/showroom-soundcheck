@@ -44,7 +44,7 @@ async def create_group(body: GroupCreate, db: DbSession):
     if not body.name.strip():
         raise HTTPException(status_code=422, detail="Group name is required")
     if not body.guids and not body.workshop_guids and not body.resource_pools:
-        raise HTTPException(status_code=422, detail="Add at least one GUID or pool")
+        raise HTTPException(status_code=422, detail="Add at least one GUID, workshop GUID, or resource pool")
 
     gid = str(uuid.uuid4())
     grp = SessionGroup(

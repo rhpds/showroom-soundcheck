@@ -148,7 +148,7 @@ def _is_external_url(url: str | None, base_url: str) -> bool:
     return url.startswith("http://") or url.startswith("https://")
 
 
-def resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, str]]:
+def _resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, str]]:
     """Return (label, url, initial_state) triples for a tab config entry."""
     t = _apply_tab_defaults(tab)
     state = _normalise_initial_state(t.get("initial_state"))
@@ -482,7 +482,7 @@ async def _run_tier1(
     tabs_config = config.get("tabs", []) or []
     entries: list[tuple[str, str | None, str]] = []
     for tab in tabs_config:
-        entries.extend(resolve_tab_urls(tab, base_url))
+        entries.extend(_resolve_tab_urls(tab, base_url))
 
     tier2.tabs = await _probe_tabs(client, entries, base_url)
 

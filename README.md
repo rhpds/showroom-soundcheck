@@ -16,6 +16,7 @@ podman compose up -d   # or: docker compose up -d
 | Backend API | http://localhost:8000 |
 | API docs | http://localhost:8000/docs |
 | SAQ monitor | http://localhost:8080 |
+| SAQ monitor (embedded) | http://localhost:8000/monitor |
 
 ---
 
@@ -58,6 +59,14 @@ At least one of `urls`, `guid`, `workshop`, or `pool` is required.
 
 Groups are named collections of sources (GUIDs, workshops, pools) that can be run repeatedly. Each run creates child sessions for every source. Manage groups at `/groups`.
 
+Group management actions: rename, add/remove sources, sync metadata from Babylon, run all sources or a single source, pin/unpin.
+
+### Session Management
+
+Sessions support clone (re-run with same inputs), pin/unpin, and delete. Live results stream via SSE. A target may report **degraded** status when deferred tabs fail but all active tabs pass.
+
+Stale sessions (stuck in `running` for >30 minutes) are automatically cleaned up on startup and periodically by the sweep cron task.
+
 ### Check Types
 
 - **`readyz`** — Full readiness check (config, content pages, tabs)
@@ -76,6 +85,7 @@ Requires PostgreSQL and Redis running locally.
 cd backend
 pip install -r requirements.txt
 alembic upgrade head
+export ALLOWED_URL_PATTERNS="*.example.com,*.opentlc.com"  # required for URL validation
 uvicorn soundcheck.main:app --reload --port 8000
 
 # Workers (separate terminals)
@@ -95,11 +105,15 @@ npm run dev
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | _(built from below)_ | Full Postgres URL (overrides individual vars) |
+| `ASYNC_DATABASE_URL` | _(derived)_ | Explicit asyncpg URL (overrides `DATABASE_URL` conversion) |
 | `POSTGRES_USER` | `soundcheck` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | `soundcheck_dev` | PostgreSQL password |
 | `POSTGRES_DB` | `soundcheck` | Database name |
 | `POSTGRES_HOST` | `localhost` | PostgreSQL host |
 | `POSTGRES_PORT` | `5432` | PostgreSQL port |
+| `DB_POOL_SIZE` | `10` | SQLAlchemy connection pool size |
+| `DB_MAX_OVERFLOW` | `20` | Max overflow connections above pool size |
+| `DB_POOL_RECYCLE` | `3600` | Seconds before recycling idle connections |
 
 #### Application
 
@@ -109,9 +123,10 @@ npm run dev
 | `CHECK_CONCURRENCY` | `20` | Max concurrent health checks per worker |
 | `ORCHESTRATION_CONCURRENCY` | `10` | Max concurrent orchestration tasks |
 | `VERIFY_SSL` | `true` | TLS verification for checks (compose defaults to `false`) |
-| `ALLOWED_URL_PATTERNS` | _(none)_ | Comma-separated hostname globs for URL allowlist |
+| `ALLOWED_URL_PATTERNS` | **required** | Comma-separated hostname globs for URL allowlist (e.g. `*.example.com,*.opentlc.com`) |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins |
 | `API_KEY` | _(empty)_ | If set, required via `X-API-Key` header for mutating requests |
+| `LOG_FORMAT` | `text` | Log output format: `text` or `json` |
 
 #### Babylon
 
@@ -138,13 +153,17 @@ backend/soundcheck/
 │   ├── sessions.py             # Session CRUD + SSE streaming
 │   ├── groups.py               # Group CRUD + run management
 │   ├── health.py               # /api/ping, /api/health, /api/config/clusters
-│   └── check.py                # Deep-link /api/check redirect
+│   ├── check.py                # Deep-link /api/check redirect
+│   └── _serializers.py         # Model → schema serialization helpers
 ├── services/
 │   ├── check_service.py        # Two-tier health check logic
 │   ├── babylon_service.py      # GUID/workshop/pool → URL resolution
 │   ├── babylon_client.py       # K8s API client via kubeconfigs
 │   └── session_service.py      # Session/group orchestration
-└── tasks/                      # SAQ task handlers
+└── tasks/
+    ├── orchestration.py        # Session/group fan-out coordinator
+    ├── checks.py               # Per-target health check task
+    └── events.py               # Redis Pub/Sub event helpers
 
 frontend/src/                   # SvelteKit SPA + PatternFly 6
 ├── routes/
@@ -157,6 +176,8 @@ frontend/src/                   # SvelteKit SPA + PatternFly 6
 └── lib/
     ├── api.ts                  # Typed API client
     ├── types.ts                # TypeScript types
+    ├── utils.ts                # Relative time formatting
+    ├── actions/                # Svelte use: actions (portal, focusTrap)
     └── components/             # Shared UI components
 ```
 

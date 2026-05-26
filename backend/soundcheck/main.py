@@ -4,12 +4,10 @@ import logging
 import re
 import uuid
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from .config import API_KEY, CORS_ORIGINS, LOG_FORMAT, warn_default_credentials
 from .database import async_session_factory
@@ -132,7 +130,3 @@ try:
     app.mount("/monitor", saq_web("/monitor", queues=[orchestration_queue, checks_queue]))
 except ImportError:
     pass
-
-static_dir = Path(__file__).parent.parent / "static"
-if static_dir.is_dir():
-    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="frontend")

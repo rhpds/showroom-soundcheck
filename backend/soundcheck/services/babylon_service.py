@@ -90,7 +90,7 @@ class ResolutionContext:
         return self._ws_cache[key]
 
 
-def extract_showroom_urls(rc_def: dict[str, Any]) -> list[ResolvedEntry]:
+def _extract_showroom_urls(rc_def: dict[str, Any]) -> list[ResolvedEntry]:
     """Extract showroom/lab UI URLs from a ResourceClaim definition.
 
     Each returned entry includes ``rc_name`` and ``rc_namespace`` so callers
@@ -164,7 +164,7 @@ def _extract_rc_guid(rc_def: dict[str, Any]) -> str:
     return ""
 
 
-def get_rc_provision_status(rc_def: dict[str, Any]) -> str:
+def _get_rc_provision_status(rc_def: dict[str, Any]) -> str:
     """Derive a human-readable provision status from a ResourceClaim's status fields.
 
     Poolboy ResourceClaims don't have a single phase string. Instead we inspect
@@ -252,13 +252,13 @@ async def _search_cluster_for_rc_guid(
             )
         for item in result.get("items", []):
             if _rc_matches_guid(item, guid):
-                found = extract_showroom_urls(item)
+                found = _extract_showroom_urls(item)
                 if found:
                     urls.extend(found)
                 else:
                     item_meta = item.get("metadata", {})
                     rc_name = item_meta.get("name", "unknown")
-                    provision_status = get_rc_provision_status(item)
+                    provision_status = _get_rc_provision_status(item)
                     urls.append(
                         {
                             "url": "",
@@ -355,13 +355,13 @@ async def _search_cluster_for_workshop_guid(
                     errors.append(msg)
                     continue
                 rc_guid = _extract_rc_guid(rc_result)
-                found = extract_showroom_urls(rc_result)
+                found = _extract_showroom_urls(rc_result)
                 if found:
                     for entry in found:
                         entry["rc_guid"] = rc_guid
                     urls.extend(found)
                 else:
-                    provision_status = get_rc_provision_status(rc_result)
+                    provision_status = _get_rc_provision_status(rc_result)
                     urls.append(
                         {
                             "url": "",
@@ -397,7 +397,7 @@ async def _search_cluster_for_guid(
     return [], rc_errors + ws_errors
 
 
-async def resolve_guid(
+async def _resolve_guid(
     guid: str,
     cluster: str = "",
     ctx: ResolutionContext | None = None,
@@ -447,11 +447,11 @@ async def resolve_guids(
     """Resolve multiple GUIDs concurrently. Returns {guid: [{url, label}, ...]}."""
     if ctx is None:
         ctx = ResolutionContext()
-    resolved = await asyncio.gather(*[resolve_guid(g, cluster=cluster, ctx=ctx) for g in guids])
+    resolved = await asyncio.gather(*[_resolve_guid(g, cluster=cluster, ctx=ctx) for g in guids])
     return dict(zip(guids, resolved, strict=True))
 
 
-async def resolve_workshop_guid(
+async def _resolve_workshop_guid(
     guid: str,
     cluster: str = "",
     ctx: ResolutionContext | None = None,
@@ -499,7 +499,7 @@ async def resolve_workshop_guids(
     if ctx is None:
         ctx = ResolutionContext()
     resolved = await asyncio.gather(
-        *[resolve_workshop_guid(g, cluster=cluster, ctx=ctx) for g in guids],
+        *[_resolve_workshop_guid(g, cluster=cluster, ctx=ctx) for g in guids],
     )
     return dict(zip(guids, resolved, strict=True))
 
@@ -509,7 +509,7 @@ async def resolve_workshop_guids(
 # ---------------------------------------------------------------------------
 
 
-def extract_showroom_urls_from_handle(rh_def: dict[str, Any]) -> ResolvedEntry:
+def _extract_showroom_urls_from_handle(rh_def: dict[str, Any]) -> ResolvedEntry:
     """Extract a showroom URL entry from a ResourceHandle's provision_data.
 
     Returns a single dict with ``url``, ``label``, and handle metadata.
@@ -613,7 +613,7 @@ async def resolve_resource_pool(
                 logger.warning(msg)
                 errors.append(msg)
                 continue
-            entry = extract_showroom_urls_from_handle(result)
+            entry = _extract_showroom_urls_from_handle(result)
             entry["resolved_cluster"] = c
             url_entries.append(entry)
 
