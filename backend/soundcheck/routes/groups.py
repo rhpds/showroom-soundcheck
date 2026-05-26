@@ -1,6 +1,5 @@
 """Group API routes."""
 
-import json
 import time
 import uuid
 from typing import Literal
