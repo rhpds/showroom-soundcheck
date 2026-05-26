@@ -213,35 +213,72 @@
 						<h4 class="td__section-title">Endpoints / Tabs</h4>
 						<ul class="td__list" role="list">
 							{#each tabs as tab}
-								<li class="td__list-item" role="listitem">
+								<li
+									class="td__list-item"
+									class:td__list-item--muted={tab.initial_state === 'deferred' || tab.initial_state === 'skip'}
+									role="listitem"
+								>
 									<div class="td__list-row">
-										<span
-											class="td__status-icon"
-											class:td__status-icon--ok={tab.reachable}
-											class:td__status-icon--fail={!tab.reachable}
-										>
-											{#if tab.reachable}
+										{#if tab.initial_state === 'skip'}
+											<span class="td__status-icon td__status-icon--skip" title="skipped">
 												<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
 													><path
-														d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm3.36 4.65a.5.5 0 0 0-.72-.02L7.2 8.94 5.35 7.17a.5.5 0 1 0-.7.71l2.2 2.12a.5.5 0 0 0 .7-.01l3.8-3.63a.5.5 0 0 0 .01-.71Z"
+														d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm0 1.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM5 8a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8Z"
 													/></svg
 												>
-											{:else}
+											</span>
+										{:else if tab.initial_state === 'deferred' && !tab.reachable}
+											<span class="td__status-icon td__status-icon--deferred" title="deferred">
 												<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
 													><path
-														d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm2.35 4.65a.5.5 0 0 0-.7 0L8 7.29 6.35 5.65a.5.5 0 1 0-.7.7L7.29 8 5.65 9.65a.5.5 0 1 0 .7.7L8 8.71l1.65 1.64a.5.5 0 0 0 .7-.7L8.71 8l1.64-1.65a.5.5 0 0 0 0-.7Z"
+														d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm0 1.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM8 4a.5.5 0 0 1 .5.5V8h2a.5.5 0 0 1 0 1H8a.5.5 0 0 1-.5-.5v-4A.5.5 0 0 1 8 4Z"
 													/></svg
 												>
-											{/if}
-										</span>
+											</span>
+										{:else}
+											<span
+												class="td__status-icon"
+												class:td__status-icon--ok={tab.reachable}
+												class:td__status-icon--fail={!tab.reachable}
+											>
+												{#if tab.reachable}
+													<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
+														><path
+															d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm3.36 4.65a.5.5 0 0 0-.72-.02L7.2 8.94 5.35 7.17a.5.5 0 1 0-.7.71l2.2 2.12a.5.5 0 0 0 .7-.01l3.8-3.63a.5.5 0 0 0 .01-.71Z"
+														/></svg
+													>
+												{:else}
+													<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
+														><path
+															d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm2.35 4.65a.5.5 0 0 0-.7 0L8 7.29 6.35 5.65a.5.5 0 1 0-.7.7L7.29 8 5.65 9.65a.5.5 0 1 0 .7.7L8 8.71l1.65 1.64a.5.5 0 0 0 .7-.7L8.71 8l1.64-1.65a.5.5 0 0 0 0-.7Z"
+														/></svg
+													>
+												{/if}
+											</span>
+										{/if}
 										<span class="td__list-name">{tab.name}</span>
 										<div class="td__list-badges">
+											{#if tab.initial_state === 'skip'}
+												<span class="pf-v6-c-label pf-m-compact">
+													<span class="pf-v6-c-label__content"
+														><span class="pf-v6-c-label__text">skip</span></span
+													>
+												</span>
+											{:else if tab.initial_state === 'deferred'}
+												<span class="pf-v6-c-label pf-m-compact pf-m-blue">
+													<span class="pf-v6-c-label__content"
+														><span class="pf-v6-c-label__text">deferred</span></span
+													>
+												</span>
+											{/if}
 											{#if tab.status_code}
 												<span
 													class="pf-v6-c-label pf-m-compact {tab.status_code >= 200 &&
 													tab.status_code < 400
 														? 'pf-m-green'
-														: 'pf-m-red'}"
+														: tab.initial_state === 'deferred'
+															? ''
+															: 'pf-m-red'}"
 												>
 													<span class="pf-v6-c-label__content"
 														><span class="pf-v6-c-label__text">{tab.status_code}</span></span
@@ -277,8 +314,14 @@
 									{#if tab.url}
 										<div class="td__list-sub">{tab.url}</div>
 									{/if}
-									{#if tab.error}
-										<div class="td__list-error">{tab.error}</div>
+									{#if tab.error && tab.initial_state !== 'skip'}
+										<div
+											class={tab.initial_state === 'deferred'
+												? 'td__list-sub'
+												: 'td__list-error'}
+										>
+											{tab.error}
+										</div>
 									{/if}
 								</li>
 							{/each}
@@ -442,6 +485,18 @@
 
 	.td__status-icon--fail {
 		color: var(--pf-t--global--color--status--danger--default, #c9190b);
+	}
+
+	.td__status-icon--deferred {
+		color: var(--pf-t--global--color--status--info--default, #2b9af3);
+	}
+
+	.td__status-icon--skip {
+		color: var(--pf-t--global--text--color--subtle, #6a6e73);
+	}
+
+	.td__list-item--muted {
+		opacity: 0.7;
 	}
 
 	.td__list-name {

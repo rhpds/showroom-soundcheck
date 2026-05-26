@@ -25,6 +25,8 @@ export interface SessionListItem {
 	source_id: string;
 }
 
+export type TabInitialState = 'active' | 'deferred' | 'skip';
+
 export interface TabDetail {
 	name: string;
 	url?: string;
@@ -33,6 +35,7 @@ export interface TabDetail {
 	iframe_blocked?: boolean;
 	external?: boolean;
 	error?: string;
+	initial_state?: TabInitialState;
 }
 
 export interface ContentPageDetail {

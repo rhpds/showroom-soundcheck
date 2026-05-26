@@ -56,6 +56,14 @@ TAB_TYPE_DEFAULTS: dict[str, dict[str, str]] = {
 # ---------------------------------------------------------------------------
 
 
+VALID_INITIAL_STATES = frozenset({"active", "deferred", "skip"})
+
+
+def _normalise_initial_state(raw: Any) -> str:
+    val = str(raw).strip().lower() if raw else "active"
+    return val if val in VALID_INITIAL_STATES else "active"
+
+
 @dataclass
 class TabProbeResult:
     name: str
@@ -65,6 +73,7 @@ class TabProbeResult:
     iframe_blocked: bool = False
     external: bool = False
     error: str | None = None
+    initial_state: str = "active"
 
 
 @dataclass
@@ -149,10 +158,11 @@ def _is_external_url(url: str | None, base_url: str) -> bool:
     return url.startswith("http://") or url.startswith("https://")
 
 
-def resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None]]:
-    """Return (label, url) pairs for a tab config entry."""
+def resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, str]]:
+    """Return (label, url, initial_state) triples for a tab config entry."""
     t = _apply_tab_defaults(tab)
-    results: list[tuple[str, str | None]] = []
+    state = _normalise_initial_state(t.get("initial_state"))
+    results: list[tuple[str, str | None, str]] = []
 
     url: str | None = None
     if t.get("url"):
@@ -162,7 +172,7 @@ def resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None]]:
     elif t.get("port"):
         proto = "https" if t["port"] in ("443", "8443") else "http"
         url = f"{proto}://localhost:{t['port']}{t.get('path', '')}"
-    results.append((t.get("name", "unnamed"), url))
+    results.append((t.get("name", "unnamed"), url, state))
 
     sec_url: str | None = None
     if t.get("secondary_url"):
@@ -175,7 +185,7 @@ def resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None]]:
         sec_url = f"{proto}://localhost:{port}{t['secondary_path']}"
     if sec_url:
         label = f"{t.get('name', 'unnamed')} ({t.get('secondary_name', 'secondary')})"
-        results.append((label, sec_url))
+        results.append((label, sec_url, state))
 
     return results
 
@@ -355,14 +365,22 @@ async def _fetch_config(
 
 async def _probe_tabs(
     client: httpx.AsyncClient,
-    entries: list[tuple[str, str | None]],
+    entries: list[tuple[str, str | None, str]],
     base_url: str,
 ) -> list[TabProbeResult]:
-    """Probe all tab URLs concurrently."""
+    """Probe all tab URLs concurrently.  Tabs with initial_state='skip' are
+    recorded without probing."""
 
-    async def _probe_one(label: str, tab_url: str | None) -> TabProbeResult:
+    async def _probe_one(label: str, tab_url: str | None, initial_state: str) -> TabProbeResult:
+        if initial_state == "skip":
+            return TabProbeResult(
+                name=label, url=tab_url, initial_state="skip",
+            )
         if not tab_url:
-            return TabProbeResult(name=label, url=None, error="no url configured")
+            return TabProbeResult(
+                name=label, url=None, error="no url configured",
+                initial_state=initial_state,
+            )
         probe = await _probe_url(client, tab_url)
         return TabProbeResult(
             name=label,
@@ -372,9 +390,12 @@ async def _probe_tabs(
             iframe_blocked=probe.get("iframe_blocked", False),
             external=_is_external_url(tab_url, base_url),
             error=probe.get("error"),
+            initial_state=initial_state,
         )
 
-    return list(await asyncio.gather(*[_probe_one(label, url) for label, url in entries]))
+    return list(await asyncio.gather(*[
+        _probe_one(label, url, state) for label, url, state in entries
+    ]))
 
 
 async def _run_tier1(
@@ -469,16 +490,17 @@ async def _run_tier1(
         )
 
     tabs_config = config.get("tabs", []) or []
-    entries: list[tuple[str, str | None]] = []
+    entries: list[tuple[str, str | None, str]] = []
     for tab in tabs_config:
         entries.extend(resolve_tab_urls(tab, base_url))
 
     tier2.tabs = await _probe_tabs(client, entries, base_url)
 
     all_content_reachable = bool(tier2.content_probes) and all(c.reachable for c in tier2.content_probes)
-    all_tabs_ok = len(tier2.tabs) == 0 or all(t.reachable and (not t.iframe_blocked or t.external) for t in tier2.tabs)
+    active_tabs = [t for t in tier2.tabs if t.initial_state == "active"]
+    all_tabs_ok = len(active_tabs) == 0 or all(t.reachable and (not t.iframe_blocked or t.external) for t in active_tabs)
     all_healthy = all_content_reachable and all_tabs_ok
-    some_tabs_ok = any(t.reachable and (not t.iframe_blocked or t.external) for t in tier2.tabs)
+    some_tabs_ok = any(t.reachable and (not t.iframe_blocked or t.external) for t in active_tabs)
     is_degraded = all_content_reachable and not all_tabs_ok and some_tabs_ok
 
     elapsed = int((time.monotonic() - start) * 1000)
@@ -488,7 +510,7 @@ async def _run_tier1(
     for c in tier2.content_probes:
         if not c.reachable:
             errors.append(f"Content '{c.name}' unreachable: {c.error or c.url}")
-    for t in tier2.tabs:
+    for t in active_tabs:
         if not t.reachable:
             prefix = "[external] " if t.external else ""
             errors.append(f"{prefix}Tab '{t.name}' unreachable: {t.error or t.url}")
@@ -542,6 +564,7 @@ def _tier2_to_dict(t: Tier2Detail) -> dict[str, Any]:
                 "iframe_blocked": tab.iframe_blocked,
                 "external": tab.external,
                 "error": tab.error,
+                "initial_state": tab.initial_state,
             }
             for tab in t.tabs
         ],

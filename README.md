@@ -168,6 +168,33 @@ frontend/src/                   # SvelteKit SPA + PatternFly 6
 
 Both tiers retry failed requests (2 retries with linear backoff).
 
+#### Tab `initial_state`
+
+Tabs in `ui-config.yml` support an optional `initial_state` field that controls how soundcheck treats them during health checks:
+
+| Value | Default | Behaviour |
+|-------|---------|-----------|
+| `active` | Yes | Tab is probed and failures count toward health status |
+| `deferred` | | Tab is probed but failures do **not** count toward health status — useful for tabs that come online later during the workshop (e.g. a pod started in a lab, a service the user fixes) |
+| `skip` | | Tab is not probed at all — useful for tabs soundcheck can never reach (VPN-only, requires auth) |
+
+Example:
+
+```yaml
+tabs:
+  - name: Terminal
+    type: terminal
+
+  - name: HAProxy Stats
+    path: /haproxy-stats
+    port: 8404
+    initial_state: deferred
+
+  - name: Debug Console
+    url: https://vpn-only.internal/debug
+    initial_state: skip
+```
+
 ### Database
 
 Five tables: `sessions`, `session_targets`, `check_results`, `session_groups`, `group_runs`. Migrations are managed via Alembic and run automatically on container startup via `backend/entrypoint.sh`.
