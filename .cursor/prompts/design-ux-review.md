@@ -21,6 +21,7 @@ Navigate to each of these pages and take a **full-page screenshot** (`browser_ta
    - Error state (submit the form empty to trigger validation)
 2. **Session detail** — Click into any session from the sidebar (or navigate to `/session/<id>` if sessions exist). Capture:
    - Loading / spinner state
+   - **In-progress / streaming state** — trigger a new check and capture the view while results are arriving incrementally via SSE. Results should appear one by one as each target completes, with a progress indicator updating in real time.
    - Completed results view
    - Expanded target detail drawer/modal
 3. **Group detail** — Click into any group from the sidebar (or navigate to `/group/<id>`). Capture:
@@ -115,7 +116,8 @@ For each finding, reference the screenshot filename and/or accessibility snapsho
 - Do empty states provide guidance? ("No sessions yet — create one above")
 - Are error messages specific, helpful, and non-technical?
 - Is the error alert visually appropriate (icon, color, positioning)?
-- Do long-running operations (health checks) show progress, not just a spinner?
+- Do long-running operations (health checks) show **incremental progress** via SSE streaming, not just a spinner? Results should appear one by one as each target completes — the UI should feel alive and responsive during a check run.
+- Is the transition from "running" to "complete" smooth and clear? Does the user know when all checks have finished?
 - Is there feedback after successful actions? (toast, redirect, status change)
 
 ### 6. Navigation & Information Architecture

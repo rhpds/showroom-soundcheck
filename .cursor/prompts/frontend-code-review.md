@@ -29,19 +29,24 @@ The frontend communicates with a FastAPI backend that uses:
 - **`$app/state` over `$app/stores`**: Since SvelteKit 2.12+, `page` from `$app/state` (runes-native) replaces `$page` from `$app/stores`. Flag imports from `$app/stores` and suggest migration.
 - **Missing `preloadData` / `data-sveltekit-preload-data`**: For SPA navigation, link prefetching improves perceived performance. Check if key navigation links use SvelteKit's preload attributes.
 
-## 3. Error Handling & Resilience
+## 3. Error Handling, Resilience & Streaming-First Architecture
+
+This app uses a **streaming-first architecture**: REST POST enqueues work → SAQ worker processes → Redis Pub/Sub pushes events → SSE endpoint streams to browser EventSource. **Any pattern that degrades this to polling is a regression.** This section covers both general error handling and SSE-specific concerns.
 
 - **Silent `catch {}` blocks**: Empty catch blocks swallow errors silently. Every catch must at minimum log the error or surface it to the user.
 - **Missing error states on mutations**: API calls in event handlers (clone, pin, rename, add/remove member, run checks) should have try/catch with user-visible error feedback, not just silently fail.
-- **SSE reconnection strategy**: The backend SSE endpoint now streams events from Redis Pub/Sub (SAQ worker progress). Verify EventSource error handlers don't create infinite reconnection loops. Check for exponential backoff, max retry limits, or connection state guards. Note: if the backend restarts or Redis connection drops, the SSE stream will end — verify the frontend handles this gracefully and can recover (e.g., re-fetch current state + reconnect).
-- **Race conditions on navigation**: When `sessionId` or `groupId` changes (derived from `$page.params`), verify that in-flight requests for the old ID are cancelled or ignored. Stale responses can overwrite fresh data.
+- **SSE reconnection strategy**: The backend SSE endpoint streams events from Redis Pub/Sub (SAQ worker progress). Verify EventSource error handlers don't create infinite reconnection loops. Check for exponential backoff, max retry limits, or connection state guards. Note: if the backend restarts or Redis connection drops, the SSE stream will end — verify the frontend handles this gracefully and can recover (re-fetch current state via REST + re-open EventSource).
+- **CRITICAL — No polling fallback**: Flag as **critical** any pattern that replaces or supplements EventSource with `setInterval`-based REST polling. The correct recovery pattern on SSE error is: exponential backoff → re-fetch current state via REST (one-shot) → re-open EventSource. Never fall back to periodic `setInterval`/`setTimeout` loops that repeatedly call REST endpoints to check for updates.
+- **No redundant REST fetches during active SSE**: While an EventSource is open and receiving events, the frontend should NOT also be fetching the same data via REST on a timer. SSE events carry sufficient data for in-place UI updates. A one-time REST fetch on initial load or SSE recovery is fine; periodic re-fetching alongside SSE is not.
+- **SSE vs REST data sufficiency**: Verify that SSE event payloads contain enough data for the frontend to update the UI without additional REST calls. If the frontend must call `getSession()` or `getGroup()` after every SSE event to get the actual data, the SSE stream is not carrying its weight — the events should include the updated state.
+- **Race conditions on navigation**: When `sessionId` or `groupId` changes (derived from `$page.params`), verify that in-flight requests for the old ID are cancelled or ignored AND the old EventSource is closed. Stale responses or events from the old stream can overwrite fresh data.
 - **`fetchJson` error detail**: The generic error handler throws `${status}: ${text}` which may expose raw server errors to the UI. Consider structured error responses.
 
 ## 4. Memory Leaks & Resource Cleanup
 
-- **EventSource cleanup**: Verify `EventSource.close()` is called in all exit paths: component destroy, navigation away, successful completion, and error. Check that `onDestroy` actually runs (it does in SPA mode).
-- **`setInterval` cleanup**: Verify all polling intervals are cleared on destroy AND on reactive ID changes. If `groupId` changes without unmounting, the old interval leaks.
-- **Stale closures in timers**: `setTimeout(loadSession, 3000)` captures `loadSession` which reads `sessionId` from a derived. Verify the closure reads current values, not stale ones.
+- **EventSource cleanup**: Verify `EventSource.close()` is called in all exit paths: component destroy, navigation away, successful completion, and error. Check that `onDestroy` actually runs (it does in SPA mode). When `sessionId` or `groupId` changes reactively, the old EventSource must be closed before opening a new one.
+- **`setTimeout` retry cleanup**: SSE error handlers use `setTimeout` for exponential backoff retries. Verify all pending retry timeouts are cleared on destroy AND on reactive ID changes. If the user navigates away while a retry is pending, the timeout fires against a stale component.
+- **Stale closures in retry timers**: `setTimeout(loadSession, 3000 * retryCount)` captures `loadSession` which reads `sessionId` from a derived. Verify the closure reads current values, not stale ones from a previous navigation.
 
 ## 5. Accessibility (a11y)
 
@@ -82,8 +87,7 @@ The frontend communicates with a FastAPI backend that uses:
 - **Duplicated modal/backdrop code**: The backdrop + modal pattern is copy-pasted across `TargetDetail.svelte`, group add-member dialog, and group preview drawer. Extract a reusable `Modal.svelte` wrapper.
 - **Duplicated spinner markup**: The loading spinner HTML is repeated in 4 places. Extract a `Spinner.svelte` component.
 - **Magic strings**: Status strings like `'healthy'`, `'running'`, `'pending'` are scattered as string literals. Define a `Status` enum or const object in `types.ts`.
-- **Inconsistent indentation**: Some template blocks have inconsistent indentation depth (e.g., Sidebar nav sections). Enforce with Prettier + `prettier-plugin-svelte`.
-- **No linter/formatter**: The project has no ESLint or Prettier config. Recommend adding `eslint-plugin-svelte`, `prettier-plugin-svelte`, and `eslint-config-prettier`.
+- **Inconsistent indentation**: Some template blocks have inconsistent indentation depth (e.g., Sidebar nav sections). The project has ESLint (`eslint-plugin-svelte`, `eslint-config-prettier`) and Prettier (`prettier-plugin-svelte`) configured — verify these are being applied consistently and that no files bypass them.
 
 ## 10. Security
 
@@ -95,10 +99,24 @@ The frontend communicates with a FastAPI backend that uses:
 
 ## Review Output Format
 
-For each finding, output:
+### Issue Summary Table
+
+Start with a table of **all** findings, ordered from most to least critical. Every row must include a sequential number, severity, the review section it falls under, a short title, and the file(s) affected.
+
+| # | Severity | Section | Finding | File(s) |
+|---|----------|---------|---------|---------|
+| 1 | Critical | Streaming | Polling fallback on SSE error | `SessionContent.svelte` |
+| 2 | Warning | Runes | `$state` used where `$state.raw` needed | `+page.svelte` |
+| ... | ... | ... | ... | ... |
+
+Use these severity levels in order: **Critical → Warning → Suggestion**.
+
+### Detailed Findings
+
+For each finding from the table above (in the same order), provide:
 
 ```
-### [SEVERITY] Short title
+### #N [SEVERITY] Short title
 **File**: `path/to/file.svelte` L42-48
 **Issue**: Description of what's wrong and why it matters.
 **Fix**:
@@ -107,4 +125,5 @@ For each finding, output:
 \`\`\`
 ```
 
-Group findings by file. End with a summary table: counts by severity and category.
+### Positive Observations
+Note things the codebase does well — good patterns worth preserving.

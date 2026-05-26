@@ -26,8 +26,12 @@ soundcheck/
 ├── models.py            # SQLModel table models, JSON helpers
 ├── schemas.py           # Pydantic request/response schemas
 ├── utils.py             # GUID extraction, URL allowlist (SSRF), input validation
-├── worker.py            # SAQ worker definitions: two queues, task functions, lifecycle hooks
-├── tasks.py             # DEPRECATED tombstone (in-process tasks replaced by SAQ)
+├── worker.py            # SAQ queue definitions, lifecycle hooks, settings dicts (task functions live in tasks/)
+├── tasks/
+│   ├── __init__.py      # TaskContext TypedDict for typed SAQ worker ctx
+│   ├── orchestration.py # Coordinator tasks: run_session_checks, run_group, run_single_source, sync_metadata, sweep_stale_sessions
+│   ├── checks.py        # Leaf task: check_target (individual HTTP health checks)
+│   └── events.py        # Redis Pub/Sub helpers: publish_session_event, publish_group_event
 ├── routes/
 │   ├── health.py        # GET /ping, /health, /config/clusters
 │   ├── check.py         # GET /check (deep-link session creation)
@@ -97,13 +101,32 @@ Review the SAQ task queue architecture and async code for correctness:
 
 - **Event loop blocking**: Check for any synchronous/blocking calls inside `async def` task functions (file I/O, `yaml.safe_load`, DNS lookups, `json.loads` on large payloads).
 
-- **SSE streaming via Redis Pub/Sub**: `sessions.py` subscribes to `session:{id}` Redis channels for real-time updates. Evaluate: connection cleanup on client disconnect, what happens if Redis is temporarily unavailable, and whether the subscription properly unsubscribes on exit.
+- **SSE streaming via Redis Pub/Sub**: `routes/sessions.py` and `routes/groups.py` subscribe to `session:{id}` and `group:{id}` Redis Pub/Sub channels, streaming updates to the browser via `EventSourceResponse`. Task functions publish events through `tasks/events.py` helpers (`publish_session_event`, `publish_group_event`). Evaluate: connection cleanup on client disconnect, what happens if Redis is temporarily unavailable, and whether the subscription properly unsubscribes on exit.
 
 - **`queue.map()` fan-out behavior**: Orchestration tasks use `queue.map()` with `return_exceptions=True`. Verify that partial failures (some targets succeed, some timeout) are handled correctly and don't leave the session in an inconsistent state.
 
 ---
 
-### 3. Database & ORM Patterns
+### 3. Streaming-First Architecture (SSE + Async — No Polling)
+
+This application is intentionally built around **fire-and-forget requests + SSE push updates**. The entire data flow is: REST POST enqueues SAQ job → worker publishes progress via Redis Pub/Sub → SSE endpoint streams to browser EventSource. **Any pattern that degrades this to polling is a regression.** Review for:
+
+- **No polling endpoints**: Verify no route is designed to be called repeatedly on a timer by the frontend. Routes should return current state on demand (for initial load or recovery) but should NOT be the primary mechanism for tracking progress. Progress comes via SSE.
+
+- **SSE event granularity**: Workers should publish granular, incremental events (`target_update`, `session_running`, `session_complete`) — not "fetch the whole session" events that force the client to re-query REST. Check that `tasks/events.py` publishes enough detail for the frontend to update in place without additional REST calls.
+
+- **No synchronous waiting in routes**: Mutating routes (`POST /sessions`, `POST /groups/{id}/run`) must enqueue SAQ jobs and return immediately (`201`/`200`). Flag any route that `await`s task completion or blocks until checks finish — this defeats the async architecture and creates timeout risk.
+
+- **Redis Pub/Sub reliability**: Events are fire-and-forget on the publisher side. If the SSE client connects after events were already published (race condition), the client must be able to recover by re-fetching current state via REST and then reconnecting SSE. Verify the SSE endpoints handle this (e.g., sending an initial state snapshot on connect, or the frontend handles it).
+
+- **No `time.sleep()` or busy-wait patterns**: In async task functions, all delays must use `asyncio.sleep()`, never `time.sleep()` which blocks the event loop. Flag any `while True` + sleep loops that effectively poll for state changes instead of using proper async coordination (events, callbacks, Pub/Sub).
+
+- **Backpressure and connection limits**: SSE endpoints hold a long-lived connection + Redis subscription per connected client. Evaluate whether there's any limit on concurrent SSE connections, and what happens if a client connects but never reads (slow consumer).
+
+---
+
+### 4. Database & ORM Patterns
+
 
 Review SQLModel/SQLAlchemy usage:
 
@@ -123,7 +146,7 @@ Review SQLModel/SQLAlchemy usage:
 
 ---
 
-### 4. Error Handling & Resilience
+### 5. Error Handling & Resilience
 
 - **Inconsistent error handling**: `check.py` `check_redirect()` silently returns `session_id=""` on validation errors instead of raising HTTP 422. Compare with `sessions.py` `create_session()` which raises HTTP 422. Is this intentional?
 
@@ -137,23 +160,21 @@ Review SQLModel/SQLAlchemy usage:
 
 ---
 
-### 5. Code Quality & Maintainability
+### 6. Code Quality & Maintainability
 
 - **DRY violations**: Check whether `_serializers.py` fully consolidates the previously duplicated `_session_to_list_item()` and `_target_to_public()` helpers, or if duplication remains between routes.
 
-- **Worker module size**: `worker.py` handles both queue definitions, all task functions, group orchestration helpers, and lifecycle hooks. Evaluate whether splitting task functions into separate modules (e.g., `tasks/orchestration.py`, `tasks/checks.py`) would improve readability.
+- **Task module organization**: Task functions are split into `tasks/orchestration.py` (coordinators) and `tasks/checks.py` (leaf tasks), with shared Pub/Sub helpers in `tasks/events.py` and a `TaskContext` TypedDict in `tasks/__init__.py`. Verify this separation is clean — no circular imports between task modules, no task function logic leaking into `worker.py` (which should only define queues, lifecycle hooks, and settings dicts).
 
 - **Duplicate config parsing**: Verify `CHECK_CONCURRENCY`, `ORCHESTRATION_CONCURRENCY`, `VERIFY_SSL`, and `REDIS_URL` are parsed only in `config.py` and imported elsewhere — no duplicate env var reads.
 
-- **Type safety**: Several functions return `dict[str, str]` or `dict[str, Any]` where dataclasses or TypedDicts would provide better IDE support and catch errors. SAQ task function signatures use `**kwargs` patterns — verify keyword args are properly typed.
+- **Type safety**: Several functions return `dict[str, str]` or `dict[str, Any]` where dataclasses or TypedDicts would provide better IDE support and catch errors. The `TaskContext` TypedDict in `tasks/__init__.py` types the SAQ worker context — verify all task functions use it consistently and don't access untyped keys from `ctx`.
 
-- **Deprecated module**: `tasks.py` is a tombstone file warning against in-process background tasks. Verify no code imports from it.
-
-- **Unused imports**: Check for any unused imports across all files, especially after the migration from in-process tasks to SAQ.
+- **Unused imports**: Check for any unused imports across all files.
 
 ---
 
-### 6. API Design
+### 7. API Design
 
 - **REST conventions**: Evaluate HTTP method choices. `POST /sessions/{id}/run` semantically duplicates `POST /sessions/{id}/clone`. Are both needed? `DELETE /groups/{id}/members` uses a request body, which is technically allowed but unconventional for DELETE.
 
@@ -167,7 +188,7 @@ Review SQLModel/SQLAlchemy usage:
 
 ---
 
-### 7. Configuration & Deployment
+### 8. Configuration & Deployment
 
 - **Hardcoded defaults**: `config.py` has `soundcheck_dev` as a default password. This should probably fail loudly in production if not configured.
 
@@ -189,7 +210,7 @@ Review SQLModel/SQLAlchemy usage:
 
 ---
 
-### 8. Testing & Observability
+### 9. Testing & Observability
 
 - **No test suite**: There are no test files (`test_*.py`, `conftest.py`, `pytest.ini`). Assess what testing strategy would be most impactful. SAQ tasks should be unit-testable by mocking the `ctx` dict (with `session_factory` and `redis`). Integration tests for routes should verify jobs are enqueued correctly.
 
@@ -207,17 +228,27 @@ Review SQLModel/SQLAlchemy usage:
 
 Structure your review as follows:
 
+### Issue Summary Table
+
+Start with a table of **all** findings, ordered from most to least critical. Every row must include a sequential number, severity, the review section it falls under, a short title, and the file(s) affected.
+
+| # | Severity | Section | Finding | File(s) |
+|---|----------|---------|---------|---------|
+| 1 | Critical | Security | CORS allows credentialed wildcard | `main.py` |
+| 2 | High | Streaming | Route blocks until task completes | `routes/sessions.py` |
+| ... | ... | ... | ... | ... |
+
+Use these severity levels in order: **Critical → High → Medium → Low → Info**.
+
 ### Executive Summary
 A 3-5 sentence overview of the codebase health, highlighting the most critical issues.
 
-### Critical & High Severity Findings
-Numbered list with file references, detailed explanation, and fix recommendations.
+### Detailed Findings
 
-### Medium Severity Findings
-Same format.
-
-### Low Severity & Informational
-Same format, grouped for brevity.
+For each finding from the table above (in the same order), provide:
+- File path and line references
+- Detailed explanation of the issue
+- Concrete fix recommendation with code examples where helpful
 
 ### Recommended Priority Order
 A numbered list of the top 10 changes ordered by impact-to-effort ratio.
