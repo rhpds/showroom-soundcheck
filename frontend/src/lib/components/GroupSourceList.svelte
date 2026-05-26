@@ -539,7 +539,7 @@
 						<input id="add-value" bind:value={addValue} required />
 					</span>
 				</div>
-				<div class="pf-v6-u-display-flex pf-v6-u-justify-content-flex-end" style="gap: 8px;">
+				<div class="pf-v6-u-display-flex pf-v6-u-justify-content-flex-end pf-v6-u-gap-sm">
 					<button
 						class="pf-v6-c-button pf-m-link"
 						type="button"
@@ -557,7 +557,7 @@
 		<p class="pf-v6-u-mb-md">
 			Remove <strong>{sourceTypeLabel(confirmRemove.type)}: {confirmRemove.value}</strong> from this group?
 		</p>
-		<div class="pf-v6-u-display-flex pf-v6-u-justify-content-flex-end" style="gap: 8px;">
+		<div class="pf-v6-u-display-flex pf-v6-u-justify-content-flex-end pf-v6-u-gap-sm">
 			<button class="pf-v6-c-button pf-m-link" type="button" onclick={() => (confirmRemove = null)}
 				>Cancel</button
 			>

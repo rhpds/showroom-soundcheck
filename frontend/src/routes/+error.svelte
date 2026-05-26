@@ -23,7 +23,7 @@
 				'An unexpected error occurred. Try refreshing or going back to the home page.'}
 		{/if}
 	</p>
-	<div class="pf-v6-u-mt-lg pf-v6-u-display-flex pf-v6-u-justify-content-center" style="gap: 12px;">
+	<div class="pf-v6-u-mt-lg pf-v6-u-display-flex pf-v6-u-justify-content-center pf-v6-u-gap-md">
 		<a href="/" class="pf-v6-c-button pf-m-primary">Go Home</a>
 		<button class="pf-v6-c-button pf-m-secondary" onclick={() => history.back()}>Go Back</button>
 	</div>
