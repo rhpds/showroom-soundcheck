@@ -9,16 +9,20 @@ from fastapi.sse import EventSourceResponse
 from sqlmodel import col, select
 
 from ..database import DbSession, async_session_factory
-from ..models import CheckSession, SessionGroup, SessionTarget
+from ..models import CheckSession, GroupRun, SessionGroup, SessionTarget
 from ..schemas import (
     GroupCreate,
     GroupDetail,
+    GroupListItem,
+    GroupPublic,
     GroupRename,
     NameResponse,
     PaginatedResponse,
     PinnedResponse,
+    SessionListItem,
     SourceRequest,
     StatusResponse,
+    TargetPublic,
 )
 from ..services import session_service
 from ..utils import utc_now
@@ -30,6 +34,8 @@ from ._serializers import (
     session_to_list_item,
     target_to_public,
 )
+
+router = APIRouter(prefix="/groups", tags=["groups"])
 
 
 @router.post("", response_model=GroupPublic, status_code=201)

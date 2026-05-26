@@ -14,6 +14,7 @@ from ..schemas import (
     PinnedResponse,
     SessionCreate,
     SessionDetail,
+    SessionListItem,
     SessionUpdate,
     StatusResponse,
 )
@@ -21,6 +22,8 @@ from ..services import session_service
 from ..utils import InputValidationError, parse_check_params
 from ..worker import queue
 from ._serializers import result_to_public, session_to_list_item, session_to_public, target_to_public
+
+router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
 @router.post("", response_model=CheckRedirectResponse, status_code=201)
