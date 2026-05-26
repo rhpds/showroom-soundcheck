@@ -11,6 +11,13 @@ export type Status =
 
 export type CheckType = 'readyz' | 'healthz';
 
+export type ProvisionStatus =
+	| 'provisioning'
+	| 'ready'
+	| 'destroying'
+	| 'provision-failed'
+	| 'unhealthy';
+
 export interface SessionListItem {
 	id: number;
 	session_id: string;
@@ -59,7 +66,7 @@ export interface TargetPublic {
 	resource_pool_name: string | null;
 	resource_name: string;
 	resource_namespace: string;
-	provision_status: string | null;
+	provision_status: ProvisionStatus | null;
 	status: Status;
 	tier_used: number | null;
 	response_time_ms: number | null;
