@@ -38,8 +38,6 @@ spec:
           env:
             - name: BACKEND_URL
               value: "http://showroom-soundcheck-app:8000"
-            - name: NGINX_ENTRYPOINT_QUIET_LOGS
-              value: "1"
           readinessProbe:
             httpGet:
               path: /
