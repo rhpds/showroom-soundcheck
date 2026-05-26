@@ -1,7 +1,5 @@
 """Shared model-to-schema serializers for route modules."""
 
-import json
-
 from ..models import CheckResult, CheckSession, GroupRun, SessionGroup, SessionTarget
 from ..schemas import (
     CheckResultPublic,
@@ -97,12 +95,6 @@ def target_to_public(t: SessionTarget) -> TargetPublic:
 
 
 def result_to_public(r: CheckResult) -> CheckResultPublic:
-    detail = None
-    if r.detail:
-        try:
-            detail = json.loads(r.detail)
-        except (json.JSONDecodeError, TypeError):
-            pass
     return CheckResultPublic(
         id=r.id,
         target_id=r.target_id,
@@ -112,7 +104,7 @@ def result_to_public(r: CheckResult) -> CheckResultPublic:
         status_code=r.status_code,
         response_time_ms=r.response_time_ms,
         error_message=r.error_message,
-        detail=detail,
+        detail=r.detail,
         checked_at=r.checked_at,
     )
 

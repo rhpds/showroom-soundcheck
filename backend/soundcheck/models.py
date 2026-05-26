@@ -158,5 +158,5 @@ class CheckResult(SQLModel, table=True):
     status_code: int | None = None
     response_time_ms: int = 0
     error_message: str | None = None
-    detail: str | None = None
+    detail: dict | None = Field(default=None, sa_type=sa.JSON)
     checked_at: datetime = Field(default_factory=utc_now, sa_type=sa.DateTime(timezone=True))

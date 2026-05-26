@@ -69,7 +69,7 @@ async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url
                 status_code=result.status_code,
                 response_time_ms=result.response_time_ms,
                 error_message=result.error_message,
-                detail=result.detail_json(),
+                detail=result.detail,
                 checked_at=completed_at,
             )
             db.add(cr)

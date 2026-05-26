@@ -110,11 +110,6 @@ class TargetCheckResult:
     no_config: bool = False
     is_degraded: bool = False
 
-    def detail_json(self) -> str | None:
-        if self.detail is None:
-            return None
-        return json.dumps(self.detail, default=str)
-
 
 class ProgressCallback(Protocol):
     async def __call__(self, url: str, status: str, result: TargetCheckResult | None) -> None: ...
