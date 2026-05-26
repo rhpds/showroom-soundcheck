@@ -249,7 +249,7 @@ async def _probe_url(client: httpx.AsyncClient, url: str, retries: int = PROBE_R
 
 NOOKBAG_BASES = ["/nookbag", ""]
 
-NOOKBAG_FINGERPRINTS = ['id="root"', "<title>Showroom</title>"]
+NOOKBAG_FINGERPRINTS = ['id="root"']
 
 
 async def _detect_nookbag(
