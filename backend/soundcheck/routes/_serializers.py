@@ -95,18 +95,18 @@ def target_to_public(t: SessionTarget) -> TargetPublic:
 
 
 def result_to_public(r: CheckResult) -> CheckResultPublic:
-    return CheckResultPublic(
-        id=r.id,
-        target_id=r.target_id,
-        check_type=r.check_type,
-        tier=r.tier,
-        is_healthy=r.is_healthy,
-        status_code=r.status_code,
-        response_time_ms=r.response_time_ms,
-        error_message=r.error_message,
-        detail=r.detail,
-        checked_at=r.checked_at,
-    )
+ return CheckResultPublic(
+ id=r.id,
+ target_id=r.target_id,
+ check_type=r.check_type,
+ tier=r.tier,
+ is_healthy=r.is_healthy,
+ status_code=r.status_code,
+ response_time_ms=r.response_time_ms,
+ error_message=sanitize_error(r.error_message),
+ detail=r.detail,
+ checked_at=r.checked_at,
+ )
 
 
 # ---------------------------------------------------------------------------
