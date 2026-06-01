@@ -6,6 +6,7 @@
 	let currentPath = $derived(page.url.pathname);
 
 	function isActive(href: string): boolean {
+		if (href === '/workshops') return currentPath.startsWith('/workshop');
 		if (href === '/sessions') return currentPath.startsWith('/session');
 		if (href === '/groups') return currentPath.startsWith('/group');
 		return false;
@@ -15,6 +16,17 @@
 <nav class="pf-v6-c-nav" aria-label="Main navigation" data-sveltekit-preload-data="hover">
 	<div class="pf-v6-c-nav__main-body">
 		<ul class="pf-v6-c-nav__list">
+			<li class="pf-v6-c-nav__item">
+				<a
+					class="pf-v6-c-nav__link"
+					class:pf-m-current={isActive('/workshops')}
+					href="/workshops"
+					aria-current={isActive('/workshops') ? 'page' : undefined}
+					onclick={() => onNavigate()}
+				>
+					<span class="pf-v6-c-nav__link-text">Workshops</span>
+				</a>
+			</li>
 			<li class="pf-v6-c-nav__item">
 				<a
 					class="pf-v6-c-nav__link"

@@ -5,7 +5,9 @@ import type {
 	GroupListItem,
 	PaginatedResponse,
 	ListParams,
-	CheckType
+	CheckType,
+	WorkshopListResponse,
+	WorkshopSummary
 } from './types';
 
 const BASE = '/api';
@@ -165,6 +167,44 @@ export async function syncGroupMetadata(groupId: string): Promise<void> {
 
 export async function getClusters(): Promise<{ clusters: string[] }> {
 	return fetchJson(`${BASE}/config/clusters`);
+}
+
+// ---------------------------------------------------------------------------
+// Workshops
+// ---------------------------------------------------------------------------
+
+export interface WorkshopListParams {
+	cluster?: string[];
+	status?: string[];
+	white_glove?: 'true';
+	provision_type?: 'self_service' | 'demo_team';
+	has_failures?: boolean;
+	from_time?: string;
+	to_time?: string;
+}
+
+export async function listWorkshops(
+	params: WorkshopListParams = {},
+	init?: RequestInit
+): Promise<WorkshopListResponse> {
+	const searchParams = new URLSearchParams();
+	if (params.cluster) {
+		for (const c of params.cluster) searchParams.append('cluster', c);
+	}
+	if (params.status) {
+		for (const s of params.status) searchParams.append('status', s);
+	}
+	if (params.white_glove) searchParams.set('white_glove', params.white_glove);
+	if (params.provision_type) searchParams.set('provision_type', params.provision_type);
+	if (params.has_failures) searchParams.set('has_failures', 'true');
+	if (params.from_time) searchParams.set('from_time', params.from_time);
+	if (params.to_time) searchParams.set('to_time', params.to_time);
+	const qs = searchParams.toString();
+	return fetchJson(`${BASE}/workshops${qs ? `?${qs}` : ''}`, init);
+}
+
+export async function getWorkshopsSummary(init?: RequestInit): Promise<WorkshopSummary> {
+	return fetchJson(`${BASE}/workshops/summary`, init);
 }
 
 export function sessionStream(sessionId: string): EventSource {

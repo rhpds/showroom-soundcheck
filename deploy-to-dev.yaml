@@ -84,7 +84,7 @@ Route URL: `https://showroom-soundcheck-dev.apps.ocpv-infra01.dal12.infra.demo.r
 
 ### Current state
 
-- **Latest deployed**: backend v1.1.0, frontend v1.1.2
+- **Latest deployed**: v1.1.4 (backend + frontend)
 - **Cluster**: `showroom-soundcheck-dev` on `api.ocpv-infra01.dal12.infra.demo.redhat.com:6443`
 - **Architecture**: oauth-proxy (HTTP :4180, edge TLS on Route) → frontend (Node.js :5173, static + /api proxy) → backend (FastAPI :8000) + orchestration-worker + check-worker (SAQ) + redis + postgres StatefulSet
 - **Secrets** (already created, don't need to recreate): `postgres-credentials`, `showroom-soundcheck-proxy`, `babylon-kubeconfigs`

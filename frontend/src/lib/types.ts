@@ -166,6 +166,107 @@ export interface PaginatedResponse<T> {
 	per_page: number;
 }
 
+// ---------------------------------------------------------------------------
+// Workshop Dashboard
+// ---------------------------------------------------------------------------
+
+export type WorkshopStatus =
+	| 'scheduled'
+	| 'provisioning'
+	| 'running'
+	| 'stopped'
+	| 'degraded'
+	| 'failed'
+	| 'completed'
+	| 'unknown';
+
+export interface WorkshopDashboardItem {
+	name: string;
+	namespace: string;
+	display_name: string;
+	cluster: string;
+	catalog_item: string;
+	requester: string;
+	ordered_by: string;
+	workshop_id: string;
+	workshop_url: string;
+	catalog_url: string;
+
+	status: WorkshopStatus;
+
+	lifespan_start: string;
+	lifespan_end: string;
+	ready_by: string;
+	action_start: string;
+	action_stop: string;
+
+	provision_ordered: number;
+	provision_active: number;
+	provision_failed: number;
+	provision_retries: number;
+
+	users_assigned: number;
+	users_available: number;
+	users_total: number;
+
+	white_glove: boolean;
+	demo_team_provisioned: boolean;
+	locked: boolean;
+	disable_auto_stop: boolean;
+	open_registration: boolean;
+	access_password_set: boolean;
+}
+
+export interface WorkshopSummary {
+	total: number;
+	scheduled: number;
+	provisioning: number;
+	running: number;
+	stopped: number;
+	degraded: number;
+	failed: number;
+	completed: number;
+}
+
+export interface MultiWorkshopAsset {
+	display_name: string;
+	key: string;
+	workshop_id: string;
+	name: string;
+	namespace: string;
+}
+
+export interface MultiWorkshopDashboardItem {
+	name: string;
+	namespace: string;
+	display_name: string;
+	cluster: string;
+	multi_workshop_id: string;
+	catalog_url: string;
+	requester: string;
+	ordered_by: string;
+	purpose: string;
+	number_seats: number;
+	start_date: string;
+	end_date: string;
+	status: WorkshopStatus;
+	assets: MultiWorkshopAsset[];
+	children: WorkshopDashboardItem[];
+	provision_ordered: number;
+	provision_active: number;
+	provision_failed: number;
+	users_assigned: number;
+	users_total: number;
+}
+
+export interface WorkshopListResponse {
+	items: WorkshopDashboardItem[];
+	multi_workshops: MultiWorkshopDashboardItem[];
+	summary: WorkshopSummary;
+	cluster_errors: string[];
+	fetched_at: string;
+}
+
 export interface ListParams {
 	page?: number;
 	per_page?: number;

@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from .config import API_KEY, CORS_ORIGINS, LOG_FORMAT, warn_default_credentials
 from .database import async_session_factory
-from .routes import check, groups, health, sessions
+from .routes import check, groups, health, sessions, workshops
 from .services import babylon_client, session_service
 from .worker import checks_queue, orchestration_queue
 
@@ -105,6 +105,7 @@ async def api_key_guard(request: Request, call_next):
 
 app.include_router(sessions.router, prefix="/api")
 app.include_router(groups.router, prefix="/api")
+app.include_router(workshops.router, prefix="/api")
 app.include_router(health.router, prefix="/api")
 app.include_router(check.router, prefix="/api")
 

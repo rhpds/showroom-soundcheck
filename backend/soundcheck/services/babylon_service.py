@@ -26,6 +26,7 @@ POOLBOY_NAMESPACE = "poolboy"
 BABYLON_GROUP = "babylon.gpte.redhat.com"
 BABYLON_VERSION = "v1"
 WS_PLURAL = "workshops"
+MWS_PLURAL = "multiworkshops"
 
 LAB_UI_URL_KEYS = (
     "showroom_primary_view_url",
