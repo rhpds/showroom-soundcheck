@@ -267,6 +267,18 @@ export interface WorkshopListResponse {
 	fetched_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// Workshop Check Status
+// ---------------------------------------------------------------------------
+
+export interface WorkshopCheckStatusEntry {
+	status: string;
+	session_id: string;
+	created_at: string;
+}
+
+export type WorkshopCheckStatusMap = Record<string, WorkshopCheckStatusEntry | null>;
+
 export interface ListParams {
 	page?: number;
 	per_page?: number;

@@ -2,8 +2,8 @@
 	import { onMount } from 'svelte';
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { listWorkshops } from '$lib/api';
-	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopListResponse, WorkshopStatus } from '$lib/types';
+	import { listWorkshops, createSession, getWorkshopCheckStatuses } from '$lib/api';
+	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopListResponse, WorkshopStatus, WorkshopCheckStatusMap } from '$lib/types';
 	import {
 		getTimeRange,
 		workshopStatusColor,
@@ -117,6 +117,7 @@
 		}
 		initialLoading = false;
 		refreshing = false;
+		loadCheckStatuses();
 	}
 
 	function syncFiltersToUrl() {
@@ -175,14 +176,107 @@
 		return `${item.users_assigned}/${item.users_total}`;
 	}
 
+	// ---------------------------------------------------------------------------
+	// Check status state
+	// ---------------------------------------------------------------------------
+
+	let checkStatuses = $state<WorkshopCheckStatusMap>({});
+	let checkRunning = $state(new Set<string>());
+	let checkPollTimer: ReturnType<typeof setInterval> | null = null;
+
+	function allWorkshopIds(): string[] {
+		const ids = new Set<string>();
+		for (const ws of data.items) {
+			if (ws.workshop_id) ids.add(ws.workshop_id);
+		}
+		for (const mws of data.multi_workshops ?? []) {
+			for (const child of mws.children) {
+				if (child.workshop_id) ids.add(child.workshop_id);
+			}
+		}
+		return [...ids];
+	}
+
+	async function loadCheckStatuses() {
+		const ids = allWorkshopIds();
+		if (ids.length === 0) return;
+		try {
+			checkStatuses = await getWorkshopCheckStatuses(ids);
+		} catch {
+			// non-critical -- don't block the page
+		}
+
+		const hasInFlight = checkRunning.size > 0 ||
+			Object.values(checkStatuses).some((s) => s && (s.status === 'running' || s.status === 'pending'));
+		if (hasInFlight && !checkPollTimer) {
+			checkPollTimer = setInterval(loadCheckStatuses, 10000);
+		} else if (!hasInFlight && checkPollTimer) {
+			clearInterval(checkPollTimer);
+			checkPollTimer = null;
+		}
+	}
+
+	async function runCheck(workshopId: string, cluster: string, displayName: string) {
+		if (!workshopId || checkRunning.has(workshopId)) return;
+		const next = new Set(checkRunning);
+		next.add(workshopId);
+		checkRunning = next;
+
+		try {
+			const result = await createSession({
+				workshop_guids: [workshopId],
+				babylon_cluster: cluster,
+				name: displayName
+			});
+			checkStatuses = {
+				...checkStatuses,
+				[workshopId]: { status: 'pending', session_id: result.session_id, created_at: new Date().toISOString() }
+			};
+		} catch {
+			// remove from running set on failure
+		}
+
+		const done = new Set(checkRunning);
+		done.delete(workshopId);
+		checkRunning = done;
+
+		if (!checkPollTimer) {
+			checkPollTimer = setInterval(loadCheckStatuses, 10000);
+		}
+	}
+
+	function checkStatusColor(status: string): string {
+		switch (status) {
+			case 'completed': return 'green';
+			case 'running': case 'pending': return 'blue';
+			case 'failed': return 'red';
+			default: return 'grey';
+		}
+	}
+
+	function checkStatusLabel(status: string): string {
+		switch (status) {
+			case 'completed': return 'Passed';
+			case 'running': return 'Running';
+			case 'pending': return 'Pending';
+			case 'failed': return 'Failed';
+			default: return status;
+		}
+	}
+
 	onMount(() => {
 		if (!pageData.initialWorkshops) {
 			loadData({ showSkeleton: true });
+		} else {
+			loadCheckStatuses();
 		}
 		const refreshInterval = setInterval(() => {
 			if (!error) loadData();
 		}, 60000);
-		return () => clearInterval(refreshInterval);
+		return () => {
+			clearInterval(refreshInterval);
+			if (checkPollTimer) clearInterval(checkPollTimer);
+		};
 	});
 </script>
 
@@ -251,7 +345,7 @@
 <!-- Content -->
 {#if initialLoading}
 	<TableSkeleton
-		headers={['Status', 'Name', 'Cluster', 'Catalog Item', 'Provisioning', 'Users', 'Flags', 'Start', 'End']}
+		headers={['Status', 'Name', 'Cluster', 'Catalog Item', 'Provisioning', 'Users', 'Flags', 'Check', 'Start', 'End']}
 		showPin={false}
 		showActions={false}
 	/>
@@ -299,6 +393,7 @@
 					<th class="pf-v6-c-table__th">Provisioning</th>
 					<th class="pf-v6-c-table__th">Users</th>
 					<th class="pf-v6-c-table__th col-flags">Flags</th>
+					<th class="pf-v6-c-table__th col-check">Check</th>
 					<th class="pf-v6-c-table__th">Start</th>
 					<th class="pf-v6-c-table__th">End</th>
 				</tr>
@@ -381,6 +476,9 @@
 							</td>
 							<td class="pf-v6-c-table__td col-flags" data-label="Flags">
 								<span class="flag-badge flag-badge--event" title="Multi-Workshop Event">EVENT</span>
+							</td>
+							<td class="pf-v6-c-table__td col-check" data-label="Check">
+								<span class="flag-none">—</span>
 							</td>
 							<td class="pf-v6-c-table__td" data-label="Start">
 								{formatDate(mws.start_date)}
@@ -474,6 +572,43 @@
 								{/if}
 								</div>
 							</td>
+							<td class="pf-v6-c-table__td col-check" data-label="Check">
+								{#if workshop.workshop_id}
+									{@const cs = checkStatuses[workshop.workshop_id]}
+									<div class="check-cell">
+										{#if cs}
+											<a
+												href="/session/{cs.session_id}"
+												target="_blank"
+												rel="noopener noreferrer"
+												class="check-badge check-badge--{checkStatusColor(cs.status)}"
+												title="Last check: {checkStatusLabel(cs.status)}"
+											>
+												{checkStatusLabel(cs.status)}
+											</a>
+										{/if}
+										{#if checkRunning.has(workshop.workshop_id)}
+											<span class="check-badge check-badge--blue" title="Starting check...">
+												<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true" class="spin">
+													<path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36A.25.25 0 0 1 11.534 7zm-7.068 2H.534a.25.25 0 0 1-.192-.41l1.966-2.36a.25.25 0 0 1 .384 0l1.966 2.36A.25.25 0 0 1 4.466 9z" />
+												</svg>
+											</span>
+										{:else}
+											<button
+												class="check-run-btn"
+												title="Run showroom check"
+												onclick={() => runCheck(workshop.workshop_id, workshop.cluster, workshop.display_name)}
+											>
+												<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+													<path d="M4 2l10 6-10 6V2z" />
+												</svg>
+											</button>
+										{/if}
+									</div>
+								{:else}
+									<span class="flag-none">—</span>
+								{/if}
+							</td>
 							<td class="pf-v6-c-table__td" data-label="Start">
 								{formatDate(workshop.lifespan_start)}
 							</td>
@@ -489,7 +624,7 @@
 {:else}
 	{@const timeRange = getTimeRange(timeWindow)}
 	<div class="table-wrapper" class:table-wrapper--refreshing={refreshing}>
-		<WorkshopTimeline items={multiAssetOnly ? [] : data.items} multiWorkshops={data.multi_workshops ?? []} filterFrom={timeRange.from_time} filterTo={timeRange.to_time} {timeWindow} />
+		<WorkshopTimeline items={multiAssetOnly ? [] : data.items} multiWorkshops={data.multi_workshops ?? []} filterFrom={timeRange.from_time} filterTo={timeRange.to_time} {timeWindow} {checkStatuses} onRunCheck={runCheck} />
 	</div>
 {/if}
 
@@ -774,5 +909,72 @@
 		background: #e7f1fa;
 		color: #003d73;
 		border: 1px solid #73bcf7;
+	}
+
+	/* Check column */
+	.col-check {
+		width: 110px;
+	}
+
+	.check-cell {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.check-badge {
+		display: inline-block;
+		padding: 1px 6px;
+		border-radius: 10px;
+		font-size: 0.65rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.check-badge--green {
+		color: #1e4620;
+		background: #e7f5e8;
+		border: 1px solid #6ec071;
+	}
+
+	.check-badge--blue {
+		color: #003d73;
+		background: #e7f1fa;
+		border: 1px solid #73bcf7;
+	}
+
+	.check-badge--red {
+		color: #7d1007;
+		background: #fce8e6;
+		border: 1px solid #e87a72;
+	}
+
+	.check-badge--grey {
+		color: #4a4a4a;
+		background: #f0f0f0;
+		border: 1px solid #d2d2d2;
+	}
+
+	.check-run-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		border: 1px solid #d2d2d2;
+		background: none;
+		cursor: pointer;
+		border-radius: 4px;
+		color: var(--pf-t--global--icon--color--regular, #6a6e73);
+		transition: background 0.15s, color 0.15s;
+		flex-shrink: 0;
+	}
+
+	.check-run-btn:hover {
+		background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
+		color: var(--pf-t--global--color--brand--default, #0066cc);
+		border-color: var(--pf-t--global--color--brand--default, #0066cc);
 	}
 </style>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopStatus } from '$lib/types';
+	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopStatus, WorkshopCheckStatusMap } from '$lib/types';
 	import { workshopStatusBg, workshopStatusTextColor, workshopStatusLabel } from '$lib/utils';
 
 	let {
@@ -8,13 +8,17 @@
 		multiWorkshops = [],
 		filterFrom,
 		filterTo,
-		timeWindow
+		timeWindow,
+		checkStatuses = {},
+		onRunCheck
 	}: {
 		items: WorkshopDashboardItem[];
 		multiWorkshops?: MultiWorkshopDashboardItem[];
 		filterFrom?: string;
 		filterTo?: string;
 		timeWindow?: 'all' | 'today' | '24h' | 'week';
+		checkStatuses?: WorkshopCheckStatusMap;
+		onRunCheck?: (workshopId: string, cluster: string, displayName: string) => void;
 	} = $props();
 
 	let containerWidth = $state(800);
@@ -231,6 +235,16 @@
 			minute: '2-digit'
 		});
 	}
+
+	function checkLabel(status: string): string {
+		switch (status) {
+			case 'completed': return 'Passed';
+			case 'running': return 'Running';
+			case 'pending': return 'Pending';
+			case 'failed': return 'Failed';
+			default: return status;
+		}
+	}
 </script>
 
 <div class="timeline-container" bind:this={container}>
@@ -403,6 +417,22 @@
 								{/if}
 							</span>
 						{/if}
+						{#if tItem.item.workshop_id}
+							{@const cs = checkStatuses[tItem.item.workshop_id]}
+							{#if cs}
+								<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
+									class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
+									title="Last check: {checkLabel(cs.status)}"></a>
+							{/if}
+							{#if onRunCheck}
+								<button class="tl-run-btn" title="Run check"
+									onclick={() => onRunCheck(tItem.item.workshop_id, tItem.item.cluster, tItem.item.display_name)}>
+									<svg viewBox="0 0 16 16" width="8" height="8" fill="currentColor" aria-hidden="true">
+										<path d="M4 2l10 6-10 6V2z" />
+									</svg>
+								</button>
+							{/if}
+						{/if}
 						{#if tItem.item.catalog_url}
 							<a href={tItem.item.catalog_url} target="_blank" rel="noopener noreferrer" class="tl-name tl-name--link" title={tItem.item.display_name}>
 								{tItem.item.display_name}
@@ -560,6 +590,12 @@
 			{#if hovered.item.white_glove}<span class="tooltip-wg">White-glove</span>{/if}
 			{#if hovered.item.locked}<span class="tooltip-locked">Locked</span>{/if}
 			{#if hovered.item.disable_auto_stop}<span class="tooltip-no-autostop">No auto-stop</span>{/if}
+				{#if hovered.item.workshop_id}
+					{@const cs = checkStatuses[hovered.item.workshop_id]}
+					<span class="tooltip-check-row">
+						Check: {cs ? checkLabel(cs.status) : '—'}
+					</span>
+				{/if}
 			{/if}
 			</div>
 		{/if}
@@ -712,5 +748,44 @@
 
 	.tooltip-no-autostop {
 		color: #f4a460;
+	}
+
+	.tooltip-check-row {
+		margin-top: 2px;
+		padding-top: 3px;
+		border-top: 1px solid rgba(255, 255, 255, 0.15);
+		color: #73bcf7;
+	}
+
+	.tl-check-dot {
+		display: inline-block;
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.tl-check-dot--green { background: #6ec071; }
+	.tl-check-dot--red { background: #e87a72; }
+	.tl-check-dot--blue { background: #73bcf7; }
+
+	.tl-run-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
+		border: none;
+		background: none;
+		cursor: pointer;
+		border-radius: 3px;
+		color: var(--pf-t--global--icon--color--regular, #6a6e73);
+		flex-shrink: 0;
+		padding: 0;
+		transition: color 0.15s;
+	}
+
+	.tl-run-btn:hover {
+		color: var(--pf-t--global--color--brand--default, #0066cc);
 	}
 </style>

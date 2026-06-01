@@ -17,8 +17,10 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from sqlalchemy import text
 
+from ..database import DbSession
 from ..services import babylon_client
 from ..services.babylon_client import get_catalog_url
 from ..services.babylon_service import (
@@ -765,3 +767,65 @@ async def workshops_summary():
         all_items.extend(cluster_items)
 
     return _build_summary(all_items)
+
+
+# ---------------------------------------------------------------------------
+# Check-status lookup (DB-backed)
+# ---------------------------------------------------------------------------
+
+
+class WorkshopCheckStatusRequest(BaseModel):
+    """Request body for batch check-status lookup."""
+
+    workshop_ids: list[str] = Field(max_length=200)
+
+
+class WorkshopCheckStatusEntry(BaseModel):
+    """Last check session info for a single workshop."""
+
+    status: str
+    session_id: str
+    created_at: str
+
+
+class WorkshopCheckStatusResponse(BaseModel):
+    """Response for POST /api/workshops/check-status."""
+
+    statuses: dict[str, WorkshopCheckStatusEntry | None]
+
+
+_CHECK_STATUS_QUERY = text("""
+    SELECT DISTINCT ON (elem.value)
+        elem.value AS workshop_id,
+        s.session_id,
+        s.status,
+        s.created_at
+    FROM sessions s,
+        json_array_elements_text(s.source_workshop_guids) AS elem
+    WHERE elem.value = ANY(:workshop_ids)
+    ORDER BY elem.value, s.created_at DESC
+""")
+
+
+@router.post("/check-status", response_model=WorkshopCheckStatusResponse)
+async def workshop_check_status(body: WorkshopCheckStatusRequest, db: DbSession):
+    """Look up the most recent check session for each workshop ID."""
+    workshop_ids = [wid for wid in body.workshop_ids if wid]
+    if not workshop_ids:
+        return WorkshopCheckStatusResponse(statuses={})
+
+    result = await db.execute(_CHECK_STATUS_QUERY, {"workshop_ids": workshop_ids})
+    rows = result.all()
+
+    statuses: dict[str, WorkshopCheckStatusEntry | None] = {}
+    for row in rows:
+        statuses[row.workshop_id] = WorkshopCheckStatusEntry(
+            status=row.status,
+            session_id=row.session_id,
+            created_at=row.created_at.isoformat() if hasattr(row.created_at, "isoformat") else str(row.created_at),
+        )
+
+    for wid in workshop_ids:
+        statuses.setdefault(wid, None)
+
+    return WorkshopCheckStatusResponse(statuses=statuses)

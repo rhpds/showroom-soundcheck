@@ -7,7 +7,8 @@ import type {
 	ListParams,
 	CheckType,
 	WorkshopListResponse,
-	WorkshopSummary
+	WorkshopSummary,
+	WorkshopCheckStatusMap
 } from './types';
 
 const BASE = '/api';
@@ -205,6 +206,20 @@ export async function listWorkshops(
 
 export async function getWorkshopsSummary(init?: RequestInit): Promise<WorkshopSummary> {
 	return fetchJson(`${BASE}/workshops/summary`, init);
+}
+
+export async function getWorkshopCheckStatuses(
+	workshopIds: string[]
+): Promise<WorkshopCheckStatusMap> {
+	const resp = await fetchJson<{ statuses: WorkshopCheckStatusMap }>(
+		`${BASE}/workshops/check-status`,
+		{
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ workshop_ids: workshopIds })
+		}
+	);
+	return resp.statuses;
 }
 
 export function sessionStream(sessionId: string): EventSource {
