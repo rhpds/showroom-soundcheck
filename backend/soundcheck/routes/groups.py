@@ -209,19 +209,19 @@ async def stream_group(group_id: str, request: Request):
 
 
 @router.post("/{group_id}/run", response_model=StatusResponse)
-async def run_group(group_id: str, db: DbSession):
+async def run_group(group_id: str, request: Request, db: DbSession):
     """Run checks for all sources in the group."""
     grp_result = await db.execute(select(SessionGroup).where(SessionGroup.group_id == group_id))
     if not grp_result.scalars().first():
         raise HTTPException(status_code=404, detail="Group not found")
 
-    await queue.enqueue("run_group", group_id=group_id, timeout=1800)
+    await queue.enqueue("run_group", group_id=group_id, request_id=request.state.request_id, timeout=1800)
 
     return StatusResponse(status="started")
 
 
 @router.post("/{group_id}/run-source", response_model=StatusResponse)
-async def run_source(group_id: str, body: SourceRequest, db: DbSession):
+async def run_source(group_id: str, body: SourceRequest, request: Request, db: DbSession):
     """Run checks for a single source of the group."""
     grp_result = await db.execute(select(SessionGroup).where(SessionGroup.group_id == group_id))
     if not grp_result.scalars().first():
@@ -232,6 +232,7 @@ async def run_source(group_id: str, body: SourceRequest, db: DbSession):
         group_id=group_id,
         source_type=body.source_type,
         source_value=body.source_value,
+        request_id=request.state.request_id,
         timeout=1800,
     )
 

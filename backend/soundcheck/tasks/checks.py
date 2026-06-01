@@ -21,10 +21,11 @@ from .events import publish_group_event, publish_session_event
 logger = logging.getLogger(__name__)
 
 
-async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url: str, check_type: str, group_id: str = "") -> None:
+async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url: str, check_type: str, group_id: str = "", request_id: str = "") -> None:
     """Check a single target URL, write the result, and try to finalize."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
+    _rid = request_id or session_id
 
     async with create_client(verify_ssl=VERIFY_SSL) as client:
         try:
@@ -93,7 +94,7 @@ async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url
             "Error writing result for target %s: %s",
             target_id,
             e,
-            extra={"request_id": session_id},
+            extra={"request_id": _rid},
         )
         safe_error = sanitize_error(str(e)[:500])
         async with session_factory() as db:

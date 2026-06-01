@@ -27,11 +27,12 @@ from .events import publish_group_event, publish_session_event
 logger = logging.getLogger(__name__)
 
 
-async def run_session_checks(ctx: TaskContext, *, session_id: str) -> None:
+async def run_session_checks(ctx: TaskContext, *, session_id: str, request_id: str = "") -> None:
     """Resolve targets and fan out check jobs for a single session."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
     checks_queue = ctx["checks_queue"]
+    _rid = request_id or session_id
 
     if not await mark_session_running(session_factory, session_id):
         return
@@ -44,9 +45,9 @@ async def run_session_checks(ctx: TaskContext, *, session_id: str) -> None:
 
         await publish_session_event(redis, session_id, "session_running", {})
         await publish_group_event(redis, group_id, "session_running")
-        await _enqueue_target_checks(session_factory, redis, checks_queue, session_id)
+        await _enqueue_target_checks(session_factory, redis, checks_queue, session_id, request_id=_rid)
     except Exception as e:
-        logger.exception("Error in session orchestration: %s", e, extra={"request_id": session_id})
+        logger.exception("Error in session orchestration: %s", e, extra={"request_id": _rid})
         await _mark_session_failed(session_factory, session_id)
         async with session_factory() as db:
             cs = (await db.execute(select(CheckSession).where(CheckSession.session_id == session_id))).scalars().first()
@@ -56,7 +57,7 @@ async def run_session_checks(ctx: TaskContext, *, session_id: str) -> None:
         )
 
 
-async def run_group(ctx: TaskContext, *, group_id: str) -> None:
+async def run_group(ctx: TaskContext, *, group_id: str, request_id: str = "") -> None:
     """Create child sessions for every group source and enqueue them."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
@@ -69,10 +70,10 @@ async def run_group(ctx: TaskContext, *, group_id: str) -> None:
     await publish_group_event(redis, group_id, "run_started")
 
     for sid in session_ids:
-        await orchestration_queue.enqueue("run_session_checks", session_id=sid, timeout=900)
+        await orchestration_queue.enqueue("run_session_checks", session_id=sid, request_id=request_id, timeout=900)
 
 
-async def run_single_source(ctx: TaskContext, *, group_id: str, source_type: str, source_value: str) -> None:
+async def run_single_source(ctx: TaskContext, *, group_id: str, source_type: str, source_value: str, request_id: str = "") -> None:
     """Create a session for one group source and enqueue it."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
@@ -83,7 +84,7 @@ async def run_single_source(ctx: TaskContext, *, group_id: str, source_type: str
         return
 
     await publish_group_event(redis, group_id, "run_started")
-    await orchestration_queue.enqueue("run_session_checks", session_id=sid, timeout=900)
+    await orchestration_queue.enqueue("run_session_checks", session_id=sid, request_id=request_id, timeout=900)
 
 
 async def sync_metadata(ctx: TaskContext, *, group_id: str) -> None:
@@ -196,7 +197,7 @@ async def _create_single_source_session(
 # ---------------------------------------------------------------------------
 
 
-async def _enqueue_target_checks(session_factory, redis, checks_queue, sid: str) -> None:
+async def _enqueue_target_checks(session_factory, redis, checks_queue, sid: str, *, request_id: str = "") -> None:
     """Mark checkable targets as running and enqueue individual check jobs.
 
     If no checkable targets exist, finalizes the session immediately.
@@ -246,6 +247,7 @@ async def _enqueue_target_checks(session_factory, redis, checks_queue, sid: str)
             "check_target",
             target_id=t.id, session_id=sid, url=t.url,
             check_type=check_type, group_id=group_id or "",
+            request_id=request_id,
             timeout=300,
         )
 

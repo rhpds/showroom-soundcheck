@@ -3,7 +3,7 @@
 Accepts query params like the old /check page and creates a session.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..database import DbSession
 from ..schemas import CheckRedirectResponse
@@ -16,6 +16,7 @@ router = APIRouter(tags=["check"])
 
 @router.get("/check", response_model=CheckRedirectResponse)
 async def check_redirect(
+    request: Request,
     db: DbSession,
     urls: str = Query(""),
     guid: str = Query(""),
@@ -57,6 +58,6 @@ async def check_redirect(
         resource_pools=parsed.resource_pools,
     )
 
-    await queue.enqueue("run_session_checks", session_id=sid, timeout=900)
+    await queue.enqueue("run_session_checks", session_id=sid, request_id=request.state.request_id, timeout=900)
 
     return CheckRedirectResponse(session_id=sid)

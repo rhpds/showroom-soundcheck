@@ -27,7 +27,7 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
 @router.post("", response_model=CheckRedirectResponse, status_code=201)
-async def create_session(body: SessionCreate, db: DbSession):
+async def create_session(body: SessionCreate, request: Request, db: DbSession):
     """Create a new health-check session and return its ID."""
     try:
         parsed = parse_check_params(
@@ -54,7 +54,7 @@ async def create_session(body: SessionCreate, db: DbSession):
         resource_pools=parsed.resource_pools,
     )
 
-    await queue.enqueue("run_session_checks", session_id=sid, timeout=900)
+    await queue.enqueue("run_session_checks", session_id=sid, request_id=request.state.request_id, timeout=900)
 
     return CheckRedirectResponse(session_id=sid)
 
@@ -96,7 +96,7 @@ async def get_session(session_id: str, db: DbSession):
 
 
 @router.post("/{session_id}/clone", response_model=CheckRedirectResponse)
-async def clone_session(session_id: str, db: DbSession):
+async def clone_session(session_id: str, request: Request, db: DbSession):
     """Clone an existing session and start new checks."""
     data = await session_service.fetch_session_data(db, session_id)
     cs = data["session"]
@@ -115,7 +115,7 @@ async def clone_session(session_id: str, db: DbSession):
         resource_pools=cs.get_resource_pools(),
     )
 
-    await queue.enqueue("run_session_checks", session_id=sid, timeout=900)
+    await queue.enqueue("run_session_checks", session_id=sid, request_id=request.state.request_id, timeout=900)
 
     return CheckRedirectResponse(session_id=sid)
 
