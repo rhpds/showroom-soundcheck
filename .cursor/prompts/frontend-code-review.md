@@ -11,42 +11,51 @@ The frontend communicates with a FastAPI backend that uses:
 - **Redis Pub/Sub** for real-time SSE event streaming (session progress events flow: SAQ worker → Redis Pub/Sub → SSE endpoint → EventSource in browser)
 - Routes return immediately after enqueuing work; the frontend must rely on SSE streams for progress updates
 
+**Not all pages use SSE.** The workshops dashboard is a read-only REST page (no streaming). Sections about SSE/streaming apply only to session and group pages.
+
 ---
 
 ## 1. Svelte 5 Runes Correctness
 
-- **`$state.raw` for API data**: Any `$state<T>()` holding data fetched from an API (objects/arrays replaced wholesale, never mutated in place) should use `$state.raw<T>()` to avoid deep-proxy overhead. Example: session/group detail objects, sidebar lists, cluster arrays.
+- **`$state.raw` for API data**: Any `$state<T>()` holding data fetched from an API (objects/arrays replaced wholesale, never mutated in place) should use `$state.raw<T>()` to avoid deep-proxy overhead. Example: session/group detail objects, sidebar lists, cluster arrays, workshop list responses.
 - **`$derived` over `$effect` for computed values**: Flag any `$effect` whose sole purpose is to assign a derived value; it should be `$derived` or `$derived.by`. `$effect` is for side-effects only (DOM manipulation, subscriptions, logging).
 - **`$effect` tracking after `await`**: State read after an `await` inside `$effect` is not tracked. Verify no reactive dependency is read only after an async boundary.
 - **Destructuring `$state` proxies**: Destructuring a `$state` object into local variables loses reactivity on those locals. Flag and suggest keeping the object reference or using `$derived`.
 - **`$props()` typing**: Prefer inline type annotation `let { foo, bar }: Props = $props()` with a named interface/type for components with 3+ props.
-- **Cleanup in `$effect`**: Every `$effect` that creates a subscription (EventSource, setInterval, addEventListener) must return a cleanup function. Verify cleanup runs before re-execution and on destroy.
+- **`$bindable()` two-way props**: `$bindable()` creates two-way bindings between parent and child. Verify that `$bindable` is only used when the child genuinely needs to write back to the parent (e.g. filter bar updating filter state). Read-only data flowing downward should use plain `$props()`, not `$bindable()`. Also verify that parent components use `bind:propName` on the child — passing a `$bindable` prop without `bind:` silently drops writes.
+- **Cleanup in `$effect`**: Every `$effect` that creates a subscription (EventSource, setInterval, addEventListener, ResizeObserver) must return a cleanup function. Verify cleanup runs before re-execution and on destroy.
 
 ## 2. SvelteKit 2 Data Loading & Routing
 
-- **Prefer `+page.ts` load functions over `onMount` fetch**: Client-side `load` functions run during navigation, integrate with SvelteKit error/loading states, and enable `+error.svelte` boundaries. Flag pages that do all data fetching in `onMount` and recommend migrating to `load()`.
-- **Missing `+error.svelte`**: The app has no `+error.svelte` at any level. Unhandled errors render the SvelteKit fallback page. Recommend adding at least a root-level `+error.svelte`.
+- **Prefer `+page.ts` load functions over `onMount` fetch**: Client-side `load` functions run during navigation, integrate with SvelteKit error/loading states, and enable `+error.svelte` boundaries. Flag pages that do all data fetching in `onMount` and recommend migrating to `load()`. (Sessions, groups, and workshops list pages already use `+page.ts` — verify any new pages follow this pattern.)
+- **`+error.svelte` exists at root**: A root-level `+error.svelte` is in place. If new route groups are added (e.g. `(app)/`), verify they either inherit the root boundary or provide their own.
 - **`$app/state` over `$app/stores`**: Since SvelteKit 2.12+, `page` from `$app/state` (runes-native) replaces `$page` from `$app/stores`. Flag imports from `$app/stores` and suggest migration.
 - **Missing `preloadData` / `data-sveltekit-preload-data`**: For SPA navigation, link prefetching improves perceived performance. Check if key navigation links use SvelteKit's preload attributes.
+- **URL state synchronization**: Filter-heavy pages (e.g. workshops dashboard) should persist filter state in URL search params via `replaceState` from `$app/navigation` so that bookmarks, back-button, and page refresh preserve the user's filters. Verify that `+page.ts` load functions parse these params and that the page re-reads them when SvelteKit re-runs the load (e.g. on `invalidate` or browser back). Watch for stale `$state` that ignores updated `pageData` after navigation.
 
 ## 3. Error Handling, Resilience & Streaming-First Architecture
 
-This app uses a **streaming-first architecture**: REST POST enqueues work → SAQ worker processes → Redis Pub/Sub pushes events → SSE endpoint streams to browser EventSource. **Any pattern that degrades this to polling is a regression.** This section covers both general error handling and SSE-specific concerns.
+This app uses two data-loading patterns:
+1. **Streaming (sessions & groups)**: REST POST enqueues work → SAQ worker processes → Redis Pub/Sub pushes events → SSE endpoint streams to browser EventSource. **Any pattern that degrades this to polling is a regression.**
+2. **REST-only (workshops dashboard)**: A single REST GET fetches data; user-initiated refresh re-fetches. No SSE stream.
 
-- **Silent `catch {}` blocks**: Empty catch blocks swallow errors silently. Every catch must at minimum log the error or surface it to the user.
-- **Missing error states on mutations**: API calls in event handlers (clone, pin, rename, add/remove member, run checks) should have try/catch with user-visible error feedback, not just silently fail.
-- **SSE reconnection strategy**: The backend SSE endpoint streams events from Redis Pub/Sub (SAQ worker progress). Verify EventSource error handlers don't create infinite reconnection loops. Check for exponential backoff, max retry limits, or connection state guards. Note: if the backend restarts or Redis connection drops, the SSE stream will end — verify the frontend handles this gracefully and can recover (re-fetch current state via REST + re-open EventSource).
-- **CRITICAL — No polling fallback**: Flag as **critical** any pattern that replaces or supplements EventSource with `setInterval`-based REST polling. The correct recovery pattern on SSE error is: exponential backoff → re-fetch current state via REST (one-shot) → re-open EventSource. Never fall back to periodic `setInterval`/`setTimeout` loops that repeatedly call REST endpoints to check for updates.
-- **No redundant REST fetches during active SSE**: While an EventSource is open and receiving events, the frontend should NOT also be fetching the same data via REST on a timer. SSE events carry sufficient data for in-place UI updates. A one-time REST fetch on initial load or SSE recovery is fine; periodic re-fetching alongside SSE is not.
-- **SSE vs REST data sufficiency**: Verify that SSE event payloads contain enough data for the frontend to update the UI without additional REST calls. If the frontend must call `getSession()` or `getGroup()` after every SSE event to get the actual data, the SSE stream is not carrying its weight — the events should include the updated state.
-- **Race conditions on navigation**: When `sessionId` or `groupId` changes (derived from `$page.params`), verify that in-flight requests for the old ID are cancelled or ignored AND the old EventSource is closed. Stale responses or events from the old stream can overwrite fresh data.
-- **`fetchJson` error detail**: The generic error handler throws `${status}: ${text}` which may expose raw server errors to the UI. Consider structured error responses.
+The rules below apply to streaming pages unless noted otherwise.
+
+- **Silent `catch {}` blocks**: Empty catch blocks swallow errors silently. Every catch must at minimum log the error or surface it to the user. (Applies to all pages.)
+- **Missing error states on mutations**: API calls in event handlers (clone, pin, rename, add/remove member, run checks) should have try/catch with user-visible error feedback, not just silently fail. (Applies to all pages.)
+- **SSE reconnection strategy** _(streaming pages only)_: The backend SSE endpoint streams events from Redis Pub/Sub (SAQ worker progress). Verify EventSource error handlers don't create infinite reconnection loops. Check for exponential backoff, max retry limits, or connection state guards. Note: if the backend restarts or Redis connection drops, the SSE stream will end — verify the frontend handles this gracefully and can recover (re-fetch current state via REST + re-open EventSource).
+- **CRITICAL — No polling fallback** _(streaming pages only)_: Flag as **critical** any pattern that replaces or supplements EventSource with `setInterval`-based REST polling. The correct recovery pattern on SSE error is: exponential backoff → re-fetch current state via REST (one-shot) → re-open EventSource. Never fall back to periodic `setInterval`/`setTimeout` loops that repeatedly call REST endpoints to check for updates.
+- **No redundant REST fetches during active SSE** _(streaming pages only)_: While an EventSource is open and receiving events, the frontend should NOT also be fetching the same data via REST on a timer. SSE events carry sufficient data for in-place UI updates. A one-time REST fetch on initial load or SSE recovery is fine; periodic re-fetching alongside SSE is not.
+- **SSE vs REST data sufficiency** _(streaming pages only)_: Verify that SSE event payloads contain enough data for the frontend to update the UI without additional REST calls. If the frontend must call `getSession()` or `getGroup()` after every SSE event to get the actual data, the SSE stream is not carrying its weight — the events should include the updated state.
+- **Race conditions on navigation**: When `sessionId` or `groupId` changes (derived from `$page.params`), verify that in-flight requests for the old ID are cancelled or ignored AND the old EventSource is closed. Stale responses or events from the old stream can overwrite fresh data. For REST-only pages, verify that in-flight fetch promises from a previous filter set are ignored when filters change (AbortController or a generation counter).
+- **`fetchJson` error handling**: The `fetchJson` helper sanitizes error detail (truncates long/missing bodies to "Request failed (status)"). Verify new API functions use `fetchJson` consistently and that callers display the error message to users rather than swallowing it.
 
 ## 4. Memory Leaks & Resource Cleanup
 
 - **EventSource cleanup**: Verify `EventSource.close()` is called in all exit paths: component destroy, navigation away, successful completion, and error. Check that `onDestroy` actually runs (it does in SPA mode). When `sessionId` or `groupId` changes reactively, the old EventSource must be closed before opening a new one.
 - **`setTimeout` retry cleanup**: SSE error handlers use `setTimeout` for exponential backoff retries. Verify all pending retry timeouts are cleared on destroy AND on reactive ID changes. If the user navigates away while a retry is pending, the timeout fires against a stale component.
 - **Stale closures in retry timers**: `setTimeout(loadSession, 3000 * retryCount)` captures `loadSession` which reads `sessionId` from a derived. Verify the closure reads current values, not stale ones from a previous navigation.
+- **ResizeObserver cleanup**: Components using `ResizeObserver` (e.g. `WorkshopTimeline`) must call `observer.disconnect()` in their cleanup path (return from `onMount` or `$effect` teardown).
 
 ## 5. Accessibility (a11y)
 
@@ -58,6 +67,7 @@ This app uses a **streaming-first architecture**: REST POST enqueues work → SA
 - **Semantic HTML**: Flag `<div>` with `onclick` that should be `<button>`. Flag heading hierarchy gaps (h1 → h3 skipping h2).
 - **Color-only status indicators**: Verify status is communicated via text/icon, not color alone (colorblind users). StatusBadge has text labels — good. Check Sidebar `statusIcon()` uses Unicode symbols without labels.
 - **`<a>` with `onclick` + `preventDefault`**: Links that use `goto()` with `preventDefault` should either be plain `<a>` (letting SvelteKit handle navigation) or `<button>` elements if they don't navigate.
+- **SVG timeline accessibility**: The workshops timeline renders data as SVG bars. Verify it has a meaningful `aria-label` on the container, that individual bars have accessible names (tooltip text exposed to screen readers), and that the timeline is not the sole way to access the data (the table view serves as an accessible alternative).
 
 ## 6. PatternFly v6 Usage
 
@@ -65,33 +75,36 @@ This app uses a **streaming-first architecture**: REST POST enqueues work → SA
 - **Modal implementation**: PatternFly modals should use the `pf-v6-c-modal-box` pattern with proper header/body/footer structure. Check for missing `aria-describedby` linking modal title to body.
 - **Form controls**: PatternFly v6 form controls use `<span class="pf-v6-c-form-control">` wrapping the `<input>`. Bare `<input class="pf-v6-c-form-control">` is incorrect for v6.
 - **Alert structure**: Verify alert icons use `<span>` not raw emoji, and that alerts have proper `pf-v6-c-alert__icon` with PatternFly icon classes.
-- **Consistent spacing**: Prefer PatternFly spacing utilities (`pf-v6-u-mt-md`, `pf-v6-u-gap-md`) over inline `style="gap: 8px"` for maintainability.
+- **Consistent spacing**: Prefer PatternFly spacing utilities (`pf-v6-u-mt-md`, `pf-v6-u-gap-md`) over inline `style="gap: 8px"` for maintainability. The session/group pages have been migrated — verify new components (especially workshop components) follow the same pattern.
+- **Use PatternFly design tokens over hardcoded colors**: Component-scoped CSS should reference PatternFly CSS custom properties (`--pf-t--global--color--*`, `--pf-t--global--background--color--*`) rather than hardcoded hex values. Flag components that define their own color palettes inline (e.g. `background: #e7f5e8`) when an equivalent PatternFly token exists.
 
 ## 7. TypeScript & Type Safety
 
 - **`any` / `unknown` casts**: Flag `as Record<string, unknown>` chains in `TargetDetail.svelte`. These indicate the `detail` field needs a proper discriminated union type.
-- **String literal unions over bare `string`**: `status` fields typed as `string` should be union types (`'healthy' | 'error' | ...`) for exhaustive switch checks.
-- **Unsafe type assertions**: Flag any `as` casts that could be replaced with type guards or narrowing.
-- **Missing null checks**: Verify `data!.group.name` (non-null assertion) patterns are safe or add proper guards.
+- **String literal unions over bare `string`**: `status` fields typed as `string` should be union types (`'healthy' | 'error' | ...`) for exhaustive switch checks. (`Status`, `ProvisionStatus`, `WorkshopStatus` are already unions — verify new code follows suit.)
+- **Unsafe type assertions**: Flag any `as` casts that could be replaced with type guards or narrowing. URL param parsing (e.g. `rawProvType as ProvisionTypeFilter`) should always be guarded by a membership check first — verify the guard exists before the cast.
+- **Missing null checks**: Verify `!` non-null assertions are justified. Prefer nullish coalescing (`??`) or optional chaining (`?.`) for values that can realistically be null/undefined (route params, optional API fields).
 
 ## 8. Performance
 
 - **Unnecessary re-renders**: `buildItems()` in Sidebar recalculates on every render. Verify `$derived` memoizes correctly; consider `$derived.by()` with explicit dependencies for expensive computations.
-- **Large list rendering**: If target lists can be large (100+), consider virtual scrolling or pagination.
+- **Large list rendering**: If target lists or workshop lists can be large (100+), consider virtual scrolling or pagination.
 - **`$effect` for initial data loading**: Using `$effect` for one-time fetches (like `getClusters()` on the home page) is an anti-pattern. Use `onMount` or a `load` function instead.
-- **Redundant API calls**: Sidebar reloads after every pin toggle. Consider optimistic UI updates.
+- **Expensive `$derived.by` in large components**: The workshops page builds `displayRows` via `$derived.by` that iterates, sorts, and flattens all workshops + multi-workshops on every reactive change. Verify this doesn't re-run unnecessarily (e.g. when only `viewMode` changes but the sort inputs haven't). Consider whether `$derived.by` dependencies are minimal.
+- **SVG timeline rendering cost**: `WorkshopTimeline` lays out all items in a single SVG. For large workshop lists (50+ items), this can be expensive on resize (ResizeObserver triggers full re-derive). Consider debouncing the resize handler or capping visible rows with virtual scrolling.
 
 ## 9. Code Organization & Maintainability
 
-- **Component extraction**: Route pages exceeding ~150 lines should have complex sections extracted into components (e.g., `SessionSummary`, `TargetList`, `GroupMembers`, `RunHistory`).
+- **Component extraction**: Route pages exceeding ~150 lines should have complex sections extracted into components (e.g., `SessionSummary`, `TargetList`, `GroupMembers`, `RunHistory`). The workshops `+page.svelte` and `WorkshopTimeline.svelte` are both well over this threshold — consider extracting table row renderers, sort controls, or timeline sub-sections.
 - **Duplicated modal/backdrop code**: The backdrop + modal pattern is copy-pasted across `TargetDetail.svelte`, group add-member dialog, and group preview drawer. Extract a reusable `Modal.svelte` wrapper.
-- **Duplicated spinner markup**: The loading spinner HTML is repeated in 4 places. Extract a `Spinner.svelte` component.
-- **Magic strings**: Status strings like `'healthy'`, `'running'`, `'pending'` are scattered as string literals. Define a `Status` enum or const object in `types.ts`.
+- **Duplicated spinner markup**: The loading spinner HTML is repeated in multiple places. Extract a `Spinner.svelte` component.
+- **Magic strings**: Status strings like `'healthy'`, `'running'`, `'pending'` are scattered as string literals. Define a `Status` enum or const object in `types.ts`. (Workshop statuses already use `ALL_WORKSHOP_STATUSES` and `STATUS_SORT_PRIORITY` constants — good pattern to replicate for session/group statuses.)
 - **Inconsistent indentation**: Some template blocks have inconsistent indentation depth (e.g., Sidebar nav sections). The project has ESLint (`eslint-plugin-svelte`, `eslint-config-prettier`) and Prettier (`prettier-plugin-svelte`) configured — verify these are being applied consistently and that no files bypass them.
+- **Duplicated color/style maps**: Workshop status colors are defined both in `utils.ts` (`WORKSHOP_STATUS_MAP`) and in component-scoped CSS (`WorkshopSummaryCards.svelte`, `WorkshopTimeline.svelte`). A single source of truth avoids drift.
 
 ## 10. Security
 
-- **XSS via `style` attributes**: Verify no user-controlled data flows into `style="..."` attributes without sanitization.
+- **XSS via `style` attributes**: Verify no user-controlled data flows into `style="..."` attributes without sanitization. Workshop timeline bars compute `style` attributes from date math — confirm the values are numeric only and not derived from user input strings.
 - **Open redirect**: The `/check` route redirects based on API response. Verify the API cannot return arbitrary redirect targets.
 - **`target="_blank"` links**: Must include `rel="noopener noreferrer"` (most have `rel="noopener"` but missing `noreferrer`).
 
