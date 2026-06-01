@@ -59,9 +59,23 @@ ENABLE_DOCS = os.environ.get("ENABLE_DOCS", "true").lower() in ("true", "1", "ye
 MAX_SSE_CONNECTIONS = _positive_int_env("MAX_SSE_CONNECTIONS", 200)
 
 
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "development").lower()
+
+
 def warn_default_credentials() -> None:
-    """Log a warning if using default database credentials."""
+    """Log a warning if using default database credentials.
+
+    In non-development environments, refuse to start -- this prevents
+    production deployments from silently running with insecure defaults
+    when secrets are misconfigured.
+    """
     if not os.environ.get("POSTGRES_PASSWORD") and not os.environ.get("DATABASE_URL"):
+        if ENVIRONMENT != "development":
+            raise RuntimeError(
+                "POSTGRES_PASSWORD or DATABASE_URL must be set in non-development environments. "
+                "Set ENVIRONMENT=development to use default credentials for local work."
+            )
         logger.warning(
-            "Using default database credentials (soundcheck_dev). Set POSTGRES_PASSWORD or DATABASE_URL for production."
+            "Using default database credentials (soundcheck_dev). "
+            "Set POSTGRES_PASSWORD or DATABASE_URL for production."
         )
