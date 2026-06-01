@@ -63,7 +63,7 @@ function proxyToBackend(req, res) {
 const server = createServer(async (req, res) => {
 	const pathname = new URL(req.url, `http://localhost:${PORT}`).pathname;
 
-	if (pathname.startsWith('/api/')) {
+	if (pathname.startsWith('/api/') || pathname === '/docs' || pathname === '/redoc' || pathname === '/openapi.json') {
 		return proxyToBackend(req, res);
 	}
 

@@ -17,3 +17,4 @@ data:
   POSTGRES_PORT: "5432"
   BABYLON_CLUSTERS: '["/secrets/east.kubeconfig","/secrets/west.kubeconfig"]'
   BABYLON_CATALOG_URLS: '{"east": "https://catalog.demo.redhat.com", "west": "https://babylon-catalog.apps.ocp-us-west-2.infra.open.redhat.com"}'
+  ENABLE_DOCS: "true"

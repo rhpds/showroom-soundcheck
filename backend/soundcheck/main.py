@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .config import API_KEY, CORS_ORIGINS, LOG_FORMAT, warn_default_credentials
+from .config import API_KEY, CORS_ORIGINS, ENABLE_DOCS, LOG_FORMAT, warn_default_credentials
 from .database import async_session_factory
 from .routes import check, groups, health, sessions, workshops
 from .services import babylon_client, session_service
@@ -67,6 +67,9 @@ app = FastAPI(
     description="Session-based health check tool for showroom environments",
     version="0.2.0",
     lifespan=lifespan,
+    docs_url="/docs" if ENABLE_DOCS else None,
+    redoc_url="/redoc" if ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if ENABLE_DOCS else None,
 )
 
 app.add_middleware(
