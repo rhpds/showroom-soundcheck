@@ -695,7 +695,7 @@ async def delete_group(db: AsyncSession, group_id: str) -> None:
 
 async def cleanup_stale_sessions(
     session_factory: async_sessionmaker,
-    max_age_minutes: int = 30,
+    max_age_minutes: int = 10,
 ) -> int:
     """Mark sessions stuck in 'running' for longer than max_age_minutes as failed.
 

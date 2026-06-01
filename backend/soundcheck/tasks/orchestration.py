@@ -95,7 +95,7 @@ async def sync_metadata(ctx: TaskContext, *, group_id: str) -> None:
 async def sweep_stale_sessions(ctx: TaskContext) -> None:
     """Periodically mark sessions stuck in 'running' as failed and finalize
     orphaned group runs. Runs every 5 minutes on the orchestration worker."""
-    count = await cleanup_stale_sessions(ctx["session_factory"], max_age_minutes=30)
+    count = await cleanup_stale_sessions(ctx["session_factory"], max_age_minutes=10)
     if count:
         logger.info("Sweep: cleaned up %d stale session(s)", count)
 
