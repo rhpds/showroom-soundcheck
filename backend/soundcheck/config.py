@@ -56,6 +56,7 @@ CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://localh
 API_KEY = os.environ.get("API_KEY", "")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 ENABLE_DOCS = os.environ.get("ENABLE_DOCS", "true").lower() in ("true", "1", "yes")
+MAX_SSE_CONNECTIONS = _positive_int_env("MAX_SSE_CONNECTIONS", 200)
 
 
 def warn_default_credentials() -> None:

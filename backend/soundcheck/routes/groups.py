@@ -1,5 +1,6 @@
 """Group API routes."""
 
+import asyncio
 import time
 import uuid
 from typing import Literal
@@ -7,6 +8,8 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.sse import EventSourceResponse
 from sqlmodel import col, select
+
+from ..config import MAX_SSE_CONNECTIONS
 
 from ..database import DbSession, async_session_factory
 from ..models import CheckSession, GroupRun, SessionGroup, SessionTarget
@@ -36,6 +39,8 @@ from ._serializers import (
 )
 
 router = APIRouter(prefix="/groups", tags=["groups"])
+
+_sse_semaphore = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
 
 
 @router.post("", response_model=GroupPublic, status_code=201)
@@ -152,58 +157,62 @@ async def stream_group(group_id: str, request: Request):
     the full GroupDetail on each event.  Throttled to at most one
     DB refresh per second to handle bursts of target completions.
     """
+    if _sse_semaphore.locked():
+        raise HTTPException(status_code=503, detail="Too many concurrent SSE connections")
+
     MAX_WAIT_SECONDS = 600
     THROTTLE_SECONDS = 1.0
 
     async def event_generator():
-        redis = queue.redis
-        pubsub = redis.pubsub()
-        await pubsub.subscribe(f"group:{group_id}")
-        try:
-            detail = await _fetch_group_detail(group_id)
-            if not detail:
-                return
-
-            payload = detail.model_dump_json()
-            yield f"data: {payload}\n\n"
-
-            elapsed = 0
-            last_yield = time.monotonic()
-            pending_refresh = False
-
-            while elapsed < MAX_WAIT_SECONDS:
-                if await request.is_disconnected():
-                    return
-
-                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                if msg and msg.get("data"):
-                    now = time.monotonic()
-                    if now - last_yield < THROTTLE_SECONDS:
-                        pending_refresh = True
-                        continue
-                elif pending_refresh:
-                    pass
-                else:
-                    elapsed += 1
-                    continue
-
-                pending_refresh = False
+        async with _sse_semaphore:
+            redis = queue.redis
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(f"group:{group_id}")
+            try:
                 detail = await _fetch_group_detail(group_id)
                 if not detail:
                     return
 
                 payload = detail.model_dump_json()
                 yield f"data: {payload}\n\n"
-                last_yield = time.monotonic()
 
-                has_active = detail.group.status == "running" or any(
-                    r.status == "running" for r in detail.runs
-                )
-                if not has_active:
-                    return
-        finally:
-            await pubsub.unsubscribe(f"group:{group_id}")
-            await pubsub.close()
+                elapsed = 0
+                last_yield = time.monotonic()
+                pending_refresh = False
+
+                while elapsed < MAX_WAIT_SECONDS:
+                    if await request.is_disconnected():
+                        return
+
+                    msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                    if msg and msg.get("data"):
+                        now = time.monotonic()
+                        if now - last_yield < THROTTLE_SECONDS:
+                            pending_refresh = True
+                            continue
+                    elif pending_refresh:
+                        pass
+                    else:
+                        elapsed += 1
+                        continue
+
+                    pending_refresh = False
+                    detail = await _fetch_group_detail(group_id)
+                    if not detail:
+                        return
+
+                    payload = detail.model_dump_json()
+                    yield f"data: {payload}\n\n"
+                    last_yield = time.monotonic()
+
+                    has_active = detail.group.status == "running" or any(
+                        r.status == "running" for r in detail.runs
+                    )
+                    if not has_active:
+                        return
+            finally:
+                await pubsub.unsubscribe(f"group:{group_id}")
+                await pubsub.close()
 
     return EventSourceResponse(event_generator())
 
