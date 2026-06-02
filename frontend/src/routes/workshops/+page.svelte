@@ -202,8 +202,8 @@
 		if (ids.length === 0) return;
 		try {
 			checkStatuses = await getWorkshopCheckStatuses(ids);
-		} catch {
-			// non-critical -- don't block the page
+		} catch (e) {
+			console.warn('Failed to load check statuses:', e);
 		}
 
 		const hasInFlight = checkRunning.size > 0 ||
