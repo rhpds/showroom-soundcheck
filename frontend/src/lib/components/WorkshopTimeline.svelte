@@ -25,13 +25,20 @@
 	let container: HTMLDivElement;
 
 	onMount(() => {
+		let rafId: number;
 		const observer = new ResizeObserver((entries) => {
-			for (const entry of entries) {
-				containerWidth = entry.contentRect.width;
-			}
+			cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(() => {
+				for (const entry of entries) {
+					containerWidth = entry.contentRect.width;
+				}
+			});
 		});
 		observer.observe(container);
-		return () => observer.disconnect();
+		return () => {
+			cancelAnimationFrame(rafId);
+			observer.disconnect();
+		};
 	});
 
 	const ROW_HEIGHT = 36;
