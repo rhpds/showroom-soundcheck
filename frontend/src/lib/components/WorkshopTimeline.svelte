@@ -660,21 +660,21 @@
 	}
 
 	.tl-flag--wg {
-		background: #fef6e6;
-		color: #6b4400;
-		border: 1px solid #f0c75e;
+		background: var(--sc-gold-bg);
+		color: var(--sc-gold-text);
+		border: 1px solid var(--sc-gold-border);
 	}
 
 	.tl-flag--locked {
-		background: #e7f1fa;
-		color: #003d73;
-		border: 1px solid #73bcf7;
+		background: var(--sc-blue-bg);
+		color: var(--sc-blue-text);
+		border: 1px solid var(--sc-blue-border);
 	}
 
 	.tl-flag--no-autostop {
-		background: #fef3e8;
-		color: #6e3101;
-		border: 1px solid #f4a460;
+		background: var(--sc-orange-bg);
+		color: var(--sc-orange-text);
+		border: 1px solid var(--sc-orange-border);
 	}
 
 	.tl-name {
@@ -765,9 +765,9 @@
 		flex-shrink: 0;
 	}
 
-	.tl-check-dot--green { background: #6ec071; }
-	.tl-check-dot--red { background: #e87a72; }
-	.tl-check-dot--blue { background: #73bcf7; }
+	.tl-check-dot--green { background: var(--sc-green-border); }
+	.tl-check-dot--red { background: var(--sc-red-border); }
+	.tl-check-dot--blue { background: var(--sc-blue-border); }
 
 	.tl-run-btn {
 		display: inline-flex;

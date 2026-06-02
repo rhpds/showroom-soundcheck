@@ -694,34 +694,34 @@
 	}
 
 	.ws-status-badge--green {
-		color: #1e4620;
-		background: #e7f5e8;
-		border: 1px solid #6ec071;
+		color: var(--sc-green-text);
+		background: var(--sc-green-bg);
+		border: 1px solid var(--sc-green-border);
 	}
 	.ws-status-badge--blue {
-		color: #003d73;
-		background: #e7f1fa;
-		border: 1px solid #73bcf7;
+		color: var(--sc-blue-text);
+		background: var(--sc-blue-bg);
+		border: 1px solid var(--sc-blue-border);
 	}
 	.ws-status-badge--gold {
-		color: #6b4400;
-		background: #fef6e6;
-		border: 1px solid #f0c75e;
+		color: var(--sc-gold-text);
+		background: var(--sc-gold-bg);
+		border: 1px solid var(--sc-gold-border);
 	}
 	.ws-status-badge--orange {
-		color: #6e3101;
-		background: #fef3e8;
-		border: 1px solid #f4a460;
+		color: var(--sc-orange-text);
+		background: var(--sc-orange-bg);
+		border: 1px solid var(--sc-orange-border);
 	}
 	.ws-status-badge--red {
-		color: #7d1007;
-		background: #fce8e6;
-		border: 1px solid #e87a72;
+		color: var(--sc-red-text);
+		background: var(--sc-red-bg);
+		border: 1px solid var(--sc-red-border);
 	}
 	.ws-status-badge--grey {
-		color: #4a4a4a;
-		background: #f0f0f0;
-		border: 1px solid #d2d2d2;
+		color: var(--sc-grey-text);
+		background: var(--sc-grey-bg);
+		border: 1px solid var(--sc-grey-border);
 	}
 
 	/* Table cells */
@@ -758,9 +758,9 @@
 		border-radius: 4px;
 		font-size: 0.7rem;
 		font-weight: 500;
-		background: #e7f1fa;
-		color: #003d73;
-		border: 1px solid #73bcf7;
+		background: var(--sc-blue-bg);
+		color: var(--sc-blue-text);
+		border: 1px solid var(--sc-blue-border);
 	}
 
 	.catalog-label {
@@ -807,27 +807,27 @@
 	}
 
 	.flag-badge--wg {
-		background: #fef6e6;
-		color: #6b4400;
-		border: 1px solid #f0c75e;
+		background: var(--sc-gold-bg);
+		color: var(--sc-gold-text);
+		border: 1px solid var(--sc-gold-border);
 	}
 
 	.flag-badge--dt {
-		background: #f3e8fd;
-		color: #4a148c;
-		border: 1px solid #b388ff;
+		background: var(--sc-purple-bg);
+		color: var(--sc-purple-text);
+		border: 1px solid var(--sc-purple-border);
 	}
 
 	.flag-badge--locked {
-		background: #e7f1fa;
-		color: #003d73;
-		border: 1px solid #73bcf7;
+		background: var(--sc-blue-bg);
+		color: var(--sc-blue-text);
+		border: 1px solid var(--sc-blue-border);
 	}
 
 	.flag-badge--no-autostop {
-		background: #fef3e8;
-		color: #6e3101;
-		border: 1px solid #f4a460;
+		background: var(--sc-orange-bg);
+		color: var(--sc-orange-text);
+		border: 1px solid var(--sc-orange-border);
 	}
 
 	.flag-none {
@@ -910,9 +910,9 @@
 	}
 
 	.flag-badge--event {
-		background: #e7f1fa;
-		color: #003d73;
-		border: 1px solid #73bcf7;
+		background: var(--sc-blue-bg);
+		color: var(--sc-blue-text);
+		border: 1px solid var(--sc-blue-border);
 	}
 
 	/* Check column */
@@ -938,27 +938,27 @@
 	}
 
 	.check-badge--green {
-		color: #1e4620;
-		background: #e7f5e8;
-		border: 1px solid #6ec071;
+		color: var(--sc-green-text);
+		background: var(--sc-green-bg);
+		border: 1px solid var(--sc-green-border);
 	}
 
 	.check-badge--blue {
-		color: #003d73;
-		background: #e7f1fa;
-		border: 1px solid #73bcf7;
+		color: var(--sc-blue-text);
+		background: var(--sc-blue-bg);
+		border: 1px solid var(--sc-blue-border);
 	}
 
 	.check-badge--red {
-		color: #7d1007;
-		background: #fce8e6;
-		border: 1px solid #e87a72;
+		color: var(--sc-red-text);
+		background: var(--sc-red-bg);
+		border: 1px solid var(--sc-red-border);
 	}
 
 	.check-badge--grey {
-		color: #4a4a4a;
-		background: #f0f0f0;
-		border: 1px solid #d2d2d2;
+		color: var(--sc-grey-text);
+		background: var(--sc-grey-bg);
+		border: 1px solid var(--sc-grey-border);
 	}
 
 	.check-run-btn {
