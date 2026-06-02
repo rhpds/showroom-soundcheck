@@ -17,29 +17,29 @@ from .tasks.orchestration import run_group, run_session_checks, run_single_sourc
 
 
 def _configure_worker_logging() -> None:
- root = logging.getLogger()
- if root.handlers:
- return
- root.setLevel(logging.INFO)
- handler = logging.StreamHandler()
- if LOG_FORMAT == "json":
- from pythonjsonlogger.json import JsonFormatter
+    root = logging.getLogger()
+    if root.handlers:
+        return
+    root.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    if LOG_FORMAT == "json":
+        from pythonjsonlogger.json import JsonFormatter
 
- handler.setFormatter(
- JsonFormatter(
- "%(asctime)s %(levelname)s %(name)s %(message)s",
- rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
- defaults={"request_id": "-"},
- )
- )
- else:
- handler.setFormatter(
- logging.Formatter(
- "%(asctime)s %(levelname)s %(name)s [%(request_id)s]: %(message)s",
- defaults={"request_id": "-"},
- )
- )
- root.addHandler(handler)
+        handler.setFormatter(
+            JsonFormatter(
+                "%(asctime)s %(levelname)s %(name)s %(message)s",
+                rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
+                defaults={"request_id": "-"},
+            )
+        )
+    else:
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(levelname)s %(name)s [%(request_id)s]: %(message)s",
+                defaults={"request_id": "-"},
+            )
+        )
+    root.addHandler(handler)
 
 
 _configure_worker_logging()
