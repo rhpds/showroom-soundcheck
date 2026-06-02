@@ -1,13 +1,15 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { createGroup, getClusters } from '$lib/api';
+	import { createGroup } from '$lib/api';
 	import type { CheckType } from '$lib/types';
 	import Spinner from '$lib/components/Spinner.svelte';
 
+	let { data: pageData } = $props();
+
 	let submitting = $state(false);
 	let error = $state('');
-	let clusters = $state.raw<string[]>([]);
+	let clusters = $derived(pageData.clusters);
 	let errorEl: HTMLDivElement | undefined = $state();
 
 	let groupForm = $state({
@@ -20,15 +22,6 @@
 	});
 
 	let showAdvanced = $state(false);
-
-	onMount(async () => {
-		try {
-			const data = await getClusters();
-			clusters = data.clusters;
-		} catch (e) {
-			console.error('Failed to load clusters', e);
-		}
-	});
 
 	async function showError(msg: string) {
 		error = msg;
