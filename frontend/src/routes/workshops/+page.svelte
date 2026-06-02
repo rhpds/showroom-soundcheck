@@ -88,6 +88,11 @@
 
 	let hasContent = $derived(data.items.length > 0 || (data.multi_workshops ?? []).length > 0);
 
+	const TABLE_PAGE_SIZE = 50;
+	let visibleCount = $state(TABLE_PAGE_SIZE);
+	let visibleRows = $derived(displayRows.slice(0, visibleCount));
+	let hasMore = $derived(displayRows.length > visibleCount);
+
 	let selectedClusters = $state<string[]>(pageData.filters.selectedClusters);
 	let whiteGlove = $state(pageData.filters.whiteGlove);
 	let multiAssetOnly = $state(pageData.filters.multiAssetOnly ?? false);
@@ -141,6 +146,7 @@
 	}
 
 	function handleFilterChange() {
+		visibleCount = TABLE_PAGE_SIZE;
 		syncFiltersToUrl();
 		loadData();
 	}
@@ -343,7 +349,7 @@
 				</tr>
 			</thead>
 			<tbody class="pf-v6-c-table__tbody">
-				{#each displayRows as row}
+				{#each visibleRows as row}
 					{#if row.kind === 'multi'}
 						{@const mws = row.item}
 						{@const isExpanded = expandedMultiWorkshops.has(mws.name)}
@@ -564,6 +570,16 @@
 				{/each}
 			</tbody>
 		</table>
+		{#if hasMore}
+			<div class="show-more">
+				<button
+					class="pf-v6-c-button pf-m-link"
+					onclick={() => { visibleCount += TABLE_PAGE_SIZE; }}
+				>
+					Show more ({displayRows.length - visibleCount} remaining)
+				</button>
+			</div>
+		{/if}
 	</div>
 {:else}
 	{@const timeRange = getTimeRange(timeWindow)}
@@ -920,5 +936,12 @@
 		background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
 		color: var(--pf-t--global--color--brand--default, #0066cc);
 		border-color: var(--pf-t--global--color--brand--default, #0066cc);
+	}
+
+	.show-more {
+		display: flex;
+		justify-content: center;
+		padding: var(--pf-t--global--spacer--md, 16px);
+		border-top: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
 	}
 </style>
