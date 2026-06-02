@@ -232,8 +232,8 @@
 				...checkStatuses,
 				[workshopId]: { status: 'pending', session_id: result.session_id, created_at: new Date().toISOString() }
 			};
-		} catch {
-			// remove from running set on failure
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to run check';
 		}
 
 		const done = new Set(checkRunning);
