@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopStatus, WorkshopCheckStatusMap } from '$lib/types';
+	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopStatus, WorkshopCheckStatusMap, CheckSessionStatus } from '$lib/types';
 	import { workshopStatusBg, workshopStatusTextColor, workshopStatusLabel } from '$lib/utils';
 
 	let {
@@ -236,13 +236,12 @@
 		});
 	}
 
-	function checkLabel(status: string): string {
+	function checkLabel(status: CheckSessionStatus): string {
 		switch (status) {
 			case 'completed': return 'Passed';
 			case 'running': return 'Running';
 			case 'pending': return 'Pending';
 			case 'failed': return 'Failed';
-			default: return status;
 		}
 	}
 </script>

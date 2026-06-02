@@ -271,8 +271,10 @@ export interface WorkshopListResponse {
 // Workshop Check Status
 // ---------------------------------------------------------------------------
 
+export type CheckSessionStatus = 'pending' | 'running' | 'completed' | 'failed';
+
 export interface WorkshopCheckStatusEntry {
-	status: string;
+	status: CheckSessionStatus;
 	session_id: string;
 	created_at: string;
 }

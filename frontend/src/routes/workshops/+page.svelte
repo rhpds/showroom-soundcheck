@@ -3,7 +3,7 @@
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { listWorkshops, createSession, getWorkshopCheckStatuses } from '$lib/api';
-	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopListResponse, WorkshopStatus, WorkshopCheckStatusMap } from '$lib/types';
+	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopListResponse, WorkshopStatus, WorkshopCheckStatusMap, CheckSessionStatus } from '$lib/types';
 	import {
 		getTimeRange,
 		workshopStatusColor,
@@ -250,22 +250,20 @@
 		}
 	}
 
-	function checkStatusColor(status: string): string {
+	function checkStatusColor(status: CheckSessionStatus): string {
 		switch (status) {
 			case 'completed': return 'green';
 			case 'running': case 'pending': return 'blue';
 			case 'failed': return 'red';
-			default: return 'grey';
 		}
 	}
 
-	function checkStatusLabel(status: string): string {
+	function checkStatusLabel(status: CheckSessionStatus): string {
 		switch (status) {
 			case 'completed': return 'Passed';
 			case 'running': return 'Running';
 			case 'pending': return 'Pending';
 			case 'failed': return 'Failed';
-			default: return status;
 		}
 	}
 
