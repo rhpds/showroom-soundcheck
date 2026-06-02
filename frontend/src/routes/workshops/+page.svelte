@@ -180,7 +180,7 @@
 	// Check status state
 	// ---------------------------------------------------------------------------
 
-	let checkStatuses = $state<WorkshopCheckStatusMap>({});
+	let checkStatuses = $state.raw<WorkshopCheckStatusMap>({});
 	let checkRunning = $state(new Set<string>());
 	let checkPollTimer: ReturnType<typeof setInterval> | null = null;
 
