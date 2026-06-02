@@ -2,8 +2,9 @@
 	import { onMount } from 'svelte';
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { listWorkshops, createSession, getWorkshopCheckStatuses } from '$lib/api';
-	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopListResponse, WorkshopStatus, WorkshopCheckStatusMap, CheckSessionStatus } from '$lib/types';
+	import { listWorkshops } from '$lib/api';
+	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopListResponse, WorkshopStatus } from '$lib/types';
+	import { createCheckStatusManager, checkStatusColor, checkStatusLabel } from '$lib/checkStatuses.svelte';
 	import {
 		getTimeRange,
 		workshopStatusColor,
@@ -122,7 +123,7 @@
 		}
 		initialLoading = false;
 		refreshing = false;
-		loadCheckStatuses();
+		checks.load();
 	}
 
 	function syncFiltersToUrl() {
@@ -182,14 +183,10 @@
 	}
 
 	// ---------------------------------------------------------------------------
-	// Check status state
+	// Check status management
 	// ---------------------------------------------------------------------------
 
-	let checkStatuses = $state.raw<WorkshopCheckStatusMap>({});
-	let checkRunning = $state(new Set<string>());
-	let checkPollTimer: ReturnType<typeof setInterval> | null = null;
-
-	function allWorkshopIds(): string[] {
+	const checks = createCheckStatusManager(() => {
 		const ids = new Set<string>();
 		for (const ws of data.items) {
 			if (ws.workshop_id) ids.add(ws.workshop_id);
@@ -200,78 +197,21 @@
 			}
 		}
 		return [...ids];
-	}
+	});
 
-	async function loadCheckStatuses() {
-		const ids = allWorkshopIds();
-		if (ids.length === 0) return;
-		try {
-			checkStatuses = await getWorkshopCheckStatuses(ids);
-		} catch (e) {
-			console.warn('Failed to load check statuses:', e);
-		}
-
-		const hasInFlight = checkRunning.size > 0 ||
-			Object.values(checkStatuses).some((s) => s && (s.status === 'running' || s.status === 'pending'));
-		if (hasInFlight && !checkPollTimer) {
-			checkPollTimer = setInterval(loadCheckStatuses, 10000);
-		} else if (!hasInFlight && checkPollTimer) {
-			clearInterval(checkPollTimer);
-			checkPollTimer = null;
-		}
-	}
+	let checkStatuses = $derived(checks.statuses);
+	let checkRunning = $derived(checks.running);
 
 	async function runCheck(workshopId: string, cluster: string, displayName: string) {
-		if (!workshopId || checkRunning.has(workshopId)) return;
-		const next = new Set(checkRunning);
-		next.add(workshopId);
-		checkRunning = next;
-
-		try {
-			const result = await createSession({
-				workshop_guids: [workshopId],
-				babylon_cluster: cluster,
-				name: displayName
-			});
-			checkStatuses = {
-				...checkStatuses,
-				[workshopId]: { status: 'pending', session_id: result.session_id, created_at: new Date().toISOString() }
-			};
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to run check';
-		}
-
-		const done = new Set(checkRunning);
-		done.delete(workshopId);
-		checkRunning = done;
-
-		if (!checkPollTimer) {
-			checkPollTimer = setInterval(loadCheckStatuses, 10000);
-		}
-	}
-
-	function checkStatusColor(status: CheckSessionStatus): string {
-		switch (status) {
-			case 'completed': return 'green';
-			case 'running': case 'pending': return 'blue';
-			case 'failed': return 'red';
-		}
-	}
-
-	function checkStatusLabel(status: CheckSessionStatus): string {
-		switch (status) {
-			case 'completed': return 'Passed';
-			case 'running': return 'Running';
-			case 'pending': return 'Pending';
-			case 'failed': return 'Failed';
-		}
+		const err = await checks.run(workshopId, cluster, displayName);
+		if (err) error = err;
 	}
 
 	onMount(() => {
 		if (!pageData.initialWorkshops) {
 			loadData({ showSkeleton: true });
 		} else {
-			loadCheckStatuses();
+			checks.load();
 		}
 		const refreshInterval = setInterval(() => {
 			if (!error) loadData();
@@ -279,7 +219,7 @@
 		return () => {
 			workshopAbort?.abort();
 			clearInterval(refreshInterval);
-			if (checkPollTimer) clearInterval(checkPollTimer);
+			checks.destroy();
 		};
 	});
 </script>
