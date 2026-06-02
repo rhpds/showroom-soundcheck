@@ -527,51 +527,44 @@
 			<div role="tabpanel" aria-labelledby="filter-tab-{filter}">
 				<ul class="target-list" role="list">
 					{#each targets as target (target.id)}
-						<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
-						<li
-							class="target-list__item"
-							class:target-list__item--clickable={target.status !== 'provisioning'}
-							role="button"
-							tabindex="0"
-							onclick={() => {
-								if (target.status !== 'provisioning') selectedTargetId = target.id;
-							}}
-							onkeydown={(e) => {
-								if (e.key === 'Enter' && target.status !== 'provisioning')
-									selectedTargetId = target.id;
-							}}
-						>
-							<div class="target-list__main">
-								<StatusBadge status={target.status} size="sm" />
-								<div class="target-list__content">
-									<span class="target-list__label">{target.label || target.url || 'No URL'}</span>
-									{#if target.error_message}
-										<span class="target-list__error">{target.error_message}</span>
+						<li class="target-list__item">
+							<button
+								class="target-list__button"
+								disabled={target.status === 'provisioning'}
+								onclick={() => { selectedTargetId = target.id; }}
+							>
+								<div class="target-list__main">
+									<StatusBadge status={target.status} size="sm" />
+									<div class="target-list__content">
+										<span class="target-list__label">{target.label || target.url || 'No URL'}</span>
+										{#if target.error_message}
+											<span class="target-list__error">{target.error_message}</span>
+										{/if}
+									</div>
+								</div>
+								<div class="target-list__meta">
+									{#if target.guid}
+										<span class="guid-badge guid-badge--purple">{target.guid}</span>
+									{/if}
+									{#if target.tier_used}
+										<span class="pf-v6-c-label pf-m-compact"
+											><span class="pf-v6-c-label__content"
+												><span class="pf-v6-c-label__text">T{target.tier_used}</span></span
+											></span
+										>
+									{/if}
+									{#if target.response_time_ms}
+										<span class="target-list__time">{target.response_time_ms}ms</span>
+									{/if}
+									{#if target.status !== 'provisioning'}
+										<span class="target-list__chevron">
+											<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"
+												><path d="M6 3l5 5-5 5V3Z" /></svg
+											>
+										</span>
 									{/if}
 								</div>
-							</div>
-							<div class="target-list__meta">
-								{#if target.guid}
-									<span class="guid-badge guid-badge--purple">{target.guid}</span>
-								{/if}
-								{#if target.tier_used}
-									<span class="pf-v6-c-label pf-m-compact"
-										><span class="pf-v6-c-label__content"
-											><span class="pf-v6-c-label__text">T{target.tier_used}</span></span
-										></span
-									>
-								{/if}
-								{#if target.response_time_ms}
-									<span class="target-list__time">{target.response_time_ms}ms</span>
-								{/if}
-								{#if target.status !== 'provisioning'}
-									<span class="target-list__chevron">
-										<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"
-											><path d="M6 3l5 5-5 5V3Z" /></svg
-										>
-									</span>
-								{/if}
-							</div>
+							</button>
 						</li>
 					{/each}
 				</ul>
@@ -815,28 +808,38 @@
 	}
 
 	.target-list__item {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		padding: 12px var(--pf-t--global--spacer--lg, 24px);
 		border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-		transition: background-color 0.1s ease;
 	}
 
 	.target-list__item:last-child {
 		border-bottom: none;
 	}
 
-	.target-list__item--clickable {
+	.target-list__button {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 12px var(--pf-t--global--spacer--lg, 24px);
+		width: 100%;
+		background: none;
+		border: none;
+		font: inherit;
+		color: inherit;
+		text-align: left;
 		cursor: pointer;
+		transition: background-color 0.1s ease;
 	}
 
-	.target-list__item--clickable:hover {
+	.target-list__button:disabled {
+		cursor: default;
+	}
+
+	.target-list__button:not(:disabled):hover {
 		background: var(--pf-t--global--background--color--secondary--default, #f0f0f0);
 	}
 
-	.target-list__item--clickable:focus-visible {
+	.target-list__button:focus-visible {
 		outline: 2px solid var(--pf-t--global--color--brand--default, #0066cc);
 		outline-offset: -2px;
 	}
