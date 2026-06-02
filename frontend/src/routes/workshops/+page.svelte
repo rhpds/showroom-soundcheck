@@ -33,6 +33,7 @@
 	let initialLoading = $state(!pageData.initialWorkshops);
 	let refreshing = $state(false);
 	let error = $state('');
+	let workshopAbort: AbortController | null = null;
 
 	// Track which MultiWorkshops are expanded
 	let expandedMultiWorkshops = $state(new Set<string>());
@@ -96,6 +97,9 @@
 	let viewMode = $state<ViewModeFilter>(pageData.filters.viewMode);
 
 	async function loadData(opts: { showSkeleton?: boolean } = {}) {
+		workshopAbort?.abort();
+		workshopAbort = new AbortController();
+		const signal = workshopAbort.signal;
 		if (opts.showSkeleton) {
 			initialLoading = true;
 		} else {
@@ -111,8 +115,9 @@
 				provision_type: provisionType !== 'all' ? provisionType : undefined,
 				has_failures: hasFailures || undefined,
 				...timeRange
-			});
+			}, { signal });
 		} catch (e: unknown) {
+			if (e instanceof DOMException && e.name === 'AbortError') return;
 			error = e instanceof Error ? e.message : 'Failed to load workshops';
 		}
 		initialLoading = false;
@@ -274,6 +279,7 @@
 			if (!error) loadData();
 		}, 60000);
 		return () => {
+			workshopAbort?.abort();
 			clearInterval(refreshInterval);
 			if (checkPollTimer) clearInterval(checkPollTimer);
 		};
