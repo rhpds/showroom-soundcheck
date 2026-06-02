@@ -509,11 +509,11 @@
 		align-items: center;
 		gap: 8px;
 		padding: 10px var(--pf-t--global--spacer--lg, 24px);
-		background: #fef6e6;
-		border: 1px solid #f0c75e;
+		background: var(--sc-gold-bg);
+		border: 1px solid var(--sc-gold-border);
 		border-radius: var(--pf-t--global--border--radius--small, 3px);
 		margin-bottom: var(--pf-t--global--spacer--md, 16px);
 		font-size: var(--pf-t--global--font--size--sm, 0.875rem);
-		color: #6b4400;
+		color: var(--sc-gold-text);
 	}
 </style>

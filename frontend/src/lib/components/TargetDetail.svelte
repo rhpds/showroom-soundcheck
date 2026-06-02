@@ -390,15 +390,15 @@
 	}
 
 	.td__guid-badge--purple {
-		color: #3b1f6e;
-		background: #f2e6ff;
-		border-color: #c9a0ff;
+		color: var(--sc-purple-text);
+		background: var(--sc-purple-bg);
+		border-color: var(--sc-purple-border);
 	}
 
 	.td__guid-badge--blue {
-		color: #003d73;
-		background: #e7f1fa;
-		border-color: #73bcf7;
+		color: var(--sc-blue-text);
+		background: var(--sc-blue-bg);
+		border-color: var(--sc-blue-border);
 	}
 
 	.td__copy {

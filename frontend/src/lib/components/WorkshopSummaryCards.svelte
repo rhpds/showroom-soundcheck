@@ -64,32 +64,32 @@
 	}
 
 	.summary-item--blue {
-		border-color: #73bcf7;
-		background: #e7f1fa;
+		border-color: var(--sc-blue-border);
+		background: var(--sc-blue-bg);
 	}
-	.summary-item--blue .summary-item__value { color: #003d73; }
+	.summary-item--blue .summary-item__value { color: var(--sc-blue-text); }
 
 	.summary-item--green {
-		border-color: #6ec071;
-		background: #e7f5e8;
+		border-color: var(--sc-green-border);
+		background: var(--sc-green-bg);
 	}
-	.summary-item--green .summary-item__value { color: #1e4620; }
+	.summary-item--green .summary-item__value { color: var(--sc-green-text); }
 
 	.summary-item--orange {
-		border-color: #e87a72;
-		background: #fce8e6;
+		border-color: var(--sc-red-border);
+		background: var(--sc-red-bg);
 	}
-	.summary-item--orange .summary-item__value { color: #7d1007; }
+	.summary-item--orange .summary-item__value { color: var(--sc-red-text); }
 
 	.summary-item--gold {
-		border-color: #f0c75e;
-		background: #fef6e6;
+		border-color: var(--sc-gold-border);
+		background: var(--sc-gold-bg);
 	}
-	.summary-item--gold .summary-item__value { color: #6b4400; }
+	.summary-item--gold .summary-item__value { color: var(--sc-gold-text); }
 
 	.summary-item--muted {
-		border-color: #b8bbbe;
-		background: #f0f0f0;
+		border-color: var(--sc-muted-border);
+		background: var(--sc-muted-bg);
 	}
-	.summary-item--muted .summary-item__value { color: #3e4045; }
+	.summary-item--muted .summary-item__value { color: var(--sc-muted-text); }
 </style>

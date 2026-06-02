@@ -685,29 +685,29 @@
 	}
 
 	.sources-summary__badge--green {
-		color: #1e4620;
-		background: #e7f5e8;
-		border-color: #6ec071;
+		color: var(--sc-green-text);
+		background: var(--sc-green-bg);
+		border-color: var(--sc-green-border);
 	}
 	.sources-summary__badge--red {
-		color: #7d1007;
-		background: #fce8e6;
-		border-color: #e87a72;
+		color: var(--sc-red-text);
+		background: var(--sc-red-bg);
+		border-color: var(--sc-red-border);
 	}
 	.sources-summary__badge--blue {
-		color: #003d73;
-		background: #e7f1fa;
-		border-color: #73bcf7;
+		color: var(--sc-blue-text);
+		background: var(--sc-blue-bg);
+		border-color: var(--sc-blue-border);
 	}
 	.sources-summary__badge--orange {
-		color: #6e3101;
-		background: #fef3e8;
-		border-color: #f4a460;
+		color: var(--sc-orange-text);
+		background: var(--sc-orange-bg);
+		border-color: var(--sc-orange-border);
 	}
 	.sources-summary__badge--gold {
-		color: #6b4400;
-		background: #fef6e6;
-		border-color: #f0c75e;
+		color: var(--sc-gold-text);
+		background: var(--sc-gold-bg);
+		border-color: var(--sc-gold-border);
 	}
 	.sources-summary__badge--grey,
 	.sources-summary__badge-- {
@@ -786,16 +786,16 @@
 	}
 
 	.source-type-badge.pf-m-blue {
-		color: #003d73;
-		background: #e7f1fa;
+		color: var(--sc-blue-text);
+		background: var(--sc-blue-bg);
 	}
 	.source-type-badge.pf-m-purple {
-		color: #3b1f6e;
-		background: #f2e6ff;
+		color: var(--sc-purple-text);
+		background: var(--sc-purple-bg);
 	}
 	.source-type-badge.pf-m-orange {
-		color: #6e3101;
-		background: #fef3e8;
+		color: var(--sc-orange-text);
+		background: var(--sc-orange-bg);
 	}
 
 	@keyframes spin {

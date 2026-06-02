@@ -43,14 +43,14 @@ export interface WorkshopStatusStyle {
 }
 
 const WORKSHOP_STATUS_MAP: Record<WorkshopStatus, WorkshopStatusStyle> = {
-	running: { bg: '#e7f5e8', text: '#1e4620', border: '#6ec071', label: 'Running', colorName: 'green' },
-	provisioning: { bg: '#e7f1fa', text: '#003d73', border: '#73bcf7', label: 'Provisioning', colorName: 'blue' },
-	scheduled: { bg: '#fef6e6', text: '#6b4400', border: '#f0c75e', label: 'Scheduled', colorName: 'gold' },
-	stopped: { bg: '#f0f0f0', text: '#3e4045', border: '#b8bbbe', label: 'Stopped', colorName: 'grey' },
-	degraded: { bg: '#fef3e8', text: '#6e3101', border: '#f4a460', label: 'Degraded', colorName: 'orange' },
-	failed: { bg: '#fce8e6', text: '#7d1007', border: '#e87a72', label: 'Failed', colorName: 'red' },
-	completed: { bg: '#f0f0f0', text: '#4a4a4a', border: '#d2d2d2', label: 'Completed', colorName: 'grey' },
-	unknown: { bg: '#f0f0f0', text: '#4a4a4a', border: '#d2d2d2', label: 'Unknown', colorName: 'grey' }
+	running: { bg: 'var(--sc-green-bg)', text: 'var(--sc-green-text)', border: 'var(--sc-green-border)', label: 'Running', colorName: 'green' },
+	provisioning: { bg: 'var(--sc-blue-bg)', text: 'var(--sc-blue-text)', border: 'var(--sc-blue-border)', label: 'Provisioning', colorName: 'blue' },
+	scheduled: { bg: 'var(--sc-gold-bg)', text: 'var(--sc-gold-text)', border: 'var(--sc-gold-border)', label: 'Scheduled', colorName: 'gold' },
+	stopped: { bg: 'var(--sc-muted-bg)', text: 'var(--sc-muted-text)', border: 'var(--sc-muted-border)', label: 'Stopped', colorName: 'grey' },
+	degraded: { bg: 'var(--sc-orange-bg)', text: 'var(--sc-orange-text)', border: 'var(--sc-orange-border)', label: 'Degraded', colorName: 'orange' },
+	failed: { bg: 'var(--sc-red-bg)', text: 'var(--sc-red-text)', border: 'var(--sc-red-border)', label: 'Failed', colorName: 'red' },
+	completed: { bg: 'var(--sc-grey-bg)', text: 'var(--sc-grey-text)', border: 'var(--sc-grey-border)', label: 'Completed', colorName: 'grey' },
+	unknown: { bg: 'var(--sc-grey-bg)', text: 'var(--sc-grey-text)', border: 'var(--sc-grey-border)', label: 'Unknown', colorName: 'grey' }
 };
 
 export function workshopStatusStyle(status: WorkshopStatus): WorkshopStatusStyle {

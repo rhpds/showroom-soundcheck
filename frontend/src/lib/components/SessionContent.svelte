@@ -681,27 +681,27 @@
 	}
 
 	.context-chip--teal {
-		color: #005f60;
-		background: #e0f5f5;
-		border-color: #7ecbc0;
+		color: var(--sc-teal-text);
+		background: var(--sc-teal-bg);
+		border-color: var(--sc-teal-border);
 	}
 
 	.context-chip--blue {
-		color: #003d73;
-		background: #e7f1fa;
-		border-color: #73bcf7;
+		color: var(--sc-blue-text);
+		background: var(--sc-blue-bg);
+		border-color: var(--sc-blue-border);
 	}
 
 	.context-chip--orange {
-		color: #6c3a00;
-		background: #fef3e0;
-		border-color: #f4b678;
+		color: var(--sc-orange-text);
+		background: var(--sc-orange-bg);
+		border-color: var(--sc-orange-border);
 	}
 
 	.context-chip--purple {
-		color: #3b1f6e;
-		background: #f2e6ff;
-		border-color: #c9a0ff;
+		color: var(--sc-purple-text);
+		background: var(--sc-purple-bg);
+		border-color: var(--sc-purple-border);
 	}
 
 	.context-guid {
@@ -730,27 +730,27 @@
 	}
 
 	.count-badge--red {
-		color: #7d1007;
-		background: #fce8e6;
-		border-color: #e87a72;
+		color: var(--sc-red-text);
+		background: var(--sc-red-bg);
+		border-color: var(--sc-red-border);
 	}
 
 	.count-badge--green {
-		color: #1e4620;
-		background: #e7f5e8;
-		border-color: #6ec071;
+		color: var(--sc-green-text);
+		background: var(--sc-green-bg);
+		border-color: var(--sc-green-border);
 	}
 
 	.count-badge--blue {
-		color: #003d73;
-		background: #e7f1fa;
-		border-color: #73bcf7;
+		color: var(--sc-blue-text);
+		background: var(--sc-blue-bg);
+		border-color: var(--sc-blue-border);
 	}
 
 	.count-badge--grey {
-		color: #3c3f42;
-		background: #f5f5f5;
-		border-color: #d2d2d2;
+		color: var(--sc-muted-text);
+		background: var(--sc-grey-bg);
+		border-color: var(--sc-grey-border);
 	}
 
 	.session-progress {
@@ -893,9 +893,9 @@
 	}
 
 	.guid-badge--purple {
-		color: #3b1f6e;
-		background: #f2e6ff;
-		border-color: #c9a0ff;
+		color: var(--sc-purple-text);
+		background: var(--sc-purple-bg);
+		border-color: var(--sc-purple-border);
 	}
 
 	.target-list__chevron {
@@ -920,11 +920,11 @@
 		align-items: center;
 		gap: 8px;
 		padding: 10px var(--pf-t--global--spacer--lg, 24px);
-		background: #fef6e6;
-		border: 1px solid #f0c75e;
+		background: var(--sc-gold-bg);
+		border: 1px solid var(--sc-gold-border);
 		border-radius: var(--pf-t--global--border--radius--small, 3px);
 		margin-bottom: var(--pf-t--global--spacer--md, 16px);
 		font-size: var(--pf-t--global--font--size--sm, 0.875rem);
-		color: #6b4400;
+		color: var(--sc-gold-text);
 	}
 </style>
