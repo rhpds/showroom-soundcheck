@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
+	import { page as pageState } from '$app/state';
 	import { listGroups, deleteGroup, toggleGroupPin } from '$lib/api';
 	import { relativeTime } from '$lib/utils';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -21,9 +22,19 @@
 		data = pageData.groups;
 	});
 
+	function syncFiltersToUrl() {
+		const params = new URLSearchParams();
+		if (page > 1) params.set('page', String(page));
+		if (perPage !== 20) params.set('per_page', String(perPage));
+		if (search) params.set('search', search);
+		const qs = params.toString();
+		replaceState(`${pageState.url.pathname}${qs ? `?${qs}` : ''}`, {});
+	}
+
 	async function loadData() {
 		loading = true;
 		error = '';
+		syncFiltersToUrl();
 		try {
 			data = await listGroups({
 				page,
