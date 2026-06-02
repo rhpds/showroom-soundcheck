@@ -421,7 +421,8 @@
 							{#if cs}
 								<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
 									class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
-									title="Last check: {checkLabel(cs.status)}"></a>
+									title="Last check: {checkLabel(cs.status)}"
+									aria-label="Last check: {checkLabel(cs.status)}"></a>
 							{/if}
 							{#if onRunCheck}
 								<button class="tl-run-btn" title="Run check"
