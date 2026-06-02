@@ -4,7 +4,8 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import TargetDetail from '$lib/components/TargetDetail.svelte';
-	import type { SessionDetail, TargetPublic, Status } from '$lib/types';
+	import type { SessionDetail, TargetPublic } from '$lib/types';
+	import { ISSUE_STATUSES, IN_PROGRESS_STATUSES, TERMINAL_STATUSES, STATUS_SORT_ORDER } from '$lib/types';
 
 	let {
 		sessionId,
@@ -152,23 +153,14 @@
 	}
 
 	function filteredTargets(targets: TargetPublic[]): TargetPublic[] {
-		const sorted = [...targets].sort((a, b) => {
-			const order: Partial<Record<Status, number>> = {
-				running: 0,
-				error: 1,
-				degraded: 2,
-				provisioning: 3,
-				pending: 4,
-				unhealthy: 5,
-				healthy: 6
-			};
-			return (order[a.status] ?? 6) - (order[b.status] ?? 6);
-		});
+		const sorted = [...targets].sort(
+			(a, b) => (STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99)
+		);
 		if (filter === 'all') return sorted;
 		if (filter === 'issues')
-			return sorted.filter((t) => ['error', 'unhealthy', 'degraded'].includes(t.status));
+			return sorted.filter((t) => ISSUE_STATUSES.includes(t.status));
 		if (filter === 'healthy') return sorted.filter((t) => t.status === 'healthy');
-		return sorted.filter((t) => ['running', 'pending', 'provisioning'].includes(t.status));
+		return sorted.filter((t) => IN_PROGRESS_STATUSES.includes(t.status));
 	}
 
 	function targetCounts(targets: TargetPublic[]) {
@@ -177,8 +169,8 @@
 			inProgress = 0;
 		for (const t of targets) {
 			if (t.status === 'healthy') healthy++;
-			else if (['error', 'unhealthy', 'degraded'].includes(t.status)) issues++;
-			else if (['running', 'pending', 'provisioning'].includes(t.status)) inProgress++;
+			else if (ISSUE_STATUSES.includes(t.status)) issues++;
+			else if (IN_PROGRESS_STATUSES.includes(t.status)) inProgress++;
 		}
 		return { healthy, issues, inProgress, total: targets.length };
 	}
@@ -412,9 +404,7 @@
 	</div>
 
 	{#if data.session.status === 'running' || data.session.status === 'pending'}
-		{@const checked = data.targets.filter((t) =>
-			['healthy', 'degraded', 'unhealthy', 'error'].includes(t.status)
-		).length}
+		{@const checked = data.targets.filter((t) => TERMINAL_STATUSES.includes(t.status)).length}
 		{@const percent = counts.total ? Math.round((checked / counts.total) * 100) : 0}
 		<div class="session-progress">
 			<Spinner label="Checking targets" size="sm" />

@@ -9,6 +9,21 @@ export type Status =
 	| 'pending'
 	| 'provisioning';
 
+export const ISSUE_STATUSES: Status[] = ['error', 'unhealthy', 'degraded'];
+export const IN_PROGRESS_STATUSES: Status[] = ['running', 'pending', 'provisioning'];
+export const TERMINAL_STATUSES: Status[] = ['healthy', 'degraded', 'unhealthy', 'error'];
+export const STATUS_SORT_ORDER: Record<Status, number> = {
+	running: 0,
+	error: 1,
+	degraded: 2,
+	provisioning: 3,
+	pending: 4,
+	unhealthy: 5,
+	healthy: 6,
+	completed: 7,
+	failed: 8
+};
+
 export type CheckType = 'readyz' | 'healthz';
 
 type ProvisionStatus =
