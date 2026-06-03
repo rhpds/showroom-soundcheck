@@ -424,8 +424,6 @@
 								stroke-dasharray="4 2"
 								class="timeline-bar"
 								data-bar-idx={idx}
-								role="button"
-								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
 								onmouseenter={(e) => handleBarEnter(idx, e)}
 								onmousemove={handleBarMove}
@@ -448,7 +446,7 @@
 							stroke-dasharray="4 2"
 							class="timeline-bar"
 							data-bar-idx={idx}
-							role="button"
+							role="img"
 							tabindex="0"
 							aria-label={barAriaLabel(tRow)}
 							onmouseenter={(e) => handleBarEnter(idx, e)}
@@ -553,8 +551,6 @@
 								opacity={hoveredIndex === idx ? 1 : 0.8}
 								class="timeline-bar"
 								data-bar-idx={idx}
-								role="button"
-								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
 								onmouseenter={(e) => handleBarEnter(idx, e)}
 								onmousemove={handleBarMove}
@@ -574,7 +570,7 @@
 							opacity={hoveredIndex === idx ? 1 : 0.8}
 							class="timeline-bar"
 							data-bar-idx={idx}
-							role="button"
+							role="img"
 							tabindex="0"
 							aria-label={barAriaLabel(tRow)}
 							onmouseenter={(e) => handleBarEnter(idx, e)}
@@ -723,8 +719,6 @@
 								opacity={hoveredIndex === idx ? 1 : 0.8}
 								class="timeline-bar"
 								data-bar-idx={idx}
-								role="button"
-								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
 								onmouseenter={(e) => handleBarEnter(idx, e)}
 								onmousemove={handleBarMove}
@@ -744,7 +738,7 @@
 							opacity={hoveredIndex === idx ? 1 : 0.8}
 							class="timeline-bar"
 							data-bar-idx={idx}
-							role="button"
+							role="img"
 							tabindex="0"
 							aria-label={barAriaLabel(tRow)}
 							onmouseenter={(e) => handleBarEnter(idx, e)}
