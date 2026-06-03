@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopStatus, WorkshopCheckStatusMap, CheckSessionStatus } from '$lib/types';
+	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopStatus, WorkshopCheckStatusMap } from '$lib/types';
 	import { workshopStatusBg, workshopStatusTextColor, workshopStatusLabel, workshopStatusBorder } from '$lib/utils';
+	import { checkStatusLabel } from '$lib/checkStatuses.svelte';
 
 	let {
 		items,
@@ -292,15 +293,6 @@
 		});
 	}
 
-	function checkLabel(status: CheckSessionStatus): string {
-		switch (status) {
-			case 'completed': return 'Passed';
-			case 'running': return 'Running';
-			case 'pending': return 'Pending';
-			case 'failed': return 'Failed';
-		}
-	}
-
 	function statusShortLabel(status: WorkshopStatus): string {
 		switch (status) {
 			case 'running': return 'RUN';
@@ -532,8 +524,8 @@
 							{#if cs}
 								<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
 									class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
-									title="Last check: {checkLabel(cs.status)}"
-									aria-label="Last check: {checkLabel(cs.status)}"></a>
+									title="Last check: {checkStatusLabel(cs.status)}"
+									aria-label="Last check: {checkStatusLabel(cs.status)}"></a>
 							{/if}
 							{#if onRunCheck && child.status !== 'scheduled' && child.status !== 'completed'}
 								<button class="tl-run-btn" title="Run check"
@@ -699,8 +691,8 @@
 							{#if cs}
 								<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
 									class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
-									title="Last check: {checkLabel(cs.status)}"
-									aria-label="Last check: {checkLabel(cs.status)}"></a>
+									title="Last check: {checkStatusLabel(cs.status)}"
+									aria-label="Last check: {checkStatusLabel(cs.status)}"></a>
 							{/if}
 							{#if onRunCheck && tItem.item.status !== 'scheduled' && tItem.item.status !== 'completed'}
 								<button class="tl-run-btn" title="Run check"
@@ -889,7 +881,7 @@
 				{#if ws.workshop_id}
 					{@const cs = checkStatuses[ws.workshop_id]}
 					<span class="tooltip-check-row">
-						Check: {cs ? checkLabel(cs.status) : '—'}
+						Check: {cs ? checkStatusLabel(cs.status) : '—'}
 					</span>
 				{/if}
 			{/if}
