@@ -1,6 +1,7 @@
 """Shared model-to-schema serializers for route modules."""
 
 from ..models import CheckResult, CheckSession, GroupRun, SessionGroup, SessionTarget
+from ..services import babylon_client
 from ..schemas import (
     CheckResultPublic,
     GroupListItem,
@@ -48,6 +49,7 @@ def session_to_public(cs: CheckSession) -> SessionPublic:
         resource_kind=cs.resource_kind,
         resource_display_name=cs.resource_display_name,
         resource_metadata=cs.get_resource_metadata(),
+        catalog_base_url=babylon_client.get_catalog_url(cs.babylon_cluster),
     )
 
 

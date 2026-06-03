@@ -121,6 +121,7 @@ interface SessionPublic {
 	resource_kind: string;
 	resource_display_name: string;
 	resource_metadata: Record<string, unknown>;
+	catalog_base_url: string;
 }
 
 export interface SessionDetail {

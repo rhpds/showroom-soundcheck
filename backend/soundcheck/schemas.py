@@ -58,6 +58,7 @@ class SessionPublic(BaseModel):
     resource_kind: str
     resource_display_name: str
     resource_metadata: dict[str, Any]
+    catalog_base_url: str = ""
 
 
 class TargetPublic(BaseModel):

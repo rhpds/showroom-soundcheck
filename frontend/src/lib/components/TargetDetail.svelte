@@ -6,12 +6,20 @@
 	let {
 		target,
 		result,
+		catalogBaseUrl = '',
 		onClose
 	}: {
 		target: TargetPublic | null;
 		result: CheckResultPublic | null;
+		catalogBaseUrl?: string;
 		onClose: () => void;
 	} = $props();
+
+	let targetCatalogUrl = $derived(
+		catalogBaseUrl && target?.resource_name && target?.resource_namespace
+			? `${catalogBaseUrl}/services/${target.resource_namespace}/${target.resource_name}`
+			: ''
+	);
 
 	let copiedField = $state<string | null>(null);
 	let copyTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -129,21 +137,36 @@
 							> Copy{/if}
 					</button>
 				{/if}
-				{#if target.tier_used}
-					<span class="pf-v6-c-label pf-m-compact"
-						><span class="pf-v6-c-label__content"
-							><span class="pf-v6-c-label__text">Tier {target.tier_used}</span></span
-						></span
+			{#if targetCatalogUrl}
+				<a
+					href={targetCatalogUrl}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="td__catalog-link"
+				>
+					<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"
+						><path
+							d="M9 2.5a.5.5 0 0 1 .5-.5H13a.5.5 0 0 1 .5.5V6a.5.5 0 0 1-1 0V3.71L8.35 7.85a.5.5 0 1 1-.7-.7L11.79 3H9.5a.5.5 0 0 1-.5-.5ZM3.5 4A1.5 1.5 0 0 0 2 5.5v7A1.5 1.5 0 0 0 3.5 14h7a1.5 1.5 0 0 0 1.5-1.5V9a.5.5 0 0 0-1 0v3.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5H7a.5.5 0 0 0 0-1H3.5Z"
+						/></svg
 					>
-				{/if}
-				{#if target.response_time_ms}
-					<span class="pf-v6-c-label pf-m-compact"
-						><span class="pf-v6-c-label__content"
-							><span class="pf-v6-c-label__text">{target.response_time_ms}ms</span></span
-						></span
-					>
-				{/if}
-			</div>
+					View in Catalog
+				</a>
+			{/if}
+			{#if target.tier_used}
+				<span class="pf-v6-c-label pf-m-compact"
+					><span class="pf-v6-c-label__content"
+						><span class="pf-v6-c-label__text">Tier {target.tier_used}</span></span
+					></span
+				>
+			{/if}
+			{#if target.response_time_ms}
+				<span class="pf-v6-c-label pf-m-compact"
+					><span class="pf-v6-c-label__content"
+						><span class="pf-v6-c-label__text">{target.response_time_ms}ms</span></span
+					></span
+				>
+			{/if}
+		</div>
 
 			{#if target.error_message}
 				<div class="pf-v6-c-alert pf-m-danger pf-m-inline td__error">
@@ -399,6 +422,27 @@
 		color: var(--sc-blue-text);
 		background: var(--sc-blue-bg);
 		border-color: var(--sc-blue-border);
+	}
+
+	.td__catalog-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 8px;
+		border-radius: 12px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		white-space: nowrap;
+		border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+		color: var(--pf-t--global--color--brand--default, #0066cc);
+		background: var(--pf-t--global--background--color--secondary--default, #f0f0f0);
+		text-decoration: none;
+		transition: background-color 0.1s ease;
+	}
+
+	.td__catalog-link:hover {
+		background: var(--pf-t--global--background--color--secondary--hover, #e0e0e0);
+		text-decoration: underline;
 	}
 
 	.td__copy {
