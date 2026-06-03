@@ -1,5 +1,6 @@
 <script lang="ts">
 	import StatusBadge from './StatusBadge.svelte';
+	import GroupSection from './GroupSection.svelte';
 	import type { GroupRunPublic, SessionListItem, TargetPublic } from '$lib/types';
 
 	let {
@@ -24,90 +25,62 @@
 	}
 </script>
 
-<div class="group-section">
-	<div class="group-section__header">
+<GroupSection>
+	{#snippet header()}
 		<h2 class="pf-v6-c-title pf-m-lg">Run History</h2>
-	</div>
-	<div class="group-section__body">
-		{#if runs.length === 0}
-			<p class="group-empty">No checks run yet.</p>
-		{:else}
-			<div class="run-list">
-				{#each runs as run}
-					{@const sessions = runSessions[run.run_id] || []}
-					<div class="run-list__item" class:run-list__item--expanded={expandedRuns.has(run.run_id)}>
-						<button class="run-list__toggle" onclick={() => toggleRun(run.run_id)}>
-							<div class="run-list__toggle-left">
-								<StatusBadge status={run.status} size="sm" />
-								<span>{sessions.length} session{sessions.length !== 1 ? 's' : ''}</span>
-								<span class="run-list__date">{new Date(run.created_at).toLocaleString()}</span>
-							</div>
-							<span class="run-list__chevron">
-								{#if expandedRuns.has(run.run_id)}
-									<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"
-										><path d="M3 6l5 5 5-5H3Z" /></svg
-									>
-								{:else}
-									<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"
-										><path d="M6 3l5 5-5 5V3Z" /></svg
-									>
-								{/if}
-							</span>
-						</button>
-						{#if expandedRuns.has(run.run_id)}
-							<div class="run-list__sessions">
-								{#each sessions as cs}
-									{@const sessionTargets = targetsBySession[cs.session_id] || []}
-									{@const healthy = sessionTargets.filter((t) => t.status === 'healthy').length}
-								<button
-									class="run-list__session"
-									onclick={() => onPreview(cs.session_id)}
+	{/snippet}
+	{#if runs.length === 0}
+		<p class="group-empty">No checks run yet.</p>
+	{:else}
+		<div class="run-list">
+			{#each runs as run}
+				{@const sessions = runSessions[run.run_id] || []}
+				<div class="run-list__item" class:run-list__item--expanded={expandedRuns.has(run.run_id)}>
+					<button class="run-list__toggle" onclick={() => toggleRun(run.run_id)}>
+						<div class="run-list__toggle-left">
+							<StatusBadge status={run.status} size="sm" />
+							<span>{sessions.length} session{sessions.length !== 1 ? 's' : ''}</span>
+							<span class="run-list__date">{new Date(run.created_at).toLocaleString()}</span>
+						</div>
+						<span class="run-list__chevron">
+							{#if expandedRuns.has(run.run_id)}
+								<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"
+									><path d="M3 6l5 5 5-5H3Z" /></svg
 								>
-									<span class="run-list__session-left">
-										<StatusBadge status={cs.status} size="sm" />
-										<span>{cs.name || cs.display_label}</span>
-									</span>
-									<span class="run-list__session-stat"
-										>{healthy}/{sessionTargets.length} healthy</span
-									>
-								</button>
-								{/each}
-							</div>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		{/if}
-	</div>
-</div>
+							{:else}
+								<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"
+									><path d="M6 3l5 5-5 5V3Z" /></svg
+								>
+							{/if}
+						</span>
+					</button>
+					{#if expandedRuns.has(run.run_id)}
+						<div class="run-list__sessions">
+							{#each sessions as cs}
+								{@const sessionTargets = targetsBySession[cs.session_id] || []}
+								{@const healthy = sessionTargets.filter((t) => t.status === 'healthy').length}
+							<button
+								class="run-list__session"
+								onclick={() => onPreview(cs.session_id)}
+							>
+								<span class="run-list__session-left">
+									<StatusBadge status={cs.status} size="sm" />
+									<span>{cs.name || cs.display_label}</span>
+								</span>
+								<span class="run-list__session-stat"
+									>{healthy}/{sessionTargets.length} healthy</span
+								>
+							</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/each}
+		</div>
+	{/if}
+</GroupSection>
 
 <style>
-	.group-section {
-		background: var(--pf-t--global--background--color--primary--default, #fff);
-		border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-		border-radius: var(--pf-t--global--border--radius--small, 3px);
-		margin-bottom: var(--pf-t--global--spacer--md, 16px);
-	}
-
-	.group-section__header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: var(--pf-t--global--spacer--md, 16px) var(--pf-t--global--spacer--lg, 24px);
-		border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-	}
-
-	.group-section__body {
-		padding: var(--pf-t--global--spacer--md, 16px) var(--pf-t--global--spacer--lg, 24px);
-	}
-
-	.group-empty {
-		text-align: center;
-		color: var(--pf-t--global--text--color--subtle, #6a6e73);
-		padding: var(--pf-t--global--spacer--lg, 24px) 0;
-		margin: 0;
-	}
-
 	.run-list {
 		display: flex;
 		flex-direction: column;
