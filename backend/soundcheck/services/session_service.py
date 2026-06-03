@@ -75,7 +75,7 @@ async def create_session(
     for url in urls:
         target = SessionTarget(
             session_id=sid,
-            url=url.rstrip("/"),
+            url=url,
             label=url,
             status="pending",
         )
@@ -253,7 +253,7 @@ def _resolved_target(
     )
     return SessionTarget(
         session_id=sid,
-        url=entry["url"].rstrip("/") if entry.get("url") else "",
+        url=entry.get("url", ""),
         label=entry.get("label", entry.get("url", "")),
         guid=guid,
         workshop_guid=workshop_guid,
@@ -444,7 +444,7 @@ async def resolve_session_targets(db: AsyncSession, sid: str) -> None:
                     db.add(
                         SessionTarget(
                             session_id=sid,
-                            url=entry["url"].rstrip("/") if entry.get("url") else "",
+                            url=entry.get("url", ""),
                             label=entry.get("label", ""),
                             resource_pool_name=pool_name,
                             provision_status=prov_status,
