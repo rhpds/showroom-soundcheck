@@ -454,9 +454,9 @@
 		padding: 2px 6px 2px 8px;
 		border-radius: 12px;
 		font-size: 0.72rem;
-		background: #e7f1fa;
-		color: #003d73;
-		border: 1px solid #73bcf7;
+		background: var(--sc-blue-bg);
+		color: var(--sc-blue-text);
+		border: 1px solid var(--sc-blue-border);
 		white-space: nowrap;
 	}
 

@@ -995,28 +995,28 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		font-size: 11px;
-		color: #4a4a4a;
+		color: var(--pf-t--global--text--color--regular, #151515);
 		min-width: 0;
 	}
 
 	.tl-name--link {
-		color: #004080;
+		color: var(--pf-t--global--color--link--default, #0066cc);
 		text-decoration: underline;
 		font-weight: 500;
 	}
 
 	.tl-name--link:hover {
-		color: #0066cc;
+		color: var(--pf-t--global--color--link--hover, #004080);
 	}
 
 	.tl-name--multi {
-		color: #003d73;
+		color: var(--pf-t--global--color--link--default, #0066cc);
 		font-weight: 600;
 	}
 
 	.tl-meta {
 		font-size: 0.6rem;
-		color: #6a6a6a;
+		color: var(--pf-t--global--text--color--subtle, #6a6e73);
 		white-space: nowrap;
 	}
 
@@ -1032,7 +1032,7 @@
 
 	.tl-requester {
 		font-size: 0.6rem;
-		color: #888;
+		color: var(--pf-t--global--text--color--subtle, #6a6e73);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -1069,8 +1069,8 @@
 		display: inline-block;
 		width: 14px;
 		flex-shrink: 0;
-		border-left: 2px solid #d0d0d0;
-		border-bottom: 2px solid #d0d0d0;
+		border-left: 2px solid var(--pf-t--global--border--color--default, #d2d2d2);
+		border-bottom: 2px solid var(--pf-t--global--border--color--default, #d2d2d2);
 		height: 8px;
 		margin-left: 6px;
 		margin-bottom: -2px;

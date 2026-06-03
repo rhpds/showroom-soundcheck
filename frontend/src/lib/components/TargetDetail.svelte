@@ -580,8 +580,8 @@
 	}
 
 	.td__icon-indicator--warn {
-		color: #795600;
-		background: #fef6e6;
+		color: var(--sc-gold-text);
+		background: var(--sc-gold-bg);
 	}
 
 	.td__icon-indicator--muted {

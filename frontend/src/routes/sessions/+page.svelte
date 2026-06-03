@@ -514,9 +514,9 @@
 		border-radius: 10px;
 		font-size: 0.7rem;
 		font-weight: 500;
-		color: #005f60;
-		background: #e0f5f5;
-		border: 1px solid #7ecbc0;
+		color: var(--sc-teal-text);
+		background: var(--sc-teal-bg);
+		border: 1px solid var(--sc-teal-border);
 		text-decoration: none;
 		vertical-align: middle;
 	}
