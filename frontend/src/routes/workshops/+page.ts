@@ -11,6 +11,8 @@ import {
 } from '$lib/utils';
 
 export const load: PageLoad = async ({ url }) => {
+	const hasAnyParams = url.searchParams.toString().length > 0;
+
 	const selectedClusters = url.searchParams.getAll('cluster');
 	const whiteGlove = url.searchParams.get('white_glove') === 'true';
 	const multiAssetOnly = url.searchParams.get('multi_asset') === 'true';
@@ -23,16 +25,20 @@ export const load: PageLoad = async ({ url }) => {
 		: 'all';
 
 	const rawStatuses = url.searchParams.getAll('status');
-	const selectedStatuses = rawStatuses.filter((s): s is WorkshopStatus =>
-		ALL_WORKSHOP_STATUSES.includes(s as WorkshopStatus)
-	);
+	const selectedStatuses = rawStatuses.length > 0
+		? rawStatuses.filter((s): s is WorkshopStatus =>
+			ALL_WORKSHOP_STATUSES.includes(s as WorkshopStatus)
+		)
+		: hasAnyParams
+			? []
+			: (['scheduled', 'provisioning'] as WorkshopStatus[]);
 
 	const hasFailures = url.searchParams.get('has_failures') === 'true';
 
-	const rawTime = url.searchParams.get('time') || 'all';
+	const rawTime = url.searchParams.get('time') || (hasAnyParams ? 'all' : '24h');
 	const timeWindow: TimeWindowFilter = VALID_TIME_WINDOWS.includes(rawTime as TimeWindowFilter)
 		? (rawTime as TimeWindowFilter)
-		: 'all';
+		: '24h';
 
 	const timeRange = getTimeRange(timeWindow);
 	const workshopParams = {

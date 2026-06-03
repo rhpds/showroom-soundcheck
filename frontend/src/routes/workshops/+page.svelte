@@ -92,7 +92,7 @@
 		if (provisionType !== 'all') params.set('provision_type', provisionType);
 		for (const s of selectedStatuses) params.append('status', s);
 		if (hasFailures) params.set('has_failures', 'true');
-		if (timeWindow !== 'all') params.set('time', timeWindow);
+		params.set('time', timeWindow);
 		const qs = params.toString();
 		replaceState(`${page.url.pathname}${qs ? `?${qs}` : ''}`, {});
 	}
