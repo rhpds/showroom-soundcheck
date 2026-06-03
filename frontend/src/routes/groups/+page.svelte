@@ -198,7 +198,7 @@
 		</div>
 	</div>
 {:else}
-	<table class="pf-v6-c-table pf-m-grid-md" role="grid" data-sveltekit-preload-data="hover">
+	<table class="pf-v6-c-table pf-m-grid-md" role="grid">
 		<thead class="pf-v6-c-table__thead">
 			<tr class="pf-v6-c-table__tr">
 				<th class="pf-v6-c-table__th col-pin" aria-label="Pin"></th>
