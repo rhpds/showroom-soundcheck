@@ -3,6 +3,7 @@
 	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopStatus, WorkshopCheckStatusMap } from '$lib/types';
 	import { workshopStatusBg, workshopStatusTextColor, workshopStatusLabel, workshopStatusBorder } from '$lib/utils';
 	import { checkStatusLabel } from '$lib/checkStatuses.svelte';
+	import TimelineTooltip from './TimelineTooltip.svelte';
 
 	let {
 		items,
@@ -279,18 +280,6 @@
 		if (i.locked) label += ', locked';
 		if (i.disable_auto_stop) label += ', no auto-stop';
 		return label;
-	}
-
-	function fmtDateTime(iso: string): string {
-		if (!iso) return '—';
-		const d = new Date(iso);
-		if (isNaN(d.getTime())) return '—';
-		return d.toLocaleString(undefined, {
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
 	}
 
 	function statusShortLabel(status: WorkshopStatus): string {
@@ -821,65 +810,13 @@
 			</svg>
 		</div>
 
-		<!-- Hover tooltip -->
 		{#if hoveredIndex !== null}
-			{@const hovered = timelineItems[hoveredIndex]}
-			<div class="timeline-tooltip" style="left: {tooltipX}px; top: {tooltipY}px;" role="tooltip">
-			{#if hovered.kind === 'multi'}
-				<strong class="tooltip-name">{hovered.item.display_name}</strong>
-				{#if hovered.item.requester}
-					<span>User: {hovered.item.requester}{#if hovered.item.ordered_by && hovered.item.ordered_by !== hovered.item.requester} (by {hovered.item.ordered_by}){/if}</span>
-				{:else if hovered.item.ordered_by}
-					<span>Ordered by: {hovered.item.ordered_by}</span>
-				{/if}
-				<span>Start: {fmtDateTime(hovered.item.start_date)}</span>
-				<span>End: {fmtDateTime(hovered.item.end_date)}</span>
-				<span>Event &middot; {hovered.item.children.length} workshops</span>
-				<span>Cluster: {hovered.item.cluster}</span>
-				<span>Status: {workshopStatusLabel(hovered.item.status)}</span>
-				<span>Seats: {hovered.item.number_seats}</span>
-				<span>Instances: {hovered.item.provision_active}/{hovered.item.provision_ordered}</span>
-				{#if hovered.item.provision_failed > 0}
-					<span class="tooltip-failed">Failed: {hovered.item.provision_failed}</span>
-				{/if}
-				{#if hovered.item.users_total > 0}
-					<span>Users: {hovered.item.users_assigned}/{hovered.item.users_total}</span>
-				{/if}
-				{#if hovered.item.purpose}
-					<span>Purpose: {hovered.item.purpose}</span>
-				{/if}
-			{:else}
-				{@const ws = hovered.item}
-				<strong class="tooltip-name">{ws.display_name}</strong>
-				{#if ws.requester}
-					<span>User: {ws.requester}{#if ws.ordered_by && ws.ordered_by !== ws.requester} (by {ws.ordered_by}){/if}</span>
-				{:else if ws.ordered_by}
-					<span>Ordered by: {ws.ordered_by}</span>
-				{/if}
-				{#if ws.catalog_item}
-					<span>Catalog: {ws.catalog_item}</span>
-				{/if}
-				<span>Start: {fmtDateTime(ws.lifespan_start)}</span>
-				<span>End: {fmtDateTime(ws.lifespan_end)}</span>
-				<span>Cluster: {ws.cluster}</span>
-				<span>Status: {workshopStatusLabel(ws.status)}</span>
-				<span>Instances: {ws.provision_active}/{ws.provision_ordered}</span>
-				{#if ws.provision_failed > 0}
-					<span class="tooltip-failed">Failed: {ws.provision_failed}</span>
-				{/if}
-				<span>Users: {ws.users_assigned}/{ws.users_total}</span>
-				{#if ws.white_glove}<span class="tooltip-wg">White-glove</span>{/if}
-				{#if ws.demo_team_provisioned}<span class="tooltip-dt">Demo team</span>{/if}
-				{#if ws.locked}<span class="tooltip-locked">Locked</span>{/if}
-				{#if ws.disable_auto_stop}<span class="tooltip-no-autostop">No auto-stop</span>{/if}
-				{#if ws.workshop_id}
-					{@const cs = checkStatuses[ws.workshop_id]}
-					<span class="tooltip-check-row">
-						Check: {cs ? checkStatusLabel(cs.status) : '—'}
-					</span>
-				{/if}
-			{/if}
-			</div>
+			<TimelineTooltip
+				row={timelineItems[hoveredIndex]}
+				x={tooltipX}
+				y={tooltipY}
+				{checkStatuses}
+			/>
 		{/if}
 	{/if}
 </div>
@@ -1080,60 +1017,6 @@
 		text-align: center;
 		padding: 48px;
 		opacity: 0.6;
-	}
-
-	.timeline-tooltip {
-		position: fixed;
-		transform: translate(-50%, -100%);
-		margin-top: -12px;
-		pointer-events: none;
-		background: #1b1d21;
-		color: #fff;
-		padding: 8px 12px;
-		border-radius: 6px;
-		font-size: 0.75rem;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		max-width: 320px;
-		word-break: break-word;
-		z-index: 100;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-	}
-
-	.tooltip-name {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		max-width: 280px;
-	}
-
-	.tooltip-failed {
-		color: #f4a460;
-		font-weight: 600;
-	}
-
-	.tooltip-wg {
-		color: #f0c75e;
-	}
-
-	.tooltip-dt {
-		color: #c8a0d8;
-	}
-
-	.tooltip-locked {
-		color: #73bcf7;
-	}
-
-	.tooltip-no-autostop {
-		color: #f4a460;
-	}
-
-	.tooltip-check-row {
-		margin-top: 2px;
-		padding-top: 3px;
-		border-top: 1px solid rgba(255, 255, 255, 0.15);
-		color: #73bcf7;
 	}
 
 	.tl-check-dot {
