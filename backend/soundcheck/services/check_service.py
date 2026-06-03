@@ -562,7 +562,7 @@ def _tier2_to_dict(t: Tier2Detail) -> dict[str, Any]:
 # Tier 2: legacy Antora showroom checks
 # ---------------------------------------------------------------------------
 
-LEGACY_CONTENT_PATHS = ["/content/"]
+LEGACY_CONTENT_PATHS = ["/content/", "/modules/"]
 
 
 async def _run_tier2(
@@ -598,13 +598,22 @@ async def _run_tier2(
             )
         )
 
-    all_healthy = bool(content_probes) and all(c.reachable for c in content_probes)
+    showroom_probes = [c for c in content_probes if c.name == "showroom"]
+    content_only = [c for c in content_probes if c.name == "content"]
+    showroom_ok = all(c.reachable for c in showroom_probes)
+    any_content_ok = any(c.reachable for c in content_only)
+    all_healthy = showroom_ok and any_content_ok
     elapsed = int((time.monotonic() - start) * 1000)
 
     errors = []
-    for c in content_probes:
-        if not c.reachable:
-            errors.append(f"Legacy probe '{c.name}' unreachable: {c.error or c.url}")
+    if not showroom_ok:
+        for c in showroom_probes:
+            if not c.reachable:
+                errors.append(f"Legacy probe '{c.name}' unreachable: {c.error or c.url}")
+    if not any_content_ok:
+        for c in content_only:
+            if not c.reachable:
+                errors.append(f"Legacy probe '{c.name}' unreachable: {c.error or c.url}")
 
     detail: dict[str, Any] = {
         "config_found": False,
