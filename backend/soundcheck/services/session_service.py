@@ -710,13 +710,31 @@ async def cleanup_stale_sessions(
             .with_for_update(skip_locked=True)
         )
         stale = list(result.scalars().all())
+        now = utc_now()
         for cs in stale:
             cs.status = "failed"
-            cs.completed_at = utc_now()
+            cs.completed_at = now
             db.add(cs)
         if stale:
             await db.commit()
             logger.warning("Cleaned up %d stale running session(s)", len(stale))
+
+        stale_sids = [cs.session_id for cs in stale]
+        if stale_sids:
+            target_result = await db.execute(
+                select(SessionTarget)
+                .where(SessionTarget.session_id.in_(stale_sids))  # type: ignore[union-attr]
+                .where(SessionTarget.status == "running")
+            )
+            stuck_targets = list(target_result.scalars().all())
+            for t in stuck_targets:
+                t.status = "error"
+                t.error_message = "Check timed out (worker did not complete)"
+                t.check_completed_at = now
+                db.add(t)
+            if stuck_targets:
+                await db.commit()
+                logger.warning("Marked %d orphaned running target(s) as timed out", len(stuck_targets))
 
     group_run_ids = {(cs.group_run_id, cs.group_id) for cs in stale if cs.group_run_id and cs.group_id}
     for run_id, group_id in group_run_ids:
