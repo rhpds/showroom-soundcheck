@@ -53,6 +53,11 @@ DB_POOL_RECYCLE = _positive_int_env("DB_POOL_RECYCLE", 3600)
 VERIFY_SSL = os.environ.get("VERIFY_SSL", "true").lower() in ("true", "1", "yes")
 LOG_FORMAT = os.environ.get("LOG_FORMAT", "text").lower()
 CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")]
+if "*" in CORS_ORIGINS:
+    raise RuntimeError(
+        "CORS_ORIGINS must not contain '*' (wildcard is unsafe with allow_credentials=True). "
+        "Set explicit origin(s) instead, e.g. CORS_ORIGINS=https://my-frontend.example.com"
+    )
 API_KEY = os.environ.get("API_KEY", "")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 ENABLE_DOCS = os.environ.get("ENABLE_DOCS", "true").lower() in ("true", "1", "yes")
