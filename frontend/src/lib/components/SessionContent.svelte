@@ -117,7 +117,8 @@
 			}
 			if (retryCount < MAX_RETRIES) {
 				retryCount++;
-				retryTimeout = setTimeout(loadSession, Math.min(1000 * 2 ** retryCount, 30000));
+				const jitter = Math.random() * 1000;
+				retryTimeout = setTimeout(loadSession, Math.min(1000 * 2 ** retryCount + jitter, 30000));
 			} else {
 				streamFailed = true;
 			}
