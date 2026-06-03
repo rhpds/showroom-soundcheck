@@ -548,25 +548,49 @@
 				</foreignObject>
 
 					<!-- Child bar -->
-					<rect
-						x={LABEL_WIDTH + barX}
-						{y}
-						width={barWidth}
-						height={h}
-						rx="4"
-						fill={workshopStatusBg(child.status)}
-						opacity={hoveredIndex === idx ? 1 : 0.8}
-						class="timeline-bar"
-						data-bar-idx={idx}
-						role="button"
-						tabindex="0"
-						aria-label={barAriaLabel(tRow)}
-						onmouseenter={(e) => handleBarEnter(idx, e)}
-						onmousemove={handleBarMove}
-						onmouseleave={() => (hoveredIndex = null)}
-						onfocus={() => handleBarFocus(idx)}
-						onblur={() => (hoveredIndex = null)}
-					/>
+					{#if child.catalog_url}
+						<a href={child.catalog_url} target="_blank" rel="noopener noreferrer" aria-label="Open {child.display_name} in catalog">
+							<rect
+								x={LABEL_WIDTH + barX}
+								{y}
+								width={barWidth}
+								height={h}
+								rx="4"
+								fill={workshopStatusBg(child.status)}
+								opacity={hoveredIndex === idx ? 1 : 0.8}
+								class="timeline-bar"
+								data-bar-idx={idx}
+								role="button"
+								tabindex="0"
+								aria-label={barAriaLabel(tRow)}
+								onmouseenter={(e) => handleBarEnter(idx, e)}
+								onmousemove={handleBarMove}
+								onmouseleave={() => (hoveredIndex = null)}
+								onfocus={() => handleBarFocus(idx)}
+								onblur={() => (hoveredIndex = null)}
+							/>
+						</a>
+					{:else}
+						<rect
+							x={LABEL_WIDTH + barX}
+							{y}
+							width={barWidth}
+							height={h}
+							rx="4"
+							fill={workshopStatusBg(child.status)}
+							opacity={hoveredIndex === idx ? 1 : 0.8}
+							class="timeline-bar"
+							data-bar-idx={idx}
+							role="button"
+							tabindex="0"
+							aria-label={barAriaLabel(tRow)}
+							onmouseenter={(e) => handleBarEnter(idx, e)}
+							onmousemove={handleBarMove}
+							onmouseleave={() => (hoveredIndex = null)}
+							onfocus={() => handleBarFocus(idx)}
+							onblur={() => (hoveredIndex = null)}
+						/>
+					{/if}
 
 					{#if barWidth > 160}
 						<text
