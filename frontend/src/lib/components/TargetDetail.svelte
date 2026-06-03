@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import StatusBadge from './StatusBadge.svelte';
 	import Modal from './Modal.svelte';
 	import type { TargetPublic, CheckResultPublic, TabDetail, ContentPageDetail } from '$lib/types';
@@ -56,6 +57,10 @@
 			: []
 	);
 	let isLegacy = $derived(!!(detail && 'legacy' in detail && detail.legacy));
+
+	onDestroy(() => {
+		if (copyTimeout) clearTimeout(copyTimeout);
+	});
 </script>
 
 {#if target}
