@@ -66,7 +66,7 @@ export interface ContentPageDetail {
 }
 
 type CheckDetail =
-	| { legacy: true; [key: string]: unknown }
+	| { legacy: true }
 	| { legacy?: false; tabs?: TabDetail[]; content_pages?: ContentPageDetail[] };
 
 export interface TargetPublic {
