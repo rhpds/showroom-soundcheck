@@ -523,9 +523,11 @@ async def _mark_session_failed(
     sid: str,
 ) -> None:
     async with session_factory() as db:
-        cs_result = await db.execute(select(CheckSession).where(CheckSession.session_id == sid))
+        cs_result = await db.execute(
+            select(CheckSession).where(CheckSession.session_id == sid).with_for_update()
+        )
         cs = cs_result.scalars().first()
-        if cs:
+        if cs and cs.status not in ("completed", "failed"):
             cs.status = "failed"
             cs.completed_at = utc_now()
             db.add(cs)
