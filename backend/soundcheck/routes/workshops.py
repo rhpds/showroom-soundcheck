@@ -5,6 +5,7 @@ fetching, caching, status derivation, and filtering.
 """
 
 import asyncio
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Query
@@ -28,6 +29,8 @@ from ..services.workshop_service import (
     group_workshops_with_multiworkshops,
     matches_filters,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/workshops", tags=["workshops"])
 
@@ -61,19 +64,29 @@ async def list_workshops(
 
     ws_tasks = [fetch_workshops_cached(c) for c in target_clusters]
     mws_tasks = [fetch_multiworkshops_cached(c) for c in target_clusters]
-    all_results = await asyncio.gather(*ws_tasks, *mws_tasks)
+    all_results = await asyncio.gather(*ws_tasks, *mws_tasks, return_exceptions=True)
 
     all_items: list[WorkshopDashboardItem] = []
     all_errors: list[str] = []
     all_fetched_at: list[str] = []
-    for cluster_items, cluster_errors, cluster_ts in all_results[: len(target_clusters)]:
+    for i, result in enumerate(all_results[: len(target_clusters)]):
+        if isinstance(result, BaseException):
+            logger.warning("Workshop fetch failed for cluster '%s': %s", target_clusters[i], result)
+            all_errors.append(f"Cluster '{target_clusters[i]}' fetch failed: {result}")
+            continue
+        cluster_items, cluster_errors, cluster_ts = result
         all_items.extend(cluster_items)
         all_errors.extend(cluster_errors)
         if cluster_ts:
             all_fetched_at.append(cluster_ts)
 
     raw_multiworkshops: list[dict[str, Any]] = []
-    for cluster_mws, cluster_errors, cluster_ts in all_results[len(target_clusters):]:
+    for i, result in enumerate(all_results[len(target_clusters):]):
+        if isinstance(result, BaseException):
+            logger.warning("MultiWorkshop fetch failed for cluster '%s': %s", target_clusters[i], result)
+            all_errors.append(f"Cluster '{target_clusters[i]}' multiworkshop fetch failed: {result}")
+            continue
+        cluster_mws, cluster_errors, cluster_ts = result
         raw_multiworkshops.extend(cluster_mws)
         all_errors.extend(cluster_errors)
         if cluster_ts:
@@ -130,11 +143,15 @@ async def workshops_summary():
         )
 
     cluster_results = await asyncio.gather(
-        *[fetch_workshops_cached(c) for c in configured_clusters]
+        *[fetch_workshops_cached(c) for c in configured_clusters],
+        return_exceptions=True,
     )
 
     all_items: list[WorkshopDashboardItem] = []
-    for cluster_items, _, _ in cluster_results:
+    for result in cluster_results:
+        if isinstance(result, BaseException):
+            continue
+        cluster_items, _, _ = result
         all_items.extend(cluster_items)
 
     return build_summary(all_items)
