@@ -13,6 +13,7 @@ from .config import API_KEY, CORS_ORIGINS, ENABLE_DOCS, LOG_FORMAT, warn_default
 from .database import async_session_factory
 from .routes import check, groups, health, sessions, workshops
 from .services import babylon_client, session_service
+from .services.workshop_service import start_background_refresh, stop_background_refresh
 from .worker import checks_queue, orchestration_queue
 
 
@@ -51,8 +52,10 @@ async def lifespan(app: FastAPI):
     await orchestration_queue.connect()
     await checks_queue.connect()
     await session_service.cleanup_stale_sessions(async_session_factory)
+    await start_background_refresh()
     logger.info("Soundcheck API started")
     yield
+    await stop_background_refresh()
     for q in (orchestration_queue, checks_queue):
         try:
             await q.disconnect()

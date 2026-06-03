@@ -393,26 +393,33 @@ async def fetch_multiworkshops_from_cluster(
 
 
 # ---------------------------------------------------------------------------
-# Caching layer
+# Caching layer — background refresh keeps the cache always warm
 # ---------------------------------------------------------------------------
 
 _CLUSTER_FETCH_SEM = asyncio.Semaphore(5)
-_CACHE_TTL = 60  # seconds
+_REFRESH_INTERVAL = 55  # seconds — run slightly under 60s so cache never goes stale
 
 _ws_cache: dict[str, tuple[float, str, list[WorkshopDashboardItem], list[str]]] = {}
 _mws_cache: dict[str, tuple[float, str, list[dict[str, Any]], list[str]]] = {}
+
+_refresh_task: asyncio.Task[None] | None = None
 
 
 async def fetch_workshops_cached(
     cluster: str,
 ) -> tuple[list[WorkshopDashboardItem], list[str], str]:
-    """Cached, concurrency-limited wrapper around fetch_workshops_from_cluster."""
+    """Return cached workshop data, always served from in-memory cache.
+
+    The background refresh loop keeps the cache warm. If the cache is
+    empty (cold start before the first refresh completes), falls back to
+    an inline fetch so the first request still works.
+    """
     cached = _ws_cache.get(cluster)
-    if cached and (time.monotonic() - cached[0]) < _CACHE_TTL:
+    if cached:
         return cached[2], cached[3], cached[1]
     async with _CLUSTER_FETCH_SEM:
         cached = _ws_cache.get(cluster)
-        if cached and (time.monotonic() - cached[0]) < _CACHE_TTL:
+        if cached:
             return cached[2], cached[3], cached[1]
         items, errors = await fetch_workshops_from_cluster(cluster)
         wall_ts = datetime.now(UTC).isoformat()
@@ -423,18 +430,92 @@ async def fetch_workshops_cached(
 async def fetch_multiworkshops_cached(
     cluster: str,
 ) -> tuple[list[dict[str, Any]], list[str], str]:
-    """Cached, concurrency-limited wrapper around fetch_multiworkshops_from_cluster."""
+    """Return cached multiworkshop data, always served from in-memory cache.
+
+    See :func:`fetch_workshops_cached` for cold-start behaviour.
+    """
     cached = _mws_cache.get(cluster)
-    if cached and (time.monotonic() - cached[0]) < _CACHE_TTL:
+    if cached:
         return cached[2], cached[3], cached[1]
     async with _CLUSTER_FETCH_SEM:
         cached = _mws_cache.get(cluster)
-        if cached and (time.monotonic() - cached[0]) < _CACHE_TTL:
+        if cached:
             return cached[2], cached[3], cached[1]
         items, errors = await fetch_multiworkshops_from_cluster(cluster)
         wall_ts = datetime.now(UTC).isoformat()
         _mws_cache[cluster] = (time.monotonic(), wall_ts, items, errors)
         return items, errors, wall_ts
+
+
+# ---------------------------------------------------------------------------
+# Background refresh
+# ---------------------------------------------------------------------------
+
+
+async def _refresh_cluster_ws(cluster: str) -> None:
+    async with _CLUSTER_FETCH_SEM:
+        try:
+            items, errors = await fetch_workshops_from_cluster(cluster)
+            wall_ts = datetime.now(UTC).isoformat()
+            _ws_cache[cluster] = (time.monotonic(), wall_ts, items, errors)
+        except Exception:
+            logger.exception("Background refresh failed for workshops on '%s'", cluster)
+
+
+async def _refresh_cluster_mws(cluster: str) -> None:
+    async with _CLUSTER_FETCH_SEM:
+        try:
+            items, errors = await fetch_multiworkshops_from_cluster(cluster)
+            wall_ts = datetime.now(UTC).isoformat()
+            _mws_cache[cluster] = (time.monotonic(), wall_ts, items, errors)
+        except Exception:
+            logger.exception("Background refresh failed for multiworkshops on '%s'", cluster)
+
+
+async def _refresh_all_clusters() -> None:
+    clusters = babylon_client.get_configured_clusters()
+    if not clusters:
+        return
+    tasks: list[asyncio.Task[None]] = []
+    for cluster in clusters:
+        tasks.append(asyncio.create_task(_refresh_cluster_ws(cluster)))
+        tasks.append(asyncio.create_task(_refresh_cluster_mws(cluster)))
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def _background_refresh_loop() -> None:
+    logger.info("Workshop cache: starting background refresh (interval=%ds)", _REFRESH_INTERVAL)
+    await _refresh_all_clusters()
+    logger.info("Workshop cache: initial load complete")
+    while True:
+        await asyncio.sleep(_REFRESH_INTERVAL)
+        try:
+            await _refresh_all_clusters()
+            logger.debug("Workshop cache: background refresh complete")
+        except Exception:
+            logger.exception("Workshop cache: background refresh iteration failed")
+
+
+async def start_background_refresh() -> None:
+    """Start the background cache refresh loop. No-op if already running."""
+    global _refresh_task
+    if _refresh_task is not None:
+        return
+    _refresh_task = asyncio.create_task(_background_refresh_loop())
+
+
+async def stop_background_refresh() -> None:
+    """Cancel the background cache refresh loop and wait for it to stop."""
+    global _refresh_task
+    if _refresh_task is None:
+        return
+    _refresh_task.cancel()
+    try:
+        await _refresh_task
+    except asyncio.CancelledError:
+        pass
+    _refresh_task = None
+    logger.info("Workshop cache: background refresh stopped")
 
 
 # ---------------------------------------------------------------------------
