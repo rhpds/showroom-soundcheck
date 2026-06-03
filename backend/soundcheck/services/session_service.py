@@ -704,7 +704,10 @@ async def cleanup_stale_sessions(
     cutoff = utc_now() - timedelta(minutes=max_age_minutes)
     async with session_factory() as db:
         result = await db.execute(
-            select(CheckSession).where(CheckSession.status == "running").where(CheckSession.created_at < cutoff)
+            select(CheckSession)
+            .where(CheckSession.status == "running")
+            .where(CheckSession.created_at < cutoff)
+            .with_for_update(skip_locked=True)
         )
         stale = list(result.scalars().all())
         for cs in stale:
