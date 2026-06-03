@@ -53,6 +53,7 @@
 
 	const CHILD_ROW_HEIGHT = 48;
 	const MWS_ROW_HEIGHT = 52;
+	const SCROLL_CHROME = 18; // .timeline-scroll padding (8*2) + border (1*2)
 
 	type TimelineRow =
 		| { kind: 'workshop'; item: WorkshopDashboardItem; startMs: number; endMs: number }
@@ -169,7 +170,7 @@
 		return { minMs: minMs - padding, maxMs: maxMs + padding };
 	});
 
-	let chartWidth = $derived(Math.max(containerWidth - LABEL_WIDTH - 20, 200));
+	let chartWidth = $derived(Math.max(containerWidth - LABEL_WIDTH - 20 - SCROLL_CHROME, 200));
 
 	let rowYPositions = $derived.by(() => {
 		const positions: number[] = [];
