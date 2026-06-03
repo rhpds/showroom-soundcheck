@@ -131,9 +131,5 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     )
 
 
-try:
-    from saq.web.starlette import saq_web
-
-    app.mount("/monitor", saq_web("/monitor", queues=[orchestration_queue, checks_queue]))
-except ImportError:
-    pass
+# SAQ web monitor is served by the orchestration worker (with auth)
+# rather than the API server. See docker-compose.yml orchestration-worker.
