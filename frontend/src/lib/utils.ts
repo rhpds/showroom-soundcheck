@@ -83,9 +83,6 @@ export type ProvisionTypeFilter = (typeof VALID_PROVISION_TYPES)[number];
 export const VALID_TIME_WINDOWS = ['all', 'today', '24h', 'week'] as const;
 export type TimeWindowFilter = (typeof VALID_TIME_WINDOWS)[number];
 
-export const VALID_VIEW_MODES = ['table', 'timeline'] as const;
-export type ViewModeFilter = (typeof VALID_VIEW_MODES)[number];
-
 export const ALL_WORKSHOP_STATUSES: WorkshopStatus[] = [
 	'scheduled', 'provisioning', 'running', 'stopped', 'degraded', 'failed', 'completed'
 ];

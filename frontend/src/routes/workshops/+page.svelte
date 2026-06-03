@@ -3,17 +3,13 @@
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { listWorkshops } from '$lib/api';
-	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopListResponse, WorkshopStatus } from '$lib/types';
-	import { createCheckStatusManager, checkStatusColor, checkStatusLabel } from '$lib/checkStatuses.svelte';
+	import type { WorkshopListResponse, WorkshopStatus } from '$lib/types';
+	import { createCheckStatusManager } from '$lib/checkStatuses.svelte';
 	import {
 		getTimeRange,
-		workshopStatusColor,
-		workshopStatusLabel,
 		type ProvisionTypeFilter,
-		type TimeWindowFilter,
-		type ViewModeFilter
+		type TimeWindowFilter
 	} from '$lib/utils';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import WorkshopTimeline from '$lib/components/WorkshopTimeline.svelte';
 	import WorkshopSummaryCards from '$lib/components/WorkshopSummaryCards.svelte';
 	import WorkshopFilterBar from '$lib/components/WorkshopFilterBar.svelte';
@@ -49,49 +45,7 @@
 		expandedMultiWorkshops = next;
 	}
 
-	// Unified display list: interleave multi-workshops and standalone items by date
-	type DisplayRow =
-		| { kind: 'workshop'; item: WorkshopDashboardItem }
-		| { kind: 'multi'; item: MultiWorkshopDashboardItem }
-		| { kind: 'child'; item: WorkshopDashboardItem; parentName: string };
-
-	let displayRows = $derived.by(() => {
-		const rows: DisplayRow[] = [];
-		const standaloneWithDates = multiAssetOnly ? [] : data.items.map((ws) => ({
-			kind: 'workshop' as const,
-			item: ws,
-			sortDate: ws.lifespan_start || ''
-		}));
-		const multiWithDates = (data.multi_workshops ?? []).map((mws) => ({
-			kind: 'multi' as const,
-			item: mws,
-			sortDate: mws.start_date || ''
-		}));
-
-		const combined = [...standaloneWithDates, ...multiWithDates];
-		combined.sort((a, b) => (b.sortDate > a.sortDate ? 1 : b.sortDate < a.sortDate ? -1 : 0));
-
-		for (const entry of combined) {
-			if (entry.kind === 'multi') {
-				rows.push({ kind: 'multi', item: entry.item });
-				if (expandedMultiWorkshops.has(entry.item.name)) {
-					for (const child of entry.item.children) {
-						rows.push({ kind: 'child', item: child, parentName: entry.item.name });
-					}
-				}
-			} else {
-				rows.push({ kind: 'workshop', item: entry.item });
-			}
-		}
-		return rows;
-	});
-
 	let hasContent = $derived(data.items.length > 0 || (data.multi_workshops ?? []).length > 0);
-
-	const TABLE_PAGE_SIZE = 50;
-	let visibleCount = $state(TABLE_PAGE_SIZE);
-	let visibleRows = $derived(displayRows.slice(0, visibleCount));
-	let hasMore = $derived(displayRows.length > visibleCount);
 
 	let selectedClusters = $state<string[]>(pageData.filters.selectedClusters);
 	let whiteGlove = $state(pageData.filters.whiteGlove);
@@ -100,7 +54,6 @@
 	let selectedStatuses = $state<WorkshopStatus[]>(pageData.filters.selectedStatuses);
 	let hasFailures = $state(pageData.filters.hasFailures);
 	let timeWindow = $state<TimeWindowFilter>(pageData.filters.timeWindow);
-	let viewMode = $state<ViewModeFilter>(pageData.filters.viewMode);
 
 	async function loadData(opts: { showSkeleton?: boolean } = {}) {
 		workshopAbort?.abort();
@@ -140,29 +93,13 @@
 		for (const s of selectedStatuses) params.append('status', s);
 		if (hasFailures) params.set('has_failures', 'true');
 		if (timeWindow !== 'all') params.set('time', timeWindow);
-		if (viewMode !== 'table') params.set('view', viewMode);
 		const qs = params.toString();
 		replaceState(`${page.url.pathname}${qs ? `?${qs}` : ''}`, {});
 	}
 
 	function handleFilterChange() {
-		visibleCount = TABLE_PAGE_SIZE;
 		syncFiltersToUrl();
 		loadData();
-	}
-
-	function formatDate(iso: string): string {
-		if (!iso) return '—';
-		try {
-			return new Date(iso).toLocaleString(undefined, {
-				month: 'short',
-				day: 'numeric',
-				hour: '2-digit',
-				minute: '2-digit'
-			});
-		} catch {
-			return iso;
-		}
 	}
 
 	function formatFetchedAt(iso: string): string {
@@ -176,16 +113,6 @@
 		} catch {
 			return '';
 		}
-	}
-
-	function provisionProgress(item: WorkshopDashboardItem): string {
-		if (item.provision_ordered === 0) return '—';
-		return `${item.provision_active}/${item.provision_ordered}`;
-	}
-
-	function userProgress(item: WorkshopDashboardItem): string {
-		if (item.users_total === 0) return '—';
-		return `${item.users_assigned}/${item.users_total}`;
 	}
 
 	// ---------------------------------------------------------------------------
@@ -206,7 +133,6 @@
 	});
 
 	let checkStatuses = $derived(checks.statuses);
-	let checkRunning = $derived(checks.running);
 
 	async function runCheck(workshopId: string, cluster: string, displayName: string) {
 		const err = await checks.run(workshopId, cluster, displayName);
@@ -233,30 +159,6 @@
 <div class="page-header">
 	<h1 class="pf-v6-c-title pf-m-2xl">Workshops</h1>
 	<div class="page-header__actions">
-		<div class="view-toggle">
-			<button
-				class="pf-v6-c-button"
-				class:pf-m-primary={viewMode === 'table'}
-				class:pf-m-secondary={viewMode !== 'table'}
-				onclick={() => { viewMode = 'table'; syncFiltersToUrl(); }}
-				aria-label="Table view"
-			>
-				<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
-					<path d="M1 2h14v2H1zm0 4h14v2H1zm0 4h14v2H1zm0 4h14v2H1z" />
-				</svg>
-			</button>
-			<button
-				class="pf-v6-c-button"
-				class:pf-m-primary={viewMode === 'timeline'}
-				class:pf-m-secondary={viewMode !== 'timeline'}
-				onclick={() => { viewMode = 'timeline'; syncFiltersToUrl(); }}
-				aria-label="Timeline view"
-			>
-				<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
-					<path d="M1 3h4v2H1zm6 0h6v2H7zM1 7h8v2H1zm10 0h4v2H11zM1 11h5v2H1zm7 0h7v2H8z" />
-				</svg>
-			</button>
-		</div>
 		{#if data.fetched_at}
 			<span class="data-freshness" title="Cluster data fetched at {data.fetched_at}">
 				{formatFetchedAt(data.fetched_at)}
@@ -294,11 +196,12 @@
 
 <!-- Content -->
 {#if initialLoading}
-	<TableSkeleton
-		headers={['Status', 'Name', 'Cluster', 'Catalog Item', 'Provisioning', 'Users', 'Flags', 'Check', 'Start', 'End']}
-		showPin={false}
-		showActions={false}
-	/>
+	<div class="timeline-skeleton">
+		<div class="timeline-skeleton__bar"></div>
+		<div class="timeline-skeleton__bar timeline-skeleton__bar--short"></div>
+		<div class="timeline-skeleton__bar"></div>
+		<div class="timeline-skeleton__bar timeline-skeleton__bar--short"></div>
+	</div>
 {:else if error}
 	<div class="pf-v6-c-alert pf-m-danger pf-m-inline" role="alert">
 		<div class="pf-v6-c-alert__icon">
@@ -330,261 +233,20 @@
 			{/if}
 		</div>
 	</div>
-{:else if viewMode === 'table'}
-	<div class="table-wrapper" class:table-wrapper--refreshing={refreshing}>
-		<table class="pf-v6-c-table pf-m-grid-md" role="grid">
-			<thead class="pf-v6-c-table__thead">
-				<tr class="pf-v6-c-table__tr">
-					<th class="pf-v6-c-table__th col-expand"></th>
-					<th class="pf-v6-c-table__th">Status</th>
-					<th class="pf-v6-c-table__th">Name</th>
-					<th class="pf-v6-c-table__th">Cluster</th>
-					<th class="pf-v6-c-table__th">Catalog Item</th>
-					<th class="pf-v6-c-table__th">Provisioning</th>
-					<th class="pf-v6-c-table__th">Users</th>
-					<th class="pf-v6-c-table__th col-flags">Flags</th>
-					<th class="pf-v6-c-table__th col-check">Check</th>
-					<th class="pf-v6-c-table__th">Start</th>
-					<th class="pf-v6-c-table__th">End</th>
-				</tr>
-			</thead>
-			<tbody class="pf-v6-c-table__tbody">
-				{#each visibleRows as row}
-					{#if row.kind === 'multi'}
-						{@const mws = row.item}
-						{@const isExpanded = expandedMultiWorkshops.has(mws.name)}
-						<tr class="pf-v6-c-table__tr mws-row" class:mws-row--expanded={isExpanded}>
-							<td class="pf-v6-c-table__td col-expand">
-								<button
-									class="expand-toggle"
-									class:expand-toggle--open={isExpanded}
-									onclick={() => toggleMultiWorkshop(mws.name)}
-									aria-label={isExpanded ? 'Collapse' : 'Expand'}
-									title="{mws.children.length} workshops"
-								>
-									<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
-										<path d="M6 3l5 5-5 5V3z" />
-									</svg>
-								</button>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Status">
-								<span class="ws-status-badge ws-status-badge--{workshopStatusColor(mws.status)}">
-									{workshopStatusLabel(mws.status)}
-								</span>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Name">
-								<div class="ws-name-cell">
-									{#if mws.catalog_url}
-										<a
-											href={mws.catalog_url}
-											class="ws-display-name ws-link mws-display-name"
-											target="_blank"
-											rel="noopener noreferrer"
-										>
-											{mws.display_name}
-											<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true">
-												<path d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z" />
-												<path d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z" />
-											</svg>
-										</a>
-									{:else}
-										<span class="ws-display-name mws-display-name">{mws.display_name}</span>
-									{/if}
-									<span class="mws-meta">
-										{mws.number_seats} seats &middot; {mws.children.length} workshops
-										{#if mws.purpose}
-											&middot; {mws.purpose}
-										{/if}
-									</span>
-									{#if mws.requester}
-										<span class="ws-requester">{mws.requester}</span>
-									{/if}
-								</div>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Cluster">
-								<span class="cluster-badge">{mws.cluster}</span>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Catalog Item">
-								<span class="catalog-label">{mws.assets.length} items</span>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Provisioning">
-								<div class="provision-cell">
-									<span>{mws.provision_active}/{mws.provision_ordered}</span>
-									{#if mws.provision_failed > 0}
-										<span class="provision-failed" title="{mws.provision_failed} failed">
-											{mws.provision_failed} failed
-										</span>
-									{/if}
-								</div>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Users">
-								{#if mws.users_total > 0}
-									{mws.users_assigned}/{mws.users_total}
-								{:else}
-									—
-								{/if}
-							</td>
-							<td class="pf-v6-c-table__td col-flags" data-label="Flags">
-								<span class="flag-badge flag-badge--event" title="Multi-Workshop Event">EVENT</span>
-							</td>
-							<td class="pf-v6-c-table__td col-check" data-label="Check">
-								<span class="flag-none">—</span>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Start">
-								{formatDate(mws.start_date)}
-							</td>
-							<td class="pf-v6-c-table__td" data-label="End">
-								{formatDate(mws.end_date)}
-							</td>
-						</tr>
-					{:else}
-						{@const workshop = row.item}
-						{@const isChild = row.kind === 'child'}
-						<tr class="pf-v6-c-table__tr" class:child-row={isChild}>
-							<td class="pf-v6-c-table__td col-expand">
-								{#if isChild}
-									<span class="child-indent"></span>
-								{/if}
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Status">
-								<span
-									class="ws-status-badge ws-status-badge--{workshopStatusColor(workshop.status)}"
-								>
-									{workshopStatusLabel(workshop.status)}
-								</span>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Name">
-								<div class="ws-name-cell">
-									{#if workshop.catalog_url}
-										<a
-											href={workshop.catalog_url}
-											class="ws-display-name ws-link"
-											target="_blank"
-											rel="noopener noreferrer"
-										>
-											{workshop.display_name}
-											<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true">
-												<path d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z" />
-												<path d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z" />
-											</svg>
-										</a>
-									{:else}
-										<span class="ws-display-name">{workshop.display_name}</span>
-									{/if}
-									{#if !isChild && workshop.requester}
-										<span class="ws-requester">{workshop.requester}</span>
-									{/if}
-								</div>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Cluster">
-								<span class="cluster-badge">{workshop.cluster}</span>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Catalog Item">
-								<span class="catalog-label">{workshop.catalog_item || '—'}</span>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Provisioning">
-								<div class="provision-cell">
-									<span>{provisionProgress(workshop)}</span>
-									{#if workshop.provision_failed > 0}
-										<span class="provision-failed" title="{workshop.provision_failed} failed">
-											{workshop.provision_failed} failed
-										</span>
-									{/if}
-								</div>
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Users">
-								{userProgress(workshop)}
-							</td>
-							<td class="pf-v6-c-table__td col-flags" data-label="Flags">
-								<div class="flags-cell">
-									{#if workshop.white_glove}
-										<span class="flag-badge flag-badge--wg" title="White-glove">WG</span>
-									{/if}
-									{#if workshop.demo_team_provisioned}
-										<span class="flag-badge flag-badge--dt" title="Demo team provisioned">DT</span>
-									{/if}
-								{#if workshop.locked}
-									<span class="flag-badge flag-badge--locked" title="Locked">
-										<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true">
-											<path d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-2 3a2 2 0 1 1 4 0v2H6V4z" />
-										</svg>
-									</span>
-								{/if}
-								{#if workshop.disable_auto_stop}
-									<span class="flag-badge flag-badge--no-autostop" title="No auto-stop">
-										<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true">
-											<path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2zM6 5v6h1.5V5H6zm2.5 0v6H10V5H8.5z" />
-										</svg>
-									</span>
-								{/if}
-								{#if !workshop.white_glove && !workshop.demo_team_provisioned && !workshop.locked && !workshop.disable_auto_stop}
-									<span class="flag-none">—</span>
-								{/if}
-								</div>
-							</td>
-							<td class="pf-v6-c-table__td col-check" data-label="Check">
-								{#if workshop.workshop_id}
-									{@const cs = checkStatuses[workshop.workshop_id]}
-									<div class="check-cell">
-										{#if cs}
-											<a
-												href="/session/{cs.session_id}"
-												target="_blank"
-												rel="noopener noreferrer"
-												class="check-badge check-badge--{checkStatusColor(cs.status)}"
-												title="Last check: {checkStatusLabel(cs.status)}"
-											>
-												{checkStatusLabel(cs.status)}
-											</a>
-										{/if}
-										{#if checkRunning.has(workshop.workshop_id)}
-											<span class="check-badge check-badge--blue" title="Starting check...">
-												<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true" class="spin">
-													<path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36A.25.25 0 0 1 11.534 7zm-7.068 2H.534a.25.25 0 0 1-.192-.41l1.966-2.36a.25.25 0 0 1 .384 0l1.966 2.36A.25.25 0 0 1 4.466 9z" />
-												</svg>
-											</span>
-										{:else}
-											<button
-												class="check-run-btn"
-												title="Run showroom check"
-												onclick={() => runCheck(workshop.workshop_id, workshop.cluster, workshop.display_name)}
-											>
-												<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
-													<path d="M4 2l10 6-10 6V2z" />
-												</svg>
-											</button>
-										{/if}
-									</div>
-								{:else}
-									<span class="flag-none">—</span>
-								{/if}
-							</td>
-							<td class="pf-v6-c-table__td" data-label="Start">
-								{formatDate(workshop.lifespan_start)}
-							</td>
-							<td class="pf-v6-c-table__td" data-label="End">
-								{formatDate(workshop.lifespan_end)}
-							</td>
-						</tr>
-					{/if}
-				{/each}
-			</tbody>
-		</table>
-		{#if hasMore}
-			<div class="show-more">
-				<button
-					class="pf-v6-c-button pf-m-link"
-					onclick={() => { visibleCount += TABLE_PAGE_SIZE; }}
-				>
-					Show more ({displayRows.length - visibleCount} remaining)
-				</button>
-			</div>
-		{/if}
-	</div>
 {:else}
 	{@const timeRange = getTimeRange(timeWindow)}
-	<div class="table-wrapper" class:table-wrapper--refreshing={refreshing}>
-		<WorkshopTimeline items={multiAssetOnly ? [] : data.items} multiWorkshops={data.multi_workshops ?? []} filterFrom={timeRange.from_time} filterTo={timeRange.to_time} {timeWindow} {checkStatuses} onRunCheck={runCheck} />
+	<div class="timeline-wrapper" class:timeline-wrapper--refreshing={refreshing}>
+		<WorkshopTimeline
+			items={multiAssetOnly ? [] : data.items}
+			multiWorkshops={data.multi_workshops ?? []}
+			filterFrom={timeRange.from_time}
+			filterTo={timeRange.to_time}
+			{timeWindow}
+			{checkStatuses}
+			onRunCheck={runCheck}
+			{expandedMultiWorkshops}
+			onToggleMultiWorkshop={toggleMultiWorkshop}
+		/>
 	</div>
 {/if}
 
@@ -604,26 +266,17 @@
 		gap: var(--pf-t--global--spacer--sm, 8px);
 	}
 
-	.view-toggle {
-		display: flex;
-		gap: 2px;
-	}
-
-	.view-toggle .pf-v6-c-button {
-		padding: 6px 10px;
-	}
-
 	.data-freshness {
 		font-size: 0.72rem;
 		color: var(--pf-t--global--icon--color--regular, #6a6e73);
 		white-space: nowrap;
 	}
 
-	.table-wrapper {
+	.timeline-wrapper {
 		transition: opacity 0.2s;
 	}
 
-	.table-wrapper--refreshing {
+	.timeline-wrapper--refreshing {
 		opacity: 0.6;
 		pointer-events: none;
 	}
@@ -637,160 +290,6 @@
 		animation: spin 1s linear infinite;
 	}
 
-	/* Workshop status badges */
-	.ws-status-badge {
-		display: inline-block;
-		padding: 2px 8px;
-		border-radius: 12px;
-		font-size: 0.7rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
-		white-space: nowrap;
-	}
-
-	.ws-status-badge--green {
-		color: var(--sc-green-text);
-		background: var(--sc-green-bg);
-		border: 1px solid var(--sc-green-border);
-	}
-	.ws-status-badge--blue {
-		color: var(--sc-blue-text);
-		background: var(--sc-blue-bg);
-		border: 1px solid var(--sc-blue-border);
-	}
-	.ws-status-badge--gold {
-		color: var(--sc-gold-text);
-		background: var(--sc-gold-bg);
-		border: 1px solid var(--sc-gold-border);
-	}
-	.ws-status-badge--orange {
-		color: var(--sc-orange-text);
-		background: var(--sc-orange-bg);
-		border: 1px solid var(--sc-orange-border);
-	}
-	.ws-status-badge--red {
-		color: var(--sc-red-text);
-		background: var(--sc-red-bg);
-		border: 1px solid var(--sc-red-border);
-	}
-	.ws-status-badge--grey {
-		color: var(--sc-grey-text);
-		background: var(--sc-grey-bg);
-		border: 1px solid var(--sc-grey-border);
-	}
-
-	/* Table cells */
-	.ws-name-cell {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.ws-display-name {
-		font-weight: 500;
-	}
-
-	.ws-link {
-		color: var(--pf-t--global--color--link--default, #0066cc);
-		text-decoration: none;
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.ws-link:hover {
-		text-decoration: underline;
-	}
-
-	.ws-requester {
-		font-size: 0.75rem;
-		opacity: 0.6;
-	}
-
-	.cluster-badge {
-		display: inline-block;
-		padding: 1px 6px;
-		border-radius: 4px;
-		font-size: 0.7rem;
-		font-weight: 500;
-		background: var(--sc-blue-bg);
-		color: var(--sc-blue-text);
-		border: 1px solid var(--sc-blue-border);
-	}
-
-	.catalog-label {
-		font-size: 0.8rem;
-		opacity: 0.8;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		max-width: 180px;
-		display: inline-block;
-	}
-
-	.provision-cell {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.provision-failed {
-		font-size: 0.7rem;
-		color: #c9190b;
-		font-weight: 500;
-	}
-
-	.col-flags {
-		width: 70px;
-	}
-
-	.flags-cell {
-		display: flex;
-		gap: 4px;
-		align-items: center;
-	}
-
-	.flag-badge {
-		display: inline-flex;
-		align-items: center;
-		gap: 2px;
-		padding: 1px 5px;
-		border-radius: 4px;
-		font-size: 0.65rem;
-		font-weight: 700;
-		text-transform: uppercase;
-	}
-
-	.flag-badge--wg {
-		background: var(--sc-gold-bg);
-		color: var(--sc-gold-text);
-		border: 1px solid var(--sc-gold-border);
-	}
-
-	.flag-badge--dt {
-		background: var(--sc-purple-bg);
-		color: var(--sc-purple-text);
-		border: 1px solid var(--sc-purple-border);
-	}
-
-	.flag-badge--locked {
-		background: var(--sc-blue-bg);
-		color: var(--sc-blue-text);
-		border: 1px solid var(--sc-blue-border);
-	}
-
-	.flag-badge--no-autostop {
-		background: var(--sc-orange-bg);
-		color: var(--sc-orange-text);
-		border: 1px solid var(--sc-orange-border);
-	}
-
-	.flag-none {
-		opacity: 0.3;
-	}
-
-	/* Empty state */
 	.pf-v6-c-empty-state {
 		padding: var(--pf-t--global--spacer--2xl, 48px);
 		text-align: center;
@@ -804,144 +303,30 @@
 		margin-bottom: var(--pf-t--global--spacer--md, 16px);
 	}
 
-	/* Multi-Workshop rows */
-	.col-expand {
-		width: 32px;
-		padding-right: 0 !important;
-	}
-
-	.expand-toggle {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 24px;
-		height: 24px;
-		border: none;
-		background: none;
-		cursor: pointer;
-		border-radius: 4px;
-		transition: transform 0.15s, background 0.15s;
-		color: var(--pf-t--global--icon--color--regular, #6a6e73);
-	}
-
-	.expand-toggle:hover {
-		background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
-	}
-
-	.expand-toggle--open {
-		transform: rotate(90deg);
-	}
-
-	.mws-row {
-		background: var(--pf-t--global--background--color--secondary--default, #f9f9f9);
-		border-left: 3px solid var(--pf-t--global--color--brand--default, #0066cc);
-	}
-
-	.mws-row--expanded {
-		border-bottom-color: transparent;
-	}
-
-	.mws-display-name {
-		font-size: 1rem;
-	}
-
-	.mws-meta {
-		font-size: 0.72rem;
-		opacity: 0.65;
-	}
-
-	.child-row {
+	.timeline-skeleton {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding: 32px;
+		border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+		border-radius: 8px;
 		background: var(--pf-t--global--background--color--primary--default, #fff);
-		border-left: 3px solid #e0e0e0;
 	}
 
-	.child-indent {
-		display: inline-block;
-		width: 12px;
-		height: 12px;
-		border-left: 2px solid #ccc;
-		border-bottom: 2px solid #ccc;
-		margin-left: 4px;
-		margin-bottom: -4px;
+	.timeline-skeleton__bar {
+		height: 36px;
+		border-radius: 6px;
+		background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+		background-size: 200% 100%;
+		animation: shimmer 1.5s infinite;
 	}
 
-	.flag-badge--event {
-		background: var(--sc-blue-bg);
-		color: var(--sc-blue-text);
-		border: 1px solid var(--sc-blue-border);
+	.timeline-skeleton__bar--short {
+		width: 70%;
 	}
 
-	/* Check column */
-	.col-check {
-		width: 110px;
-	}
-
-	.check-cell {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.check-badge {
-		display: inline-block;
-		padding: 1px 6px;
-		border-radius: 10px;
-		font-size: 0.65rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		text-decoration: none;
-		white-space: nowrap;
-	}
-
-	.check-badge--green {
-		color: var(--sc-green-text);
-		background: var(--sc-green-bg);
-		border: 1px solid var(--sc-green-border);
-	}
-
-	.check-badge--blue {
-		color: var(--sc-blue-text);
-		background: var(--sc-blue-bg);
-		border: 1px solid var(--sc-blue-border);
-	}
-
-	.check-badge--red {
-		color: var(--sc-red-text);
-		background: var(--sc-red-bg);
-		border: 1px solid var(--sc-red-border);
-	}
-
-	.check-badge--grey {
-		color: var(--sc-grey-text);
-		background: var(--sc-grey-bg);
-		border: 1px solid var(--sc-grey-border);
-	}
-
-	.check-run-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 22px;
-		height: 22px;
-		border: 1px solid #d2d2d2;
-		background: none;
-		cursor: pointer;
-		border-radius: 4px;
-		color: var(--pf-t--global--icon--color--regular, #6a6e73);
-		transition: background 0.15s, color 0.15s;
-		flex-shrink: 0;
-	}
-
-	.check-run-btn:hover {
-		background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
-		color: var(--pf-t--global--color--brand--default, #0066cc);
-		border-color: var(--pf-t--global--color--brand--default, #0066cc);
-	}
-
-	.show-more {
-		display: flex;
-		justify-content: center;
-		padding: var(--pf-t--global--spacer--md, 16px);
-		border-top: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+	@keyframes shimmer {
+		0% { background-position: 200% 0; }
+		100% { background-position: -200% 0; }
 	}
 </style>

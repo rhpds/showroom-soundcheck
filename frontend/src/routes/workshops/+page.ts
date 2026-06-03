@@ -4,12 +4,10 @@ import type { WorkshopListResponse, WorkshopStatus } from '$lib/types';
 import {
 	VALID_PROVISION_TYPES,
 	VALID_TIME_WINDOWS,
-	VALID_VIEW_MODES,
 	ALL_WORKSHOP_STATUSES,
 	getTimeRange,
 	type ProvisionTypeFilter,
-	type TimeWindowFilter,
-	type ViewModeFilter
+	type TimeWindowFilter
 } from '$lib/utils';
 
 export const load: PageLoad = async ({ url }) => {
@@ -35,11 +33,6 @@ export const load: PageLoad = async ({ url }) => {
 	const timeWindow: TimeWindowFilter = VALID_TIME_WINDOWS.includes(rawTime as TimeWindowFilter)
 		? (rawTime as TimeWindowFilter)
 		: 'all';
-
-	const rawView = url.searchParams.get('view') || 'table';
-	const viewMode: ViewModeFilter = VALID_VIEW_MODES.includes(rawView as ViewModeFilter)
-		? (rawView as ViewModeFilter)
-		: 'table';
 
 	const timeRange = getTimeRange(timeWindow);
 	const workshopParams = {
@@ -67,8 +60,7 @@ export const load: PageLoad = async ({ url }) => {
 			provisionType,
 			selectedStatuses,
 			hasFailures,
-			timeWindow,
-			viewMode
+			timeWindow
 		}
 	};
 };
