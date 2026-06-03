@@ -180,6 +180,7 @@ export interface WorkshopListParams {
 	has_failures?: boolean;
 	from_time?: string;
 	to_time?: string;
+	limit?: number;
 }
 
 export async function listWorkshops(
@@ -198,6 +199,7 @@ export async function listWorkshops(
 	if (params.has_failures) searchParams.set('has_failures', 'true');
 	if (params.from_time) searchParams.set('from_time', params.from_time);
 	if (params.to_time) searchParams.set('to_time', params.to_time);
+	if (params.limit != null) searchParams.set('limit', String(params.limit));
 	const qs = searchParams.toString();
 	return fetchJson(`${BASE}/workshops${qs ? `?${qs}` : ''}`, init);
 }

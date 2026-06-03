@@ -94,7 +94,7 @@
 		}
 
 		const combined = [...multiRows, ...standaloneRows];
-		combined.sort((a, b) => a.sortMs - b.sortMs);
+		combined.sort((a, b) => a.sortMs - b.sortMs || a.row.item.name.localeCompare(b.row.item.name));
 
 		for (const { row } of combined) {
 			rows.push(row);

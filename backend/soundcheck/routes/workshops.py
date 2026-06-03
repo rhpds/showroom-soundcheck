@@ -117,8 +117,8 @@ async def list_workshops(
                 "users_total": sum(c.users_total for c in matching_children),
             }))
 
-    filtered_standalone.sort(key=lambda w: w.lifespan_start or "", reverse=True)
-    filtered_multi.sort(key=lambda m: m.start_date or "", reverse=True)
+    filtered_standalone.sort(key=lambda w: (w.lifespan_start or "", w.name), reverse=True)
+    filtered_multi.sort(key=lambda m: (m.start_date or "", m.name), reverse=True)
 
     all_filtered_workshops = list(filtered_standalone)
     for mws in filtered_multi:

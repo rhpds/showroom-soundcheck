@@ -73,6 +73,7 @@
 				white_glove: whiteGlove ? 'true' : undefined,
 				provision_type: provisionType !== 'all' ? provisionType : undefined,
 				has_failures: hasFailures || undefined,
+				limit: 500,
 				...timeRange
 			}, { signal });
 		} catch (e: unknown) {

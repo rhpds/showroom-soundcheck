@@ -48,6 +48,7 @@ export const load: PageLoad = async ({ url }) => {
 		provision_type:
 			provisionType !== 'all' ? (provisionType as 'self_service' | 'demo_team') : undefined,
 		has_failures: hasFailures || undefined,
+		limit: 500,
 		...timeRange
 	};
 
