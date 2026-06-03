@@ -527,22 +527,22 @@
 								</span>
 							{/if}
 							{#if child.workshop_id}
-								{@const cs = checkStatuses[child.workshop_id]}
-								{#if cs}
-									<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
-										class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
-										title="Last check: {checkLabel(cs.status)}"
-										aria-label="Last check: {checkLabel(cs.status)}"></a>
-								{/if}
-								{#if onRunCheck}
-									<button class="tl-run-btn" title="Run check"
-										onclick={() => onRunCheck(child.workshop_id, child.cluster, child.display_name)}>
-										<svg viewBox="0 0 16 16" width="8" height="8" fill="currentColor" aria-hidden="true">
-											<path d="M4 2l10 6-10 6V2z" />
-										</svg>
-									</button>
-								{/if}
+							{@const cs = checkStatuses[child.workshop_id]}
+							{#if cs}
+								<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
+									class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
+									title="Last check: {checkLabel(cs.status)}"
+									aria-label="Last check: {checkLabel(cs.status)}"></a>
 							{/if}
+							{#if onRunCheck && child.status !== 'scheduled' && child.status !== 'completed'}
+								<button class="tl-run-btn" title="Run check"
+									onclick={() => onRunCheck(child.workshop_id, child.cluster, child.display_name)}>
+									<svg viewBox="0 0 16 16" width="8" height="8" fill="currentColor" aria-hidden="true">
+										<path d="M4 2l10 6-10 6V2z" />
+									</svg>
+								</button>
+							{/if}
+						{/if}
 						</div>
 					</div>
 				</foreignObject>
@@ -669,23 +669,23 @@
 									</svg>
 								</span>
 							{/if}
-							{#if tItem.item.workshop_id}
-								{@const cs = checkStatuses[tItem.item.workshop_id]}
-								{#if cs}
-									<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
-										class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
-										title="Last check: {checkLabel(cs.status)}"
-										aria-label="Last check: {checkLabel(cs.status)}"></a>
-								{/if}
-								{#if onRunCheck}
-									<button class="tl-run-btn" title="Run check"
-										onclick={() => onRunCheck(tItem.item.workshop_id, tItem.item.cluster, tItem.item.display_name)}>
-										<svg viewBox="0 0 16 16" width="8" height="8" fill="currentColor" aria-hidden="true">
-											<path d="M4 2l10 6-10 6V2z" />
-										</svg>
-									</button>
-								{/if}
+						{#if tItem.item.workshop_id}
+							{@const cs = checkStatuses[tItem.item.workshop_id]}
+							{#if cs}
+								<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
+									class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
+									title="Last check: {checkLabel(cs.status)}"
+									aria-label="Last check: {checkLabel(cs.status)}"></a>
 							{/if}
+							{#if onRunCheck && tItem.item.status !== 'scheduled' && tItem.item.status !== 'completed'}
+								<button class="tl-run-btn" title="Run check"
+									onclick={() => onRunCheck(tItem.item.workshop_id, tItem.item.cluster, tItem.item.display_name)}>
+									<svg viewBox="0 0 16 16" width="8" height="8" fill="currentColor" aria-hidden="true">
+										<path d="M4 2l10 6-10 6V2z" />
+									</svg>
+								</button>
+							{/if}
+						{/if}
 							{#if tItem.item.requester}
 								<span class="tl-requester">{tItem.item.requester}</span>
 							{/if}
