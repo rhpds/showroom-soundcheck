@@ -99,9 +99,9 @@
 		} catch (e) {
 			if (myLoadId !== currentLoadId) return;
 			if (e instanceof DOMException && e.name === 'AbortError') return;
-			if (loading) {
-				loadError = e instanceof Error ? e.message : 'Failed to load group';
-			}
+			const msg = e instanceof Error ? e.message : 'Failed to load group';
+			if (loading) loadError = msg;
+			else error = msg;
 		}
 		loading = false;
 	}
@@ -150,7 +150,7 @@
 			}
 			if (retryCount < MAX_RETRIES) {
 				retryCount++;
-				retryTimeout = setTimeout(loadGroup, 3000 * retryCount);
+				retryTimeout = setTimeout(loadGroup, Math.min(1000 * 2 ** retryCount, 30000));
 			} else {
 				streamFailed = true;
 			}
