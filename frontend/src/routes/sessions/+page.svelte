@@ -9,7 +9,8 @@
 
 	let { data: pageData } = $props();
 
-	let data = $state.raw<PaginatedResponse<SessionListItem>>(pageData.sessions);
+	let localData = $state.raw<PaginatedResponse<SessionListItem> | null>(null);
+	let data = $derived(localData ?? pageData.sessions);
 	let loading = $state(false);
 	let error = $state('');
 
@@ -19,7 +20,8 @@
 	let searchInput = $state(pageData.initialSearch);
 
 	$effect(() => {
-		data = pageData.sessions;
+		void pageData.sessions;
+		localData = null;
 	});
 
 	function syncFiltersToUrl() {
@@ -36,7 +38,7 @@
 		error = '';
 		syncFiltersToUrl();
 		try {
-			data = await listSessions({
+			localData = await listSessions({
 				page,
 				per_page: perPage,
 				search: search || undefined
@@ -75,7 +77,7 @@
 		e.stopPropagation();
 		try {
 			const result = await toggleSessionPin(session.session_id);
-			data = {
+			localData = {
 				...data,
 				items: data.items.map((s) =>
 					s.session_id === session.session_id ? { ...s, pinned: result.pinned } : s

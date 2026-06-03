@@ -9,7 +9,8 @@
 
 	let { data: pageData } = $props();
 
-	let data = $state.raw<PaginatedResponse<GroupListItem>>(pageData.groups);
+	let localData = $state.raw<PaginatedResponse<GroupListItem> | null>(null);
+	let data = $derived(localData ?? pageData.groups);
 	let loading = $state(false);
 	let error = $state('');
 
@@ -19,7 +20,8 @@
 	let searchInput = $state(pageData.initialSearch);
 
 	$effect(() => {
-		data = pageData.groups;
+		void pageData.groups;
+		localData = null;
 	});
 
 	function syncFiltersToUrl() {
@@ -36,7 +38,7 @@
 		error = '';
 		syncFiltersToUrl();
 		try {
-			data = await listGroups({
+			localData = await listGroups({
 				page,
 				per_page: perPage,
 				search: search || undefined
@@ -75,7 +77,7 @@
 		e.stopPropagation();
 		try {
 			const result = await toggleGroupPin(group.group_id);
-			data = {
+			localData = {
 				...data,
 				items: data.items.map((g) =>
 					g.group_id === group.group_id ? { ...g, pinned: result.pinned } : g
