@@ -18,7 +18,7 @@ services:
       BABYLON_CATALOG_URLS: "${BABYLON_CATALOG_URLS:-}"
       CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-10}
       VERIFY_SSL: ${VERIFY_SSL:-false}
-      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io,localhost}
+      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8000}
       API_KEY: ${API_KEY:-}
       PYTHONPATH: /app
@@ -91,7 +91,7 @@ services:
       BABYLON_CLUSTERS: "${BABYLON_CLUSTERS:-}"
       ORCHESTRATION_CONCURRENCY: ${ORCHESTRATION_CONCURRENCY:-10}
       VERIFY_SSL: ${VERIFY_SSL:-false}
-      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io,localhost}
+      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io}
       AUTH_USER: ${SAQ_AUTH_USER:-admin}
       AUTH_PASSWORD: ${SAQ_AUTH_PASSWORD:-}
       PYTHONPATH: /app
@@ -126,7 +126,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-soundcheck}
       CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-20}
       VERIFY_SSL: ${VERIFY_SSL:-false}
-      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io,localhost}
+      ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io}
       PYTHONPATH: /app
       PYTHONUNBUFFERED: 1
     volumes:
