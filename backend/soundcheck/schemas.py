@@ -31,7 +31,6 @@ class SessionCreate(BaseModel):
     guids: list[IdentifierStr] = Field(default=[], max_length=100)
     workshop_guids: list[IdentifierStr] = Field(default=[], max_length=100)
     resource_pools: list[IdentifierStr] = Field(default=[], max_length=100)
-    check_type: Literal["readyz", "healthz"] = "readyz"
     name: str = Field(default="", max_length=255)
     babylon_cluster: str = Field(default="", max_length=255)
 
@@ -44,7 +43,6 @@ class SessionPublic(BaseModel):
     name: str
     group_id: str | None
     group_run_id: str | None
-    check_type: str
     source_urls: list[str]
     source_guids: list[str]
     source_workshop_guids: list[str]
@@ -88,7 +86,6 @@ class CheckResultPublic(BaseModel):
 
     id: int
     target_id: int
-    check_type: str
     tier: int
     is_healthy: bool
     status_code: int | None
@@ -134,7 +131,6 @@ class GroupCreate(BaseModel):
     guids: list[IdentifierStr] = Field(default=[], max_length=100)
     workshop_guids: list[IdentifierStr] = Field(default=[], max_length=100)
     resource_pools: list[IdentifierStr] = Field(default=[], max_length=100)
-    check_type: Literal["readyz", "healthz"] = "readyz"
     babylon_cluster: str = Field(default="", max_length=255)
 
 
@@ -144,7 +140,6 @@ class GroupPublic(BaseModel):
     id: int
     group_id: str
     name: str
-    check_type: str
     babylon_cluster: str
     source_guids: list[str]
     source_workshop_guids: list[str]

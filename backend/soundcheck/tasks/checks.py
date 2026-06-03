@@ -21,7 +21,7 @@ from .events import publish_group_event, publish_session_event
 logger = logging.getLogger(__name__)
 
 
-async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url: str, check_type: str, group_id: str = "", request_id: str = "") -> None:
+async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url: str, group_id: str = "", request_id: str = "") -> None:
     """Check a single target URL, write the result, and try to finalize."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
@@ -29,11 +29,10 @@ async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url
 
     async with create_client(verify_ssl=VERIFY_SSL) as client:
         try:
-            result = await check_single_target(url, check_type, client=client)
+            result = await check_single_target(url, client=client)
         except Exception as e:
             result = TargetCheckResult(
                 url=url,
-                check_type=check_type,
                 error_message=sanitize_error(str(e)[:500]),
             )
 
@@ -64,7 +63,6 @@ async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url
 
             cr = CheckResult(
                 target_id=target_id,
-                check_type=f"{check_type}_{'delegate' if result.tier_used == 1 else 'local'}",
                 tier=result.tier_used,
                 is_healthy=result.is_healthy,
                 status_code=result.status_code,

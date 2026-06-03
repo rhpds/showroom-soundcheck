@@ -127,26 +127,25 @@ async def _create_group_sessions(
         rc_guids = grp.get_guids()
         ws_guids = grp.get_workshop_guids()
         pools = grp.get_resource_pools()
-        check_type = grp.check_type or "readyz"
         cluster = grp.babylon_cluster or ""
 
     session_ids: list[str] = []
     async with session_factory() as db:
         for guid in rc_guids:
             sid = await create_session(
-                db, name=f"RC: {guid}", check_type=check_type, urls=[], guids=[guid],
+                db, name=f"RC: {guid}", urls=[], guids=[guid],
                 babylon_cluster=cluster, group_id=group_id, group_run_id=run_id,
             )
             session_ids.append(sid)
         for ws_guid in ws_guids:
             sid = await create_session(
-                db, name=f"Workshop: {ws_guid}", check_type=check_type, urls=[], guids=[],
+                db, name=f"Workshop: {ws_guid}", urls=[], guids=[],
                 workshop_guids=[ws_guid], babylon_cluster=cluster, group_id=group_id, group_run_id=run_id,
             )
             session_ids.append(sid)
         for pool in pools:
             sid = await create_session(
-                db, name=f"Pool: {pool}", check_type=check_type, urls=[], guids=[],
+                db, name=f"Pool: {pool}", urls=[], guids=[],
                 resource_pools=[pool], babylon_cluster=cluster, group_id=group_id, group_run_id=run_id,
             )
             session_ids.append(sid)
@@ -175,10 +174,9 @@ async def _create_single_source_session(
         db.add(GroupRun(run_id=run_id, group_id=group_id, status="running", created_at=now))
         await db.commit()
 
-        check_type = grp.check_type or "readyz"
         cluster = grp.babylon_cluster or ""
 
-    kwargs = dict(check_type=check_type, urls=[], babylon_cluster=cluster, group_id=group_id, group_run_id=run_id)
+    kwargs = dict(urls=[], babylon_cluster=cluster, group_id=group_id, group_run_id=run_id)
     async with session_factory() as db:
         if source_type == "rc_guid":
             sid = await create_session(db, name=f"RC: {source_value}", guids=[source_value], **kwargs)
@@ -207,7 +205,6 @@ async def _enqueue_target_checks(session_factory, redis, checks_queue, sid: str,
         all_targets = list(targets_result.scalars().all())
         cs_result = await db.execute(select(CheckSession).where(CheckSession.session_id == sid))
         cs = cs_result.scalars().first()
-        check_type = cs.check_type if cs else "readyz"
 
     targets = [t for t in all_targets if t.status not in ("provisioning", "error")]
 
@@ -246,7 +243,7 @@ async def _enqueue_target_checks(session_factory, redis, checks_queue, sid: str,
         await checks_queue.enqueue(
             "check_target",
             target_id=t.id, session_id=sid, url=t.url,
-            check_type=check_type, group_id=group_id or "",
+            group_id=group_id or "",
             request_id=request_id,
             timeout=300,
         )

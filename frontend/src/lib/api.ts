@@ -5,7 +5,6 @@ import type {
 	GroupListItem,
 	PaginatedResponse,
 	ListParams,
-	CheckType,
 	WorkshopListResponse,
 	WorkshopSummary,
 	WorkshopCheckStatusMap
@@ -53,7 +52,6 @@ export async function createSession(body: {
 	guids?: string[];
 	workshop_guids?: string[];
 	resource_pools?: string[];
-	check_type?: CheckType;
 	name?: string;
 	babylon_cluster?: string;
 }): Promise<{ session_id: string }> {
@@ -97,7 +95,6 @@ export async function createGroup(body: {
 	guids?: string[];
 	workshop_guids?: string[];
 	resource_pools?: string[];
-	check_type?: CheckType;
 	babylon_cluster?: string;
 }): Promise<{ group_id: string }> {
 	return fetchJson(`${BASE}/groups`, {

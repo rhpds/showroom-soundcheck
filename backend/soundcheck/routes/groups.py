@@ -55,7 +55,6 @@ async def create_group(body: GroupCreate, db: DbSession):
     grp = SessionGroup(
         group_id=gid,
         name=body.name.strip(),
-        check_type=body.check_type,
         babylon_cluster=body.babylon_cluster.strip() if body.babylon_cluster.strip() != "(auto)" else "",
         source_guids=body.guids,
         source_workshop_guids=body.workshop_guids,

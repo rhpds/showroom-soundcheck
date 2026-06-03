@@ -24,8 +24,6 @@ export const STATUS_SORT_ORDER: Record<Status, number> = {
 	failed: 8
 };
 
-export type CheckType = 'readyz' | 'healthz';
-
 type ProvisionStatus =
 	| 'provisioning'
 	| 'ready'
@@ -93,7 +91,6 @@ export interface TargetPublic {
 export interface CheckResultPublic {
 	id: number;
 	target_id: number;
-	check_type: string;
 	tier: number;
 	is_healthy: boolean;
 	status_code: number | null;
@@ -109,7 +106,6 @@ interface SessionPublic {
 	name: string;
 	group_id: string | null;
 	group_run_id: string | null;
-	check_type: CheckType;
 	source_urls: string[];
 	source_guids: string[];
 	source_workshop_guids: string[];
@@ -147,7 +143,6 @@ export interface GroupPublic {
 	id: number;
 	group_id: string;
 	name: string;
-	check_type: CheckType;
 	babylon_cluster: string;
 	source_guids: string[];
 	source_workshop_guids: string[];

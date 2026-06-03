@@ -3,7 +3,7 @@
 Pure async module with no database dependencies.  Used by the SAQ task
 worker for per-target health checks.
 
-Tier 1: replicate the nookbag healthz logic locally (fetch config, probe
+Tier 1: replicate the nookbag readiness logic locally (fetch config, probe
          content page, probe tab URLs).
 Tier 2: legacy Antora showroom fallback (probe root + /content/ paths when
          no nookbag config exists).
@@ -101,7 +101,6 @@ class TargetCheckResult:
     url: str
     is_healthy: bool = False
     tier_used: int = 0
-    check_type: str = "readyz"
     status_code: int | None = None
     response_time_ms: int = 0
     error_message: str | None = None
@@ -111,7 +110,7 @@ class TargetCheckResult:
 
 
 # ---------------------------------------------------------------------------
-# URL helpers (ported from nookbag healthz)
+# URL helpers (ported from nookbag readiness checks)
 # ---------------------------------------------------------------------------
 
 
@@ -391,7 +390,6 @@ async def _probe_tabs(
 async def _run_tier1(
     client: httpx.AsyncClient,
     url: str,
-    check_type: str,
 ) -> TargetCheckResult:
     """Run local nookbag-style readiness checks."""
     base_url = url.rstrip("/")
@@ -429,7 +427,6 @@ async def _run_tier1(
         return TargetCheckResult(
             url=url,
             tier_used=1,
-            check_type=check_type,
             response_time_ms=elapsed,
             error_message=msg,
             detail=_tier2_to_dict(tier2),
@@ -512,7 +509,6 @@ async def _run_tier1(
         is_healthy=all_healthy,
         is_degraded=is_degraded,
         tier_used=1,
-        check_type=check_type,
         status_code=status_code,
         response_time_ms=elapsed,
         error_message="; ".join(errors) if errors else None,
@@ -572,7 +568,6 @@ LEGACY_CONTENT_PATHS = ["/content/"]
 async def _run_tier2(
     client: httpx.AsyncClient,
     url: str,
-    check_type: str,
 ) -> TargetCheckResult:
     """Probe legacy (pre-nookbag) Antora showrooms.
 
@@ -632,7 +627,6 @@ async def _run_tier2(
         url=url,
         is_healthy=all_healthy,
         tier_used=2,
-        check_type=check_type,
         status_code=200 if all_healthy else 503,
         response_time_ms=elapsed,
         error_message="; ".join(errors) if errors else None,
@@ -643,47 +637,6 @@ async def _run_tier2(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-
-
-async def _run_healthz(
-    client: httpx.AsyncClient,
-    url: str,
-) -> TargetCheckResult:
-    """Simple liveness check with retry — just confirm the base URL is reachable."""
-    base_url = url.rstrip("/")
-    start = time.monotonic()
-    last_error: str | None = None
-
-    for attempt in range(PROBE_RETRIES + 1):
-        try:
-            resp = await client.get(base_url, timeout=PROBE_TIMEOUT)
-            elapsed = int((time.monotonic() - start) * 1000)
-            is_healthy = 200 <= resp.status_code < 400
-            return TargetCheckResult(
-                url=url,
-                is_healthy=is_healthy,
-                tier_used=1,
-                check_type="healthz",
-                status_code=resp.status_code,
-                response_time_ms=elapsed,
-                error_message=None if is_healthy else f"HTTP {resp.status_code}",
-            )
-        except httpx.TimeoutException:
-            last_error = f"Timeout after {PROBE_TIMEOUT}s"
-        except httpx.HTTPError as e:
-            last_error = str(e)[:300]
-
-        if attempt < PROBE_RETRIES:
-            await asyncio.sleep(RETRY_DELAY * (attempt + 1))
-
-    elapsed = int((time.monotonic() - start) * 1000)
-    return TargetCheckResult(
-        url=url,
-        tier_used=1,
-        check_type="healthz",
-        response_time_ms=elapsed,
-        error_message=last_error,
-    )
 
 
 def create_client(
@@ -702,16 +655,11 @@ def create_client(
 
 async def check_single_target(
     url: str,
-    check_type: str = "readyz",
     timeout: int = DEFAULT_TIMEOUT,
     verify_ssl: bool = True,
     client: httpx.AsyncClient | None = None,
 ) -> TargetCheckResult:
-    """Run health check against a single showroom URL.
-
-    check_type controls what is checked:
-      "healthz"  - Liveness probe (just confirm the URL is reachable)
-      "readyz"   - Readiness probe (full config + tab check)
+    """Run readiness check against a single showroom URL.
 
     Strategy:
       Tier 1 first (local nookbag-style config + tab probing), then
@@ -733,15 +681,13 @@ async def check_single_target(
         client = create_client(timeout=timeout, verify_ssl=verify_ssl)
 
     try:
-        if check_type == "healthz":
-            return await _run_healthz(client, url)
-        result = await _run_tier1(client, url, check_type)
+        result = await _run_tier1(client, url)
         if result.no_config:
             logger.info(
                 "Tier 1: no config for %s, falling back to Tier 2 (legacy)",
                 url,
             )
-            return await _run_tier2(client, url, check_type)
+            return await _run_tier2(client, url)
         return result
     finally:
         if owns_client:

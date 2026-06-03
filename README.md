@@ -40,7 +40,7 @@ Create sessions via URL by navigating to `/check` with query parameters:
 /check?guid=abc12
 /check?workshop=9ucgv5
 /check?pool=my-pool
-/check?guid=abc12&cluster=east&type=healthz&name=My+Session
+/check?guid=abc12&cluster=east&name=My+Session
 ```
 
 | Parameter  | Description |
@@ -49,7 +49,6 @@ Create sessions via URL by navigating to `/check` with query parameters:
 | `guid`     | Babylon ResourceClaim provision GUID |
 | `workshop` | Babylon workshop GUID |
 | `pool`     | Babylon resource pool name |
-| `type`     | `readyz` (default) or `healthz` |
 | `name`     | Optional session label |
 | `cluster`  | Babylon cluster name (searches all if omitted) |
 
@@ -66,11 +65,6 @@ Group management actions: rename, add/remove sources, sync metadata from Babylon
 Sessions support clone (re-run with same inputs), pin/unpin, and delete. Live results stream via SSE. A target may report **degraded** status when deferred tabs fail but all active tabs pass.
 
 Stale sessions (stuck in `running` for >30 minutes) are automatically cleaned up on startup and periodically by the sweep cron task.
-
-### Check Types
-
-- **`readyz`** — Full readiness check (config, content pages, tabs)
-- **`healthz`** — Liveness check (base URL reachability only)
 
 ---
 

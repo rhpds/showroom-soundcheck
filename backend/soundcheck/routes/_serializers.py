@@ -33,7 +33,6 @@ def session_to_public(cs: CheckSession) -> SessionPublic:
         name=cs.name,
         group_id=cs.group_id,
         group_run_id=cs.group_run_id,
-        check_type=cs.check_type,
         source_urls=cs.get_urls(),
         source_guids=cs.get_guids(),
         source_workshop_guids=cs.get_workshop_guids(),
@@ -98,7 +97,6 @@ def result_to_public(r: CheckResult) -> CheckResultPublic:
  return CheckResultPublic(
  id=r.id,
  target_id=r.target_id,
- check_type=r.check_type,
  tier=r.tier,
  is_healthy=r.is_healthy,
  status_code=r.status_code,
@@ -119,7 +117,6 @@ def group_to_public(g: SessionGroup) -> GroupPublic:
         id=g.id,
         group_id=g.group_id,
         name=g.name,
-        check_type=g.check_type,
         babylon_cluster=g.babylon_cluster,
         source_guids=g.get_guids(),
         source_workshop_guids=g.get_workshop_guids(),

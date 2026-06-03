@@ -22,7 +22,6 @@ async def check_redirect(
     guid: str = Query(""),
     workshop: str = Query(""),
     pool: str = Query(""),
-    type: str = Query("readyz"),
     name: str = Query(""),
     cluster: str = Query(""),
 ):
@@ -39,7 +38,6 @@ async def check_redirect(
             raw_guids=guid,
             raw_ws_guids=workshop,
             raw_resource_pools=pool,
-            check_type=type,
             session_name=name,
             cluster=cluster,
             url_separator=",",
@@ -50,7 +48,6 @@ async def check_redirect(
     sid = await session_service.create_session(
         db,
         name=parsed.session_name,
-        check_type=parsed.check_type,
         urls=parsed.urls,
         guids=parsed.guids,
         babylon_cluster=parsed.babylon_cluster,

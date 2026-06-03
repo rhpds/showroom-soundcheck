@@ -307,7 +307,6 @@
 		</div>
 
 		<div class="session-header__meta">
-			<span class="session-meta-item">{data.session.check_type}</span>
 			<span class="session-meta-item">{new Date(data.session.created_at).toLocaleString()}</span>
 		</div>
 

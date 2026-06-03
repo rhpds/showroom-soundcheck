@@ -26,7 +26,6 @@ class SessionGroup(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     group_id: str = Field(unique=True, index=True)
     name: str = ""
-    check_type: str = "readyz"
     babylon_cluster: str = ""
     source_guids: list = Field(default=[], sa_type=sa.JSON)
     source_workshop_guids: list = Field(default=[], sa_type=sa.JSON)
@@ -92,7 +91,6 @@ class CheckSession(SQLModel, table=True):
     name: str = ""
     group_id: str | None = Field(default=None, index=True)
     group_run_id: str | None = Field(default=None, index=True)
-    check_type: str = "readyz"
     source_urls: list = Field(default=[], sa_type=sa.JSON)
     source_guids: list = Field(default=[], sa_type=sa.JSON)
     source_workshop_guids: list = Field(default=[], sa_type=sa.JSON)
@@ -171,7 +169,6 @@ class CheckResult(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     target_id: int = Field(index=True)
-    check_type: str = ""
     tier: int = 1
     is_healthy: bool = False
     status_code: int | None = None

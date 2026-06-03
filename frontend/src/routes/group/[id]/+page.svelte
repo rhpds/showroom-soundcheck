@@ -368,11 +368,6 @@
 			</div>
 
 			<div class="group-header__meta">
-				<span class="pf-v6-c-label pf-m-compact"
-					><span class="pf-v6-c-label__content"
-						><span class="pf-v6-c-label__text">{data.group.check_type}</span></span
-					></span
-				>
 				{#if data.group.babylon_cluster}
 					<span class="pf-v6-c-label pf-m-compact"
 						><span class="pf-v6-c-label__content"

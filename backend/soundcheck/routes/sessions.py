@@ -39,7 +39,6 @@ async def create_session(body: SessionCreate, request: Request, db: DbSession):
             raw_guids=",".join(body.guids),
             raw_ws_guids=",".join(body.workshop_guids),
             raw_resource_pools=",".join(body.resource_pools),
-            check_type=body.check_type,
             session_name=body.name,
             cluster=body.babylon_cluster,
             url_separator=",",
@@ -50,7 +49,6 @@ async def create_session(body: SessionCreate, request: Request, db: DbSession):
     sid = await session_service.create_session(
         db,
         name=parsed.session_name,
-        check_type=parsed.check_type,
         urls=parsed.urls,
         guids=parsed.guids,
         babylon_cluster=parsed.babylon_cluster,
@@ -110,7 +108,6 @@ async def clone_session(session_id: str, request: Request, db: DbSession):
     sid = await session_service.create_session(
         db,
         name=cs.name,
-        check_type=cs.check_type,
         urls=cs.get_urls(),
         guids=cs.get_guids(),
         babylon_cluster=cs.babylon_cluster,

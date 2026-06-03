@@ -392,7 +392,6 @@ export function mockSessionDetail(overrides: Partial<SessionPublic> = {}): Sessi
       name: 'Test Session',
       group_id: null,
       group_run_id: null,
-      check_type: 'readyz',
       source_urls: ['https://example.com'],
       source_guids: [],
       source_workshop_guids: [],

@@ -2,7 +2,6 @@
 	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { createSession } from '$lib/api';
-	import type { CheckType } from '$lib/types';
 	import Spinner from '$lib/components/Spinner.svelte';
 
 	let { data: pageData } = $props();
@@ -18,11 +17,8 @@
 		guids: '',
 		workshop_guids: '',
 		resource_pool: '',
-		check_type: 'readyz' as CheckType,
 		babylon_cluster: ''
 	});
-
-	let showAdvanced = $state(false);
 
 	async function showError(msg: string) {
 		error = msg;
@@ -59,7 +55,6 @@
 				guids,
 				workshop_guids: ws_guids,
 				resource_pools: pools,
-				check_type: checkForm.check_type,
 				name: checkForm.name,
 				babylon_cluster: checkForm.babylon_cluster
 			});
@@ -184,30 +179,7 @@
 						</div>
 					{/if}
 
-					{#if showAdvanced}
-						<div class="pf-v6-c-form__group">
-							<label class="pf-v6-c-form__label" for="check-type">Check Type</label>
-							<span class="pf-v6-c-form-control">
-								<select id="check-type" bind:value={checkForm.check_type}>
-									<option value="readyz">readyz (readiness)</option>
-									<option value="healthz">healthz (liveness)</option>
-								</select>
-							</span>
-						</div>
-					{/if}
-
-					<div class="pf-v6-u-mt-sm">
-						<button
-							class="pf-v6-c-button pf-m-link pf-m-inline"
-							type="button"
-							aria-expanded={showAdvanced}
-							onclick={() => (showAdvanced = !showAdvanced)}
-						>
-							{showAdvanced ? '▾ Hide Advanced Settings' : '▸ Show Advanced Settings'}
-						</button>
-					</div>
-
-					<div class="pf-v6-u-mt-md">
+				<div class="pf-v6-u-mt-md">
 						<button
 							class="pf-v6-c-button pf-m-primary pf-m-block"
 							type="submit"

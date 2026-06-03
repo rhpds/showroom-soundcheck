@@ -34,8 +34,6 @@ def escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-VALID_CHECK_TYPES = ("readyz", "healthz")
-
 # ---------------------------------------------------------------------------
 # Error message sanitization
 # ---------------------------------------------------------------------------
@@ -136,10 +134,6 @@ def make_display_label(
     return ", ".join(items)
 
 
-def normalize_check_type(raw: str) -> str:
-    return raw if raw in VALID_CHECK_TYPES else "readyz"
-
-
 @dataclass
 class ParsedSessionInput:
     """Validated and normalized session creation input."""
@@ -149,7 +143,6 @@ class ParsedSessionInput:
     guids: list[str] = field(default_factory=list)
     workshop_guids: list[str] = field(default_factory=list)
     resource_pools: list[str] = field(default_factory=list)
-    check_type: str = "readyz"
     babylon_cluster: str = ""
 
 
@@ -163,7 +156,6 @@ def parse_check_params(
     raw_guids: str,
     raw_ws_guids: str,
     raw_resource_pools: str = "",
-    check_type: str = "readyz",
     session_name: str = "",
     cluster: str = "",
     url_separator: str = ",",
@@ -218,6 +210,5 @@ def parse_check_params(
         guids=guids,
         workshop_guids=workshop_guids,
         resource_pools=resource_pools,
-        check_type=normalize_check_type(check_type.strip()),
         babylon_cluster=cluster.strip() if cluster.strip() != "(auto)" else "",
     )
