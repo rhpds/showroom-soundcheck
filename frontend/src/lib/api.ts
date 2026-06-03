@@ -7,7 +7,8 @@ import type {
 	ListParams,
 	WorkshopListResponse,
 	WorkshopSummary,
-	WorkshopCheckStatusMap
+	WorkshopCheckStatusMap,
+	WorkshopStatus
 } from './types';
 
 const BASE = '/api';
@@ -173,7 +174,7 @@ export async function getClusters(): Promise<{ clusters: string[] }> {
 
 export interface WorkshopListParams {
 	cluster?: string[];
-	status?: string[];
+	status?: WorkshopStatus[];
 	white_glove?: 'true';
 	provision_type?: 'self_service' | 'demo_team';
 	has_failures?: boolean;

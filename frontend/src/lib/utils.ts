@@ -9,7 +9,7 @@ export function relativeTime(dateStr: string): string {
 	return `${days}d ago`;
 }
 
-export function getTimeRange(timeWindow: string): { from_time?: string; to_time?: string } {
+export function getTimeRange(timeWindow: TimeWindowFilter): { from_time?: string; to_time?: string } {
 	const now = new Date();
 	switch (timeWindow) {
 		case 'today': {
