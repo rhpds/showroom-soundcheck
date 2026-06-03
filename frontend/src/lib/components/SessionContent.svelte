@@ -117,7 +117,7 @@
 			}
 			if (retryCount < MAX_RETRIES) {
 				retryCount++;
-				retryTimeout = setTimeout(loadSession, 3000 * retryCount);
+				retryTimeout = setTimeout(loadSession, Math.min(1000 * 2 ** retryCount, 30000));
 			} else {
 				streamFailed = true;
 			}
