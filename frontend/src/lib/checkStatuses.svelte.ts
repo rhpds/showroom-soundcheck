@@ -20,7 +20,7 @@ export function checkStatusLabel(status: CheckSessionStatus): string {
 
 export function createCheckStatusManager(getWorkshopIds: () => string[]) {
 	let statuses = $state.raw<WorkshopCheckStatusMap>({});
-	let running = $state(new Set<string>());
+	let running = $state.raw(new Set<string>());
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 	async function load() {
