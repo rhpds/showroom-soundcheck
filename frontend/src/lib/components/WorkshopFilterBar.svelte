@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { WorkshopStatus } from '$lib/types';
-	import type { ProvisionTypeFilter, TimeWindowFilter } from '$lib/utils';
-	import { workshopStatusLabel, ALL_WORKSHOP_STATUSES } from '$lib/utils';
+	import type { ProvisionTypeFilter, TimeWindowFilter, EnvironmentFilter } from '$lib/utils';
+	import { workshopStatusLabel, ALL_WORKSHOP_STATUSES, ENVIRONMENT_VALUES, environmentLabel } from '$lib/utils';
 
 	let {
 		clusters,
@@ -9,6 +9,7 @@
 		whiteGlove = $bindable(false),
 		multiAssetOnly = $bindable(false),
 		provisionType = $bindable('all' as ProvisionTypeFilter),
+		environment = $bindable('all' as EnvironmentFilter),
 		selectedStatuses = $bindable([] as WorkshopStatus[]),
 		hasFailures = $bindable(false),
 		timeWindow = $bindable('all' as TimeWindowFilter),
@@ -19,6 +20,7 @@
 		whiteGlove: boolean;
 		multiAssetOnly: boolean;
 		provisionType: ProvisionTypeFilter;
+		environment: EnvironmentFilter;
 		selectedStatuses: WorkshopStatus[];
 		hasFailures: boolean;
 		timeWindow: TimeWindowFilter;
@@ -50,6 +52,7 @@
 		whiteGlove = false;
 		multiAssetOnly = false;
 		provisionType = 'all';
+		environment = 'all';
 		selectedStatuses = [];
 		hasFailures = false;
 		timeWindow = 'all';
@@ -61,13 +64,14 @@
 			whiteGlove ||
 			multiAssetOnly ||
 			provisionType !== 'all' ||
+			environment !== 'all' ||
 			selectedStatuses.length > 0 ||
 			hasFailures ||
 			timeWindow !== 'all'
 	);
 
 	let hasSecondaryFilters = $derived(
-		whiteGlove || multiAssetOnly || provisionType !== 'all' || hasFailures
+		whiteGlove || multiAssetOnly || provisionType !== 'all' || hasFailures || selectedClusters.length > 0
 	);
 
 	let secondaryOpen = $derived(showSecondary || hasSecondaryFilters);
@@ -133,6 +137,13 @@
 				clear: () => { provisionType = 'all'; onchange(); }
 			});
 		}
+		if (environment !== 'all') {
+			pills.push({
+				key: 'env',
+				label: `Env: ${environmentLabel(environment)}`,
+				clear: () => { environment = 'all'; onchange(); }
+			});
+		}
 		return pills;
 	});
 </script>
@@ -185,22 +196,26 @@
 			</div>
 		</div>
 
-		{#if clusters.length > 0}
-			<div class="filter-separator"></div>
-			<div class="filter-group">
-				<span class="filter-label">Cluster</span>
-				<div class="filter-chips" role="group" aria-label="Cluster filter">
-					{#each clusters as cluster}
-						<button
-							class="filter-chip"
-							class:active={selectedClusters.includes(cluster)}
-							onclick={() => toggleCluster(cluster)}
-							aria-pressed={selectedClusters.includes(cluster)}
-						>{cluster}</button>
-					{/each}
-				</div>
+		<div class="filter-separator"></div>
+		<div class="filter-group">
+			<span class="filter-label">Environment</span>
+			<div class="filter-chips" role="group" aria-label="Environment filter">
+				<button
+					class="filter-chip"
+					class:active={environment === 'all'}
+					aria-pressed={environment === 'all'}
+					onclick={() => { environment = 'all'; onchange(); }}
+				>All</button>
+				{#each ENVIRONMENT_VALUES as env}
+					<button
+						class="filter-chip"
+						class:active={environment === env}
+						aria-pressed={environment === env}
+						onclick={() => { environment = env; onchange(); }}
+					>{environmentLabel(env)}</button>
+				{/each}
 			</div>
-		{/if}
+		</div>
 
 		<div class="filter-actions">
 			<button
@@ -214,7 +229,7 @@
 				</svg>
 				More filters
 				{#if hasSecondaryFilters}
-					<span class="filter-count">{(whiteGlove ? 1 : 0) + (multiAssetOnly ? 1 : 0) + (hasFailures ? 1 : 0) + (provisionType !== 'all' ? 1 : 0)}</span>
+					<span class="filter-count">{(whiteGlove ? 1 : 0) + (multiAssetOnly ? 1 : 0) + (hasFailures ? 1 : 0) + (provisionType !== 'all' ? 1 : 0) + selectedClusters.length}</span>
 				{/if}
 			</button>
 
@@ -278,6 +293,24 @@
 					>Demo team</button>
 				</div>
 			</div>
+
+			{#if clusters.length > 0}
+				<div class="filter-separator"></div>
+
+				<div class="filter-group">
+					<span class="filter-label">Cluster</span>
+					<div class="filter-chips" role="group" aria-label="Cluster filter">
+						{#each clusters as cluster}
+							<button
+								class="filter-chip"
+								class:active={selectedClusters.includes(cluster)}
+								onclick={() => toggleCluster(cluster)}
+								aria-pressed={selectedClusters.includes(cluster)}
+							>{cluster}</button>
+						{/each}
+					</div>
+				</div>
+			{/if}
 		</div>
 	{/if}
 

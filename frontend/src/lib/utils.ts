@@ -83,6 +83,37 @@ export type ProvisionTypeFilter = (typeof VALID_PROVISION_TYPES)[number];
 export const VALID_TIME_WINDOWS = ['all', 'today', '24h', 'week'] as const;
 export type TimeWindowFilter = (typeof VALID_TIME_WINDOWS)[number];
 
+export const ENVIRONMENT_VALUES = ['prod', 'dev', 'test', 'event'] as const;
+export type EnvironmentType = (typeof ENVIRONMENT_VALUES)[number];
+export const VALID_ENVIRONMENT_FILTERS = ['all', ...ENVIRONMENT_VALUES] as const;
+export type EnvironmentFilter = (typeof VALID_ENVIRONMENT_FILTERS)[number];
+
+const ENVIRONMENT_LABELS: Record<EnvironmentType, string> = {
+	prod: 'Prod',
+	dev: 'Dev',
+	test: 'Test',
+	event: 'Event'
+};
+
+export function environmentLabel(env: EnvironmentType): string {
+	return ENVIRONMENT_LABELS[env];
+}
+
+/**
+ * Extract environment from a workshop name.
+ * Names follow the pattern: `namespace.catalog-item.{env}-{random}`,
+ * e.g. "openshift-cnv.ocp-virt-roadshow-2026.dev-z66th" -> "dev"
+ */
+export function extractEnvironment(name: string): EnvironmentType | null {
+	const lastSegment = name.split('.').pop() ?? '';
+	for (const env of ENVIRONMENT_VALUES) {
+		if (lastSegment.startsWith(`${env}-`) || lastSegment === env) {
+			return env;
+		}
+	}
+	return null;
+}
+
 export const ALL_WORKSHOP_STATUSES: WorkshopStatus[] = [
 	'scheduled', 'provisioning', 'running', 'stopped', 'degraded', 'failed', 'completed'
 ];

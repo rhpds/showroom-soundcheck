@@ -4,10 +4,12 @@ import type { WorkshopListResponse, WorkshopStatus } from '$lib/types';
 import {
 	VALID_PROVISION_TYPES,
 	VALID_TIME_WINDOWS,
+	VALID_ENVIRONMENT_FILTERS,
 	ALL_WORKSHOP_STATUSES,
 	getTimeRange,
 	type ProvisionTypeFilter,
-	type TimeWindowFilter
+	type TimeWindowFilter,
+	type EnvironmentFilter
 } from '$lib/utils';
 
 export const load: PageLoad = async ({ url }) => {
@@ -24,6 +26,13 @@ export const load: PageLoad = async ({ url }) => {
 		? (rawProvType as ProvisionTypeFilter)
 		: 'all';
 
+	const rawEnv = url.searchParams.get('environment') || (hasAnyParams ? 'all' : 'prod');
+	const environment: EnvironmentFilter = VALID_ENVIRONMENT_FILTERS.includes(
+		rawEnv as EnvironmentFilter
+	)
+		? (rawEnv as EnvironmentFilter)
+		: 'prod';
+
 	const rawStatuses = url.searchParams.getAll('status');
 	const selectedStatuses = rawStatuses.length > 0
 		? rawStatuses.filter((s): s is WorkshopStatus =>
@@ -31,7 +40,7 @@ export const load: PageLoad = async ({ url }) => {
 		)
 		: hasAnyParams
 			? []
-			: (['scheduled', 'provisioning'] as WorkshopStatus[]);
+			: (['scheduled', 'provisioning', 'failed', 'degraded'] as WorkshopStatus[]);
 
 	const hasFailures = url.searchParams.get('has_failures') === 'true';
 
@@ -65,6 +74,7 @@ export const load: PageLoad = async ({ url }) => {
 			whiteGlove,
 			multiAssetOnly,
 			provisionType,
+			environment,
 			selectedStatuses,
 			hasFailures,
 			timeWindow

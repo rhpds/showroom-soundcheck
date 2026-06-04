@@ -7,8 +7,10 @@
 	import { createCheckStatusManager } from '$lib/checkStatuses.svelte';
 	import {
 		getTimeRange,
+		extractEnvironment,
 		type ProvisionTypeFilter,
-		type TimeWindowFilter
+		type TimeWindowFilter,
+		type EnvironmentFilter
 	} from '$lib/utils';
 	import WorkshopTimeline from '$lib/components/WorkshopTimeline.svelte';
 	import WorkshopSummaryCards from '$lib/components/WorkshopSummaryCards.svelte';
@@ -45,15 +47,28 @@
 		expandedMultiWorkshops = next;
 	}
 
-	let hasContent = $derived(data.items.length > 0 || (data.multi_workshops ?? []).length > 0);
-
 	let selectedClusters = $state<string[]>(pageData.filters.selectedClusters);
 	let whiteGlove = $state(pageData.filters.whiteGlove);
 	let multiAssetOnly = $state(pageData.filters.multiAssetOnly ?? false);
 	let provisionType = $state<ProvisionTypeFilter>(pageData.filters.provisionType);
+	let environment = $state<EnvironmentFilter>(pageData.filters.environment ?? 'all');
 	let selectedStatuses = $state<WorkshopStatus[]>(pageData.filters.selectedStatuses);
 	let hasFailures = $state(pageData.filters.hasFailures);
 	let timeWindow = $state<TimeWindowFilter>(pageData.filters.timeWindow);
+
+	let filteredItems = $derived(
+		environment === 'all'
+			? data.items
+			: data.items.filter((w) => extractEnvironment(w.name) === environment)
+	);
+
+	let filteredMultiWorkshops = $derived(
+		environment === 'all'
+			? (data.multi_workshops ?? [])
+			: (data.multi_workshops ?? []).filter((mw) => extractEnvironment(mw.name) === environment)
+	);
+
+	let hasContent = $derived(filteredItems.length > 0 || filteredMultiWorkshops.length > 0);
 
 	async function loadData(opts: { showSkeleton?: boolean } = {}) {
 		workshopAbort?.abort();
@@ -91,6 +106,7 @@
 		if (whiteGlove) params.set('white_glove', 'true');
 		if (multiAssetOnly) params.set('multi_asset', 'true');
 		if (provisionType !== 'all') params.set('provision_type', provisionType);
+		if (environment !== 'all') params.set('environment', environment);
 		for (const s of selectedStatuses) params.append('status', s);
 		if (hasFailures) params.set('has_failures', 'true');
 		params.set('time', timeWindow);
@@ -189,6 +205,7 @@
 	bind:whiteGlove
 	bind:multiAssetOnly
 	bind:provisionType
+	bind:environment
 	bind:selectedStatuses
 	bind:hasFailures
 	bind:timeWindow
@@ -219,15 +236,15 @@
 		<div class="pf-v6-c-empty-state__content">
 			<h2 class="pf-v6-c-empty-state__title-text">No workshops found</h2>
 			<div class="pf-v6-c-empty-state__body">
-				{#if selectedClusters.length > 0 || whiteGlove || provisionType !== 'all' || selectedStatuses.length > 0 || hasFailures || timeWindow !== 'all'}
+				{#if selectedClusters.length > 0 || whiteGlove || provisionType !== 'all' || environment !== 'all' || selectedStatuses.length > 0 || hasFailures || timeWindow !== 'all'}
 					No workshops match the current filters.
 				{:else}
 					No workshops are currently active across configured clusters.
 				{/if}
 			</div>
-			{#if selectedClusters.length > 0 || whiteGlove || provisionType !== 'all' || selectedStatuses.length > 0 || hasFailures || timeWindow !== 'all'}
+			{#if selectedClusters.length > 0 || whiteGlove || provisionType !== 'all' || environment !== 'all' || selectedStatuses.length > 0 || hasFailures || timeWindow !== 'all'}
 				<div class="pf-v6-c-empty-state__actions">
-					<button class="pf-v6-c-button pf-m-link" onclick={() => { selectedClusters = []; whiteGlove = false; provisionType = 'all'; selectedStatuses = []; hasFailures = false; timeWindow = 'all'; handleFilterChange(); }}>
+					<button class="pf-v6-c-button pf-m-link" onclick={() => { selectedClusters = []; whiteGlove = false; provisionType = 'all'; environment = 'all'; selectedStatuses = []; hasFailures = false; timeWindow = 'all'; handleFilterChange(); }}>
 						Clear filters
 					</button>
 				</div>
@@ -238,8 +255,8 @@
 	{@const timeRange = getTimeRange(timeWindow)}
 	<div class="timeline-wrapper" class:timeline-wrapper--refreshing={refreshing}>
 		<WorkshopTimeline
-			items={multiAssetOnly ? [] : data.items}
-			multiWorkshops={data.multi_workshops ?? []}
+			items={multiAssetOnly ? [] : filteredItems}
+			multiWorkshops={filteredMultiWorkshops}
 			filterFrom={timeRange.from_time}
 			filterTo={timeRange.to_time}
 			{timeWindow}
