@@ -50,6 +50,16 @@ spec:
             - name: babylon-kubeconfigs
               mountPath: /secrets
               readOnly: true
+          livenessProbe:
+            exec:
+              command:
+                - saq
+                - soundcheck.worker.orchestration_settings
+                - --check
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: 100m
@@ -108,6 +118,16 @@ spec:
               value: "1"
             - name: PYTHONPATH
               value: /app
+          livenessProbe:
+            exec:
+              command:
+                - saq
+                - soundcheck.worker.check_settings
+                - --check
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: 200m
