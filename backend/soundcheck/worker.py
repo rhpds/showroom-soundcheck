@@ -7,7 +7,9 @@ in the ``tasks`` subpackage.
 
 import logging
 
-from saq import CronJob, Queue
+import redis.asyncio as aioredis
+from saq import CronJob
+from saq.queue.redis import RedisQueue
 
 from .config import CHECK_CONCURRENCY, LOG_FORMAT, ORCHESTRATION_CONCURRENCY, REDIS_URL
 from .database import async_session_factory
@@ -49,8 +51,16 @@ logger = logging.getLogger(__name__)
 # Two separate queues
 # ---------------------------------------------------------------------------
 
-orchestration_queue = Queue.from_url(REDIS_URL, name="orchestration")
-checks_queue = Queue.from_url(REDIS_URL, name="checks")
+_REDIS_KWARGS = {
+    "health_check_interval": 30,
+    "socket_keepalive": True,
+    "socket_connect_timeout": 5,
+    "socket_timeout": 30,
+    "retry_on_timeout": True,
+}
+
+orchestration_queue = RedisQueue(aioredis.from_url(REDIS_URL, **_REDIS_KWARGS), name="orchestration")
+checks_queue = RedisQueue(aioredis.from_url(REDIS_URL, **_REDIS_KWARGS), name="checks")
 
 queue = orchestration_queue
 
