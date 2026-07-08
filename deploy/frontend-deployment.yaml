@@ -6,7 +6,7 @@ metadata:
   namespace: showroom-soundcheck
   labels:
     app.kubernetes.io/name: showroom-soundcheck-frontend
-    app.kubernetes.io/version: v1.3.0
+    app.kubernetes.io/version: v1.3.1
     app.kubernetes.io/part-of: showroom-soundcheck
     app.kubernetes.io/component: frontend
 spec:
@@ -23,14 +23,14 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: showroom-soundcheck-frontend
-        app.kubernetes.io/version: v1.3.0
+        app.kubernetes.io/version: v1.3.1
         app.kubernetes.io/part-of: showroom-soundcheck
         app.kubernetes.io/component: frontend
     spec:
       automountServiceAccountToken: false
       containers:
         - name: frontend
-          image: quay.io/rhpds/showroom-soundcheck-frontend:v1.3.0
+          image: quay.io/rhpds/showroom-soundcheck-frontend:v1.3.1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
