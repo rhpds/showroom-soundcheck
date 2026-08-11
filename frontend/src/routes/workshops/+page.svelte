@@ -65,7 +65,9 @@
 	let filteredMultiWorkshops = $derived(
 		environment === 'all'
 			? (data.multi_workshops ?? [])
-			: (data.multi_workshops ?? []).filter((mw) => extractEnvironment(mw.name) === environment)
+			: (data.multi_workshops ?? []).filter((mw) =>
+					mw.children.some((child) => extractEnvironment(child.name) === environment)
+				)
 	);
 
 	let hasContent = $derived(filteredItems.length > 0 || filteredMultiWorkshops.length > 0);
