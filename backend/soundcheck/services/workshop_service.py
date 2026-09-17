@@ -11,6 +11,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from ..config import DEMO_TEAM_EMAILS
 from ..schemas_workshops import (
     MultiWorkshopAsset,
     MultiWorkshopDashboardItem,
@@ -147,11 +148,6 @@ def _derive_multi_workshop_status(
 # ---------------------------------------------------------------------------
 
 
-def _email_to_namespace(email: str) -> str:
-    """Convert an email address to the expected Kubernetes namespace format."""
-    return f"user-{email.replace('@', '-').replace('.', '-')}"
-
-
 def extract_workshop_item(
     ws_def: dict[str, Any], cluster: str, resource_claim_state: str = ""
 ) -> WorkshopDashboardItem:
@@ -225,8 +221,7 @@ def extract_workshop_item(
         users_total=user_count.get("total", 0),
         white_glove=labels.get(WHITE_GLOVE_LABEL, "false").lower() == "true",
         demo_team_provisioned=(
-            bool(annotations.get(f"{DEMO_DOMAIN}/orderedBy", ""))
-            and _email_to_namespace(annotations.get(f"{DEMO_DOMAIN}/orderedBy", "")) != ws_namespace
+            annotations.get(f"{DEMO_DOMAIN}/orderedBy", "").strip().lower() in DEMO_TEAM_EMAILS
         ),
         locked=labels.get(LOCK_ENABLED_LABEL, "false").lower() == "true",
         disable_auto_stop=disable_auto_stop,

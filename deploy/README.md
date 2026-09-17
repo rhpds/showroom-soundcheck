@@ -61,6 +61,12 @@ Update `stringData` values before deploying:
 |----------------|----------------------------------------------------------------|
 | session-secret | Random 32-byte string for cookie encryption (`openssl rand -base64 32 \| head -c 32`) |
 
+#### App secrets (`app-secret.yaml`)
+
+| Key              | Description                                                                     |
+|------------------|----------------------------------------------------------------------------------|
+| DEMO_TEAM_EMAILS | Comma-separated emails treated as "Demo team" provisioners for the workshop dashboard's "Provisioned by" filter |
+
 ### ConfigMap (`app-configmap.yaml`)
 
 Shared by the backend and both workers:
@@ -113,6 +119,7 @@ oc set image deployment/showroom-soundcheck-frontend \
 | `redis-service.yaml`        | Service (redis)                            |
 | `app-serviceaccount.yaml`   | ServiceAccount (OAuth redirect annotation) |
 | `app-oauth-secret.yaml`     | Secret (proxy session cookie) — git-ignored |
+| `app-secret.yaml`           | Secret (demo team email roster) — git-ignored |
 | `app-configmap.yaml`        | ConfigMap (shared backend/worker settings) |
 | `app-deployment.yaml`       | Deployment (FastAPI backend)               |
 | `app-service.yaml`          | Service (backend HTTP)                     |
