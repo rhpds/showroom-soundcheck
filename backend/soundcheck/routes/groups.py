@@ -178,7 +178,10 @@ async def stream_group(group_id: str, request: Request) -> AsyncIterator[ServerS
         if not detail:
             return
 
-        yield ServerSentEvent(data=detail, event="group_update")
+        has_active = _group_has_active(detail)
+        yield ServerSentEvent(data=detail, event="group_update" if has_active else "group_complete")
+        if not has_active:
+            return
 
         elapsed = 0
         last_yield = time.monotonic()
