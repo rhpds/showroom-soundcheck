@@ -1,7 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopStatus, WorkshopCheckStatusMap } from '$lib/types';
-	import { workshopStatusBg, workshopStatusTextColor, workshopStatusLabel, workshopStatusBorder } from '$lib/utils';
+	import type {
+		MultiWorkshopDashboardItem,
+		WorkshopDashboardItem,
+		WorkshopStatus,
+		WorkshopCheckStatusMap
+	} from '$lib/types';
+	import {
+		workshopStatusBg,
+		workshopStatusTextColor,
+		workshopStatusLabel,
+		workshopStatusBorder
+	} from '$lib/utils';
 	import { checkStatusLabel } from '$lib/checkStatuses.svelte';
 	import TimelineTooltip from './TimelineTooltip.svelte';
 
@@ -60,7 +70,13 @@
 	type TimelineRow =
 		| { kind: 'workshop'; item: WorkshopDashboardItem; startMs: number; endMs: number }
 		| { kind: 'multi'; item: MultiWorkshopDashboardItem; startMs: number; endMs: number }
-		| { kind: 'child'; item: WorkshopDashboardItem; parentName: string; startMs: number; endMs: number };
+		| {
+				kind: 'child';
+				item: WorkshopDashboardItem;
+				parentName: string;
+				startMs: number;
+				endMs: number;
+		  };
 
 	let timelineItems = $derived.by(() => {
 		const now = Date.now();
@@ -100,10 +116,18 @@
 			rows.push(row);
 			if (row.kind === 'multi' && expandedMultiWorkshops.has(row.item.name)) {
 				for (const child of row.item.children) {
-					const childStart = child.lifespan_start ? new Date(child.lifespan_start).getTime() : row.startMs;
+					const childStart = child.lifespan_start
+						? new Date(child.lifespan_start).getTime()
+						: row.startMs;
 					let childEnd = child.lifespan_end ? new Date(child.lifespan_end).getTime() : row.endMs;
 					if (childEnd <= childStart) childEnd = childStart + 3600000;
-					rows.push({ kind: 'child', item: child, parentName: row.item.name, startMs: childStart, endMs: childEnd });
+					rows.push({
+						kind: 'child',
+						item: child,
+						parentName: row.item.name,
+						startMs: childStart,
+						endMs: childEnd
+					});
 				}
 			}
 		}
@@ -284,14 +308,22 @@
 
 	function statusShortLabel(status: WorkshopStatus): string {
 		switch (status) {
-			case 'running': return 'RUN';
-			case 'provisioning': return 'PROV';
-			case 'scheduled': return 'SCHED';
-			case 'stopped': return 'STOP';
-			case 'degraded': return 'DEG';
-			case 'failed': return 'FAIL';
-			case 'completed': return 'DONE';
-			default: return '?';
+			case 'running':
+				return 'RUN';
+			case 'provisioning':
+				return 'PROV';
+			case 'scheduled':
+				return 'SCHED';
+			case 'stopped':
+				return 'STOP';
+			case 'degraded':
+				return 'DEG';
+			case 'failed':
+				return 'FAIL';
+			case 'completed':
+				return 'DONE';
+			default:
+				return '?';
 		}
 	}
 </script>
@@ -354,52 +386,95 @@
 				{/if}
 
 				<!-- Workshop bars -->
-			{#each timelineItems as tRow, idx}
-				{@const y = rowYPositions[idx]}
-				{@const h = rowHeight(tRow)}
-				{@const rawBarX = msToX(tRow.startMs)}
-				{@const rawBarEnd = msToX(tRow.endMs)}
-				{@const barX = Math.max(rawBarX, 0)}
-				{@const barWidth = Math.max(Math.min(rawBarEnd, chartWidth) - barX, 4)}
+				{#each timelineItems as tRow, idx}
+					{@const y = rowYPositions[idx]}
+					{@const h = rowHeight(tRow)}
+					{@const rawBarX = msToX(tRow.startMs)}
+					{@const rawBarEnd = msToX(tRow.endMs)}
+					{@const barX = Math.max(rawBarX, 0)}
+					{@const barWidth = Math.max(Math.min(rawBarEnd, chartWidth) - barX, 4)}
 
-				{#if tRow.kind === 'multi'}
-					{@const mws = tRow.item}
-					{@const isExpanded = expandedMultiWorkshops.has(mws.name)}
-				<!-- MultiWorkshop two-line label -->
-				<foreignObject x="0" {y} width={LABEL_WIDTH} height={h}>
-					<div class="tl-label-col">
-						<div class="tl-label-line1">
-							{#if onToggleMultiWorkshop}
-								<button
-									class="tl-expand-btn"
-									class:tl-expand-btn--open={isExpanded}
-									onclick={() => onToggleMultiWorkshop(mws.name)}
-									aria-label={isExpanded ? 'Collapse' : 'Expand'}
-									title="{mws.children.length} workshops"
-								>
-									<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true">
-										<path d="M6 3l5 5-5 5V3z" />
-									</svg>
-								</button>
-							{/if}
-							{#if mws.catalog_url}
-								<a href={mws.catalog_url} target="_blank" rel="noopener noreferrer" class="tl-name tl-name--link tl-name--multi" title={mws.display_name}>
-									{mws.display_name}
-								</a>
-							{:else}
-								<span class="tl-name tl-name--multi" title={mws.display_name}>{mws.display_name}</span>
-							{/if}
-						</div>
-						<div class="tl-label-line2">
-							<span class="tl-meta">{mws.children.length} workshops &middot; {mws.number_seats} seats</span>
-							<span class="tl-cluster">{mws.cluster}</span>
-						</div>
-					</div>
-				</foreignObject>
+					{#if tRow.kind === 'multi'}
+						{@const mws = tRow.item}
+						{@const isExpanded = expandedMultiWorkshops.has(mws.name)}
+						<!-- MultiWorkshop two-line label -->
+						<foreignObject x="0" {y} width={LABEL_WIDTH} height={h}>
+							<div class="tl-label-col">
+								<div class="tl-label-line1">
+									{#if onToggleMultiWorkshop}
+										<button
+											class="tl-expand-btn"
+											class:tl-expand-btn--open={isExpanded}
+											onclick={() => onToggleMultiWorkshop(mws.name)}
+											aria-label={isExpanded ? 'Collapse' : 'Expand'}
+											title="{mws.children.length} workshops"
+										>
+											<svg
+												viewBox="0 0 16 16"
+												width="10"
+												height="10"
+												fill="currentColor"
+												aria-hidden="true"
+											>
+												<path d="M6 3l5 5-5 5V3z" />
+											</svg>
+										</button>
+									{/if}
+									{#if mws.catalog_url}
+										<a
+											href={mws.catalog_url}
+											target="_blank"
+											rel="noopener noreferrer"
+											class="tl-name tl-name--link tl-name--multi"
+											title={mws.display_name}
+										>
+											{mws.display_name}
+										</a>
+									{:else}
+										<span class="tl-name tl-name--multi" title={mws.display_name}
+											>{mws.display_name}</span
+										>
+									{/if}
+								</div>
+								<div class="tl-label-line2">
+									<span class="tl-meta"
+										>{mws.children.length} workshops &middot; {mws.number_seats} seats</span
+									>
+									<span class="tl-cluster">{mws.cluster}</span>
+								</div>
+							</div>
+						</foreignObject>
 
-					<!-- MultiWorkshop bar -->
-					{#if mws.catalog_url}
-						<a href={mws.catalog_url} target="_blank" rel="noopener noreferrer" aria-label="Open {mws.display_name} in catalog">
+						<!-- MultiWorkshop bar -->
+						{#if mws.catalog_url}
+							<a
+								href={mws.catalog_url}
+								target="_blank"
+								rel="noopener noreferrer"
+								aria-label="Open {mws.display_name} in catalog"
+							>
+								<rect
+									x={LABEL_WIDTH + barX}
+									{y}
+									width={barWidth}
+									height={h}
+									rx="6"
+									fill={workshopStatusBg(mws.status)}
+									opacity={hoveredIndex === idx ? 1 : 0.6}
+									stroke={workshopStatusBorder(mws.status)}
+									stroke-width="2"
+									stroke-dasharray="4 2"
+									class="timeline-bar"
+									data-bar-idx={idx}
+									aria-label={barAriaLabel(tRow)}
+									onmouseenter={(e) => handleBarEnter(idx, e)}
+									onmousemove={handleBarMove}
+									onmouseleave={() => (hoveredIndex = null)}
+									onfocus={() => handleBarFocus(idx)}
+									onblur={() => (hoveredIndex = null)}
+								/>
+							</a>
+						{:else}
 							<rect
 								x={LABEL_WIDTH + barX}
 								{y}
@@ -413,6 +488,8 @@
 								stroke-dasharray="4 2"
 								class="timeline-bar"
 								data-bar-idx={idx}
+								role="img"
+								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
 								onmouseenter={(e) => handleBarEnter(idx, e)}
 								onmousemove={handleBarMove}
@@ -420,116 +497,156 @@
 								onfocus={() => handleBarFocus(idx)}
 								onblur={() => (hoveredIndex = null)}
 							/>
-						</a>
-					{:else}
-						<rect
-							x={LABEL_WIDTH + barX}
-							{y}
-							width={barWidth}
-							height={h}
-							rx="6"
-							fill={workshopStatusBg(mws.status)}
-							opacity={hoveredIndex === idx ? 1 : 0.6}
-							stroke={workshopStatusBorder(mws.status)}
-							stroke-width="2"
-							stroke-dasharray="4 2"
-							class="timeline-bar"
-							data-bar-idx={idx}
-							role="img"
-							tabindex="0"
-							aria-label={barAriaLabel(tRow)}
-							onmouseenter={(e) => handleBarEnter(idx, e)}
-							onmousemove={handleBarMove}
-							onmouseleave={() => (hoveredIndex = null)}
-							onfocus={() => handleBarFocus(idx)}
-							onblur={() => (hoveredIndex = null)}
-						/>
-					{/if}
-
-					{#if barWidth > 160}
-						<text
-							x={LABEL_WIDTH + barX + 8}
-							y={y + h / 2 + 4}
-							font-size="10"
-							fill={workshopStatusTextColor(mws.status)}
-							font-weight="600"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{statusShortLabel(mws.status)} &middot; {mws.children.length} workshops &middot; {mws.number_seats} seats
-						</text>
-					{:else if barWidth > 80}
-						<text
-							x={LABEL_WIDTH + barX + 8}
-							y={y + h / 2 + 4}
-							font-size="10"
-							fill={workshopStatusTextColor(mws.status)}
-							font-weight="600"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{mws.children.length} workshops &middot; {mws.number_seats} seats
-						</text>
-					{/if}
-
-				{:else if tRow.kind === 'child'}
-					{@const child = tRow.item}
-				<!-- Child workshop two-line label (indented) -->
-				<foreignObject x="0" {y} width={LABEL_WIDTH} height={h}>
-					<div class="tl-label-col tl-label-col--child">
-						<div class="tl-label-line1">
-							<span class="tl-child-indent"></span>
-							{#if child.catalog_url}
-								<a href={child.catalog_url} target="_blank" rel="noopener noreferrer" class="tl-name tl-name--link" title={child.display_name}>
-									{child.display_name}
-								</a>
-							{:else}
-								<span class="tl-name" title={child.display_name}>{child.display_name}</span>
-							{/if}
-						</div>
-						<div class="tl-label-line2 tl-label-line2--child">
-							<span class="tl-child-indent"></span>
-							{#if child.white_glove}
-								<span class="tl-flag tl-flag--wg" title="White-glove">WG</span>
-							{/if}
-							{#if child.locked}
-								<span class="tl-flag tl-flag--locked" title="Locked">
-									<svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" aria-hidden="true">
-										<path d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-2 3a2 2 0 1 1 4 0v2H6V4z" />
-									</svg>
-								</span>
-							{/if}
-							{#if child.disable_auto_stop}
-								<span class="tl-flag tl-flag--no-autostop" title="No auto-stop">
-									<svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" aria-hidden="true">
-										<path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2zM6 5v6h1.5V5H6zm2.5 0v6H10V5H8.5z" />
-									</svg>
-								</span>
-							{/if}
-							{#if child.workshop_id}
-							{@const cs = checkStatuses[child.workshop_id]}
-							{#if cs}
-								<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
-									class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
-									title="Last check: {checkStatusLabel(cs.status)}"
-									aria-label="Last check: {checkStatusLabel(cs.status)}"></a>
-							{/if}
-							{#if onRunCheck && child.status !== 'scheduled' && child.status !== 'completed'}
-								<button class="tl-run-btn" title="Run check"
-									onclick={() => onRunCheck(child.workshop_id, child.cluster, child.display_name)}>
-									<svg viewBox="0 0 16 16" width="8" height="8" fill="currentColor" aria-hidden="true">
-										<path d="M4 2l10 6-10 6V2z" />
-									</svg>
-								</button>
-							{/if}
 						{/if}
-						</div>
-					</div>
-				</foreignObject>
 
-					<!-- Child bar -->
-					{#if child.catalog_url}
-						<a href={child.catalog_url} target="_blank" rel="noopener noreferrer" aria-label="Open {child.display_name} in catalog">
+						{#if barWidth > 160}
+							<text
+								x={LABEL_WIDTH + barX + 8}
+								y={y + h / 2 + 4}
+								font-size="10"
+								fill={workshopStatusTextColor(mws.status)}
+								font-weight="600"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{statusShortLabel(mws.status)} &middot; {mws.children.length} workshops &middot; {mws.number_seats}
+								seats
+							</text>
+						{:else if barWidth > 80}
+							<text
+								x={LABEL_WIDTH + barX + 8}
+								y={y + h / 2 + 4}
+								font-size="10"
+								fill={workshopStatusTextColor(mws.status)}
+								font-weight="600"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{mws.children.length} workshops &middot; {mws.number_seats} seats
+							</text>
+						{/if}
+					{:else if tRow.kind === 'child'}
+						{@const child = tRow.item}
+						<!-- Child workshop two-line label (indented) -->
+						<foreignObject x="0" {y} width={LABEL_WIDTH} height={h}>
+							<div class="tl-label-col tl-label-col--child">
+								<div class="tl-label-line1">
+									<span class="tl-child-indent"></span>
+									{#if child.catalog_url}
+										<a
+											href={child.catalog_url}
+											target="_blank"
+											rel="noopener noreferrer"
+											class="tl-name tl-name--link"
+											title={child.display_name}
+										>
+											{child.display_name}
+										</a>
+									{:else}
+										<span class="tl-name" title={child.display_name}>{child.display_name}</span>
+									{/if}
+								</div>
+								<div class="tl-label-line2 tl-label-line2--child">
+									<span class="tl-child-indent"></span>
+									{#if child.white_glove}
+										<span class="tl-flag tl-flag--wg" title="White-glove">WG</span>
+									{/if}
+									{#if child.locked}
+										<span class="tl-flag tl-flag--locked" title="Locked">
+											<svg
+												viewBox="0 0 16 16"
+												width="9"
+												height="9"
+												fill="currentColor"
+												aria-hidden="true"
+											>
+												<path
+													d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-2 3a2 2 0 1 1 4 0v2H6V4z"
+												/>
+											</svg>
+										</span>
+									{/if}
+									{#if child.disable_auto_stop}
+										<span class="tl-flag tl-flag--no-autostop" title="No auto-stop">
+											<svg
+												viewBox="0 0 16 16"
+												width="9"
+												height="9"
+												fill="currentColor"
+												aria-hidden="true"
+											>
+												<path
+													d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2zM6 5v6h1.5V5H6zm2.5 0v6H10V5H8.5z"
+												/>
+											</svg>
+										</span>
+									{/if}
+									{#if child.workshop_id}
+										{@const cs = checkStatuses[child.workshop_id]}
+										{#if cs}
+											<a
+												href="/session/{cs.session_id}"
+												target="_blank"
+												rel="noopener noreferrer"
+												class="tl-check-dot tl-check-dot--{cs.status === 'completed'
+													? 'green'
+													: cs.status === 'failed'
+														? 'red'
+														: 'blue'}"
+												title="Last check: {checkStatusLabel(cs.status)}"
+												aria-label="Last check: {checkStatusLabel(cs.status)}"
+											></a>
+										{/if}
+										{#if onRunCheck && child.status !== 'scheduled' && child.status !== 'completed'}
+											<button
+												class="tl-run-btn"
+												title="Run check"
+												onclick={() =>
+													onRunCheck(child.workshop_id, child.cluster, child.display_name)}
+											>
+												<svg
+													viewBox="0 0 16 16"
+													width="8"
+													height="8"
+													fill="currentColor"
+													aria-hidden="true"
+												>
+													<path d="M4 2l10 6-10 6V2z" />
+												</svg>
+											</button>
+										{/if}
+									{/if}
+								</div>
+							</div>
+						</foreignObject>
+
+						<!-- Child bar -->
+						{#if child.catalog_url}
+							<a
+								href={child.catalog_url}
+								target="_blank"
+								rel="noopener noreferrer"
+								aria-label="Open {child.display_name} in catalog"
+							>
+								<rect
+									x={LABEL_WIDTH + barX}
+									{y}
+									width={barWidth}
+									height={h}
+									rx="4"
+									fill={workshopStatusBg(child.status)}
+									opacity={hoveredIndex === idx ? 1 : 0.8}
+									class="timeline-bar"
+									data-bar-idx={idx}
+									aria-label={barAriaLabel(tRow)}
+									onmouseenter={(e) => handleBarEnter(idx, e)}
+									onmousemove={handleBarMove}
+									onmouseleave={() => (hoveredIndex = null)}
+									onfocus={() => handleBarFocus(idx)}
+									onblur={() => (hoveredIndex = null)}
+								/>
+							</a>
+						{:else}
 							<rect
 								x={LABEL_WIDTH + barX}
 								{y}
@@ -540,6 +657,8 @@
 								opacity={hoveredIndex === idx ? 1 : 0.8}
 								class="timeline-bar"
 								data-bar-idx={idx}
+								role="img"
+								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
 								onmouseenter={(e) => handleBarEnter(idx, e)}
 								onmousemove={handleBarMove}
@@ -547,157 +666,205 @@
 								onfocus={() => handleBarFocus(idx)}
 								onblur={() => (hoveredIndex = null)}
 							/>
-						</a>
-					{:else}
-						<rect
-							x={LABEL_WIDTH + barX}
-							{y}
-							width={barWidth}
-							height={h}
-							rx="4"
-							fill={workshopStatusBg(child.status)}
-							opacity={hoveredIndex === idx ? 1 : 0.8}
-							class="timeline-bar"
-							data-bar-idx={idx}
-							role="img"
-							tabindex="0"
-							aria-label={barAriaLabel(tRow)}
-							onmouseenter={(e) => handleBarEnter(idx, e)}
-							onmousemove={handleBarMove}
-							onmouseleave={() => (hoveredIndex = null)}
-							onfocus={() => handleBarFocus(idx)}
-							onblur={() => (hoveredIndex = null)}
-						/>
-					{/if}
-
-					{#if barWidth > 160}
-						<text
-							x={LABEL_WIDTH + barX + 8}
-							y={y + h / 2 + 4}
-							font-size="10"
-							fill={workshopStatusTextColor(child.status)}
-							font-weight="500"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{statusShortLabel(child.status)} &middot; {child.provision_active}/{child.provision_ordered}
-							{#if child.users_total > 0}
-								&middot; {child.users_assigned}/{child.users_total} users
-							{/if}
-						</text>
-					{:else if barWidth > 80}
-						<text
-							x={LABEL_WIDTH + barX + 8}
-							y={y + h / 2 + 4}
-							font-size="10"
-							fill={workshopStatusTextColor(child.status)}
-							font-weight="500"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{child.provision_active}/{child.provision_ordered}
-							{#if child.users_total > 0}
-								&middot; {child.users_assigned}/{child.users_total}
-							{/if}
-						</text>
-					{:else if barWidth > 40}
-						<text
-							x={LABEL_WIDTH + barX + 6}
-							y={y + h / 2 + 4}
-							font-size="9"
-							fill={workshopStatusTextColor(child.status)}
-							font-weight="500"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{child.provision_active}/{child.provision_ordered}
-						</text>
-					{/if}
-
-					{#if child.provision_failed > 0}
-						<circle
-							cx={LABEL_WIDTH + barX + barWidth - 10}
-							cy={y + 10}
-							r="6"
-							fill="#c9190b"
-							aria-hidden="true"
-						/>
-						<text
-							x={LABEL_WIDTH + barX + barWidth - 10}
-							y={y + 13}
-							text-anchor="middle"
-							font-size="8"
-							fill="#fff"
-							font-weight="700"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{child.provision_failed}
-						</text>
-					{/if}
-
-				{:else}
-					{@const tItem = tRow}
-				<!-- Standalone workshop two-line label -->
-				<foreignObject x="0" {y} width={LABEL_WIDTH} height={h}>
-					<div class="tl-label-col">
-						<div class="tl-label-line1">
-							{#if tItem.item.catalog_url}
-								<a href={tItem.item.catalog_url} target="_blank" rel="noopener noreferrer" class="tl-name tl-name--link" title={tItem.item.display_name}>
-									{tItem.item.display_name}
-								</a>
-							{:else}
-								<span class="tl-name" title={tItem.item.display_name}>{tItem.item.display_name}</span>
-							{/if}
-						</div>
-						<div class="tl-label-line2">
-							{#if tItem.item.white_glove}
-								<span class="tl-flag tl-flag--wg" title="White-glove">WG</span>
-							{/if}
-							{#if tItem.item.demo_team_provisioned}
-								<span class="tl-flag tl-flag--dt" title="Demo team">DT</span>
-							{/if}
-							{#if tItem.item.locked}
-								<span class="tl-flag tl-flag--locked" title="Locked">
-									<svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" aria-hidden="true">
-										<path d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-2 3a2 2 0 1 1 4 0v2H6V4z" />
-									</svg>
-								</span>
-							{/if}
-							{#if tItem.item.disable_auto_stop}
-								<span class="tl-flag tl-flag--no-autostop" title="No auto-stop">
-									<svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" aria-hidden="true">
-										<path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2zM6 5v6h1.5V5H6zm2.5 0v6H10V5H8.5z" />
-									</svg>
-								</span>
-							{/if}
-						{#if tItem.item.workshop_id}
-							{@const cs = checkStatuses[tItem.item.workshop_id]}
-							{#if cs}
-								<a href="/session/{cs.session_id}" target="_blank" rel="noopener noreferrer"
-									class="tl-check-dot tl-check-dot--{cs.status === 'completed' ? 'green' : cs.status === 'failed' ? 'red' : 'blue'}"
-									title="Last check: {checkStatusLabel(cs.status)}"
-									aria-label="Last check: {checkStatusLabel(cs.status)}"></a>
-							{/if}
-							{#if onRunCheck && tItem.item.status !== 'scheduled' && tItem.item.status !== 'completed'}
-								<button class="tl-run-btn" title="Run check"
-									onclick={() => onRunCheck(tItem.item.workshop_id, tItem.item.cluster, tItem.item.display_name)}>
-									<svg viewBox="0 0 16 16" width="8" height="8" fill="currentColor" aria-hidden="true">
-										<path d="M4 2l10 6-10 6V2z" />
-									</svg>
-								</button>
-							{/if}
 						{/if}
-							{#if tItem.item.requester}
-								<span class="tl-requester">{tItem.item.requester}</span>
-							{/if}
-						</div>
-					</div>
-				</foreignObject>
 
-					<!-- Bar -->
-					{#if tItem.item.catalog_url}
-						<a href={tItem.item.catalog_url} target="_blank" rel="noopener noreferrer" aria-label="Open {tItem.item.display_name} in catalog">
+						{#if barWidth > 160}
+							<text
+								x={LABEL_WIDTH + barX + 8}
+								y={y + h / 2 + 4}
+								font-size="10"
+								fill={workshopStatusTextColor(child.status)}
+								font-weight="500"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{statusShortLabel(child.status)} &middot; {child.provision_active}/{child.provision_ordered}
+								{#if child.users_total > 0}
+									&middot; {child.users_assigned}/{child.users_total} users
+								{/if}
+							</text>
+						{:else if barWidth > 80}
+							<text
+								x={LABEL_WIDTH + barX + 8}
+								y={y + h / 2 + 4}
+								font-size="10"
+								fill={workshopStatusTextColor(child.status)}
+								font-weight="500"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{child.provision_active}/{child.provision_ordered}
+								{#if child.users_total > 0}
+									&middot; {child.users_assigned}/{child.users_total}
+								{/if}
+							</text>
+						{:else if barWidth > 40}
+							<text
+								x={LABEL_WIDTH + barX + 6}
+								y={y + h / 2 + 4}
+								font-size="9"
+								fill={workshopStatusTextColor(child.status)}
+								font-weight="500"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{child.provision_active}/{child.provision_ordered}
+							</text>
+						{/if}
+
+						{#if child.provision_failed > 0}
+							<circle
+								cx={LABEL_WIDTH + barX + barWidth - 10}
+								cy={y + 10}
+								r="6"
+								fill="#c9190b"
+								aria-hidden="true"
+							/>
+							<text
+								x={LABEL_WIDTH + barX + barWidth - 10}
+								y={y + 13}
+								text-anchor="middle"
+								font-size="8"
+								fill="#fff"
+								font-weight="700"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{child.provision_failed}
+							</text>
+						{/if}
+					{:else}
+						{@const tItem = tRow}
+						<!-- Standalone workshop two-line label -->
+						<foreignObject x="0" {y} width={LABEL_WIDTH} height={h}>
+							<div class="tl-label-col">
+								<div class="tl-label-line1">
+									{#if tItem.item.catalog_url}
+										<a
+											href={tItem.item.catalog_url}
+											target="_blank"
+											rel="noopener noreferrer"
+											class="tl-name tl-name--link"
+											title={tItem.item.display_name}
+										>
+											{tItem.item.display_name}
+										</a>
+									{:else}
+										<span class="tl-name" title={tItem.item.display_name}
+											>{tItem.item.display_name}</span
+										>
+									{/if}
+								</div>
+								<div class="tl-label-line2">
+									{#if tItem.item.white_glove}
+										<span class="tl-flag tl-flag--wg" title="White-glove">WG</span>
+									{/if}
+									{#if tItem.item.demo_team_provisioned}
+										<span class="tl-flag tl-flag--dt" title="Demo team">DT</span>
+									{/if}
+									{#if tItem.item.locked}
+										<span class="tl-flag tl-flag--locked" title="Locked">
+											<svg
+												viewBox="0 0 16 16"
+												width="9"
+												height="9"
+												fill="currentColor"
+												aria-hidden="true"
+											>
+												<path
+													d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-2 3a2 2 0 1 1 4 0v2H6V4z"
+												/>
+											</svg>
+										</span>
+									{/if}
+									{#if tItem.item.disable_auto_stop}
+										<span class="tl-flag tl-flag--no-autostop" title="No auto-stop">
+											<svg
+												viewBox="0 0 16 16"
+												width="9"
+												height="9"
+												fill="currentColor"
+												aria-hidden="true"
+											>
+												<path
+													d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2zM6 5v6h1.5V5H6zm2.5 0v6H10V5H8.5z"
+												/>
+											</svg>
+										</span>
+									{/if}
+									{#if tItem.item.workshop_id}
+										{@const cs = checkStatuses[tItem.item.workshop_id]}
+										{#if cs}
+											<a
+												href="/session/{cs.session_id}"
+												target="_blank"
+												rel="noopener noreferrer"
+												class="tl-check-dot tl-check-dot--{cs.status === 'completed'
+													? 'green'
+													: cs.status === 'failed'
+														? 'red'
+														: 'blue'}"
+												title="Last check: {checkStatusLabel(cs.status)}"
+												aria-label="Last check: {checkStatusLabel(cs.status)}"
+											></a>
+										{/if}
+										{#if onRunCheck && tItem.item.status !== 'scheduled' && tItem.item.status !== 'completed'}
+											<button
+												class="tl-run-btn"
+												title="Run check"
+												onclick={() =>
+													onRunCheck(
+														tItem.item.workshop_id,
+														tItem.item.cluster,
+														tItem.item.display_name
+													)}
+											>
+												<svg
+													viewBox="0 0 16 16"
+													width="8"
+													height="8"
+													fill="currentColor"
+													aria-hidden="true"
+												>
+													<path d="M4 2l10 6-10 6V2z" />
+												</svg>
+											</button>
+										{/if}
+									{/if}
+									{#if tItem.item.requester}
+										<span class="tl-requester">{tItem.item.requester}</span>
+									{/if}
+								</div>
+							</div>
+						</foreignObject>
+
+						<!-- Bar -->
+						{#if tItem.item.catalog_url}
+							<a
+								href={tItem.item.catalog_url}
+								target="_blank"
+								rel="noopener noreferrer"
+								aria-label="Open {tItem.item.display_name} in catalog"
+							>
+								<rect
+									x={LABEL_WIDTH + barX}
+									{y}
+									width={barWidth}
+									height={h}
+									rx="4"
+									fill={workshopStatusBg(tItem.item.status)}
+									opacity={hoveredIndex === idx ? 1 : 0.8}
+									class="timeline-bar"
+									data-bar-idx={idx}
+									aria-label={barAriaLabel(tRow)}
+									onmouseenter={(e) => handleBarEnter(idx, e)}
+									onmousemove={handleBarMove}
+									onmouseleave={() => (hoveredIndex = null)}
+									onfocus={() => handleBarFocus(idx)}
+									onblur={() => (hoveredIndex = null)}
+								/>
+							</a>
+						{:else}
 							<rect
 								x={LABEL_WIDTH + barX}
 								{y}
@@ -708,6 +875,8 @@
 								opacity={hoveredIndex === idx ? 1 : 0.8}
 								class="timeline-bar"
 								data-bar-idx={idx}
+								role="img"
+								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
 								onmouseenter={(e) => handleBarEnter(idx, e)}
 								onmousemove={handleBarMove}
@@ -715,98 +884,78 @@
 								onfocus={() => handleBarFocus(idx)}
 								onblur={() => (hoveredIndex = null)}
 							/>
-						</a>
-					{:else}
-						<rect
-							x={LABEL_WIDTH + barX}
-							{y}
-							width={barWidth}
-							height={h}
-							rx="4"
-							fill={workshopStatusBg(tItem.item.status)}
-							opacity={hoveredIndex === idx ? 1 : 0.8}
-							class="timeline-bar"
-							data-bar-idx={idx}
-							role="img"
-							tabindex="0"
-							aria-label={barAriaLabel(tRow)}
-							onmouseenter={(e) => handleBarEnter(idx, e)}
-							onmousemove={handleBarMove}
-							onmouseleave={() => (hoveredIndex = null)}
-							onfocus={() => handleBarFocus(idx)}
-							onblur={() => (hoveredIndex = null)}
-						/>
-					{/if}
+						{/if}
 
-					<!-- Bar text -->
-					{#if barWidth > 160}
-						<text
-							x={LABEL_WIDTH + barX + 8}
-							y={y + h / 2 + 4}
-							font-size="10"
-							fill={workshopStatusTextColor(tItem.item.status)}
-							font-weight="500"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{statusShortLabel(tItem.item.status)} &middot; {tItem.item.provision_active}/{tItem.item.provision_ordered}
-							{#if tItem.item.users_total > 0}
-								&middot; {tItem.item.users_assigned}/{tItem.item.users_total} users
-							{/if}
-						</text>
-					{:else if barWidth > 80}
-						<text
-							x={LABEL_WIDTH + barX + 8}
-							y={y + h / 2 + 4}
-							font-size="10"
-							fill={workshopStatusTextColor(tItem.item.status)}
-							font-weight="500"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{tItem.item.provision_active}/{tItem.item.provision_ordered}
-							{#if tItem.item.users_total > 0}
-								&middot; {tItem.item.users_assigned}/{tItem.item.users_total}
-							{/if}
-						</text>
-					{:else if barWidth > 40}
-						<text
-							x={LABEL_WIDTH + barX + 6}
-							y={y + h / 2 + 4}
-							font-size="9"
-							fill={workshopStatusTextColor(tItem.item.status)}
-							font-weight="500"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{tItem.item.provision_active}/{tItem.item.provision_ordered}
-						</text>
-					{/if}
+						<!-- Bar text -->
+						{#if barWidth > 160}
+							<text
+								x={LABEL_WIDTH + barX + 8}
+								y={y + h / 2 + 4}
+								font-size="10"
+								fill={workshopStatusTextColor(tItem.item.status)}
+								font-weight="500"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{statusShortLabel(tItem.item.status)} &middot; {tItem.item.provision_active}/{tItem
+									.item.provision_ordered}
+								{#if tItem.item.users_total > 0}
+									&middot; {tItem.item.users_assigned}/{tItem.item.users_total} users
+								{/if}
+							</text>
+						{:else if barWidth > 80}
+							<text
+								x={LABEL_WIDTH + barX + 8}
+								y={y + h / 2 + 4}
+								font-size="10"
+								fill={workshopStatusTextColor(tItem.item.status)}
+								font-weight="500"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{tItem.item.provision_active}/{tItem.item.provision_ordered}
+								{#if tItem.item.users_total > 0}
+									&middot; {tItem.item.users_assigned}/{tItem.item.users_total}
+								{/if}
+							</text>
+						{:else if barWidth > 40}
+							<text
+								x={LABEL_WIDTH + barX + 6}
+								y={y + h / 2 + 4}
+								font-size="9"
+								fill={workshopStatusTextColor(tItem.item.status)}
+								font-weight="500"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{tItem.item.provision_active}/{tItem.item.provision_ordered}
+							</text>
+						{/if}
 
-					<!-- Failure indicator -->
-					{#if tItem.item.provision_failed > 0}
-						<circle
-							cx={LABEL_WIDTH + barX + barWidth - 10}
-							cy={y + 10}
-							r="6"
-							fill="#c9190b"
-							aria-hidden="true"
-						/>
-						<text
-							x={LABEL_WIDTH + barX + barWidth - 10}
-							y={y + 13}
-							text-anchor="middle"
-							font-size="8"
-							fill="#fff"
-							font-weight="700"
-							pointer-events="none"
-							aria-hidden="true"
-						>
-							{tItem.item.provision_failed}
-						</text>
+						<!-- Failure indicator -->
+						{#if tItem.item.provision_failed > 0}
+							<circle
+								cx={LABEL_WIDTH + barX + barWidth - 10}
+								cy={y + 10}
+								r="6"
+								fill="#c9190b"
+								aria-hidden="true"
+							/>
+							<text
+								x={LABEL_WIDTH + barX + barWidth - 10}
+								y={y + 13}
+								text-anchor="middle"
+								font-size="8"
+								fill="#fff"
+								font-weight="700"
+								pointer-events="none"
+								aria-hidden="true"
+							>
+								{tItem.item.provision_failed}
+							</text>
+						{/if}
 					{/if}
-				{/if}
-			{/each}
+				{/each}
 			</svg>
 		</div>
 
@@ -859,7 +1008,13 @@
 		padding-right: 8px;
 		padding-left: 4px;
 		box-sizing: border-box;
-		font-family: var(--pf-t--global--font--family--body, 'RedHatText', helvetica, arial, sans-serif);
+		font-family: var(
+			--pf-t--global--font--family--body,
+			'RedHatText',
+			helvetica,
+			arial,
+			sans-serif
+		);
 	}
 
 	.tl-label-col--child {
@@ -990,7 +1145,9 @@
 		color: var(--pf-t--global--icon--color--regular, #6a6e73);
 		flex-shrink: 0;
 		padding: 0;
-		transition: transform 0.15s, color 0.15s;
+		transition:
+			transform 0.15s,
+			color 0.15s;
 	}
 
 	.tl-expand-btn:hover {
@@ -1027,9 +1184,15 @@
 		flex-shrink: 0;
 	}
 
-	.tl-check-dot--green { background: var(--sc-green-border); }
-	.tl-check-dot--red { background: var(--sc-red-border); }
-	.tl-check-dot--blue { background: var(--sc-blue-border); }
+	.tl-check-dot--green {
+		background: var(--sc-green-border);
+	}
+	.tl-check-dot--red {
+		background: var(--sc-red-border);
+	}
+	.tl-check-dot--blue {
+		background: var(--sc-blue-border);
+	}
 
 	.tl-run-btn {
 		display: inline-flex;

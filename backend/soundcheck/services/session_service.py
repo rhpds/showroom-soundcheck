@@ -16,8 +16,8 @@ from ..models import CheckResult, CheckSession, GroupRun, SessionGroup, SessionT
 from ..utils import escape_like, make_display_label, utc_now
 from . import babylon_client
 from .babylon_service import (
-    ResolvedEntry,
     ResolutionContext,
+    ResolvedEntry,
     extract_resource_claim_metadata,
     extract_resource_pool_metadata,
     extract_workshop_metadata,
@@ -523,9 +523,7 @@ async def _mark_session_failed(
     sid: str,
 ) -> None:
     async with session_factory() as db:
-        cs_result = await db.execute(
-            select(CheckSession).where(CheckSession.session_id == sid).with_for_update()
-        )
+        cs_result = await db.execute(select(CheckSession).where(CheckSession.session_id == sid).with_for_update())
         cs = cs_result.scalars().first()
         if cs and cs.status not in ("completed", "failed"):
             cs.status = "failed"

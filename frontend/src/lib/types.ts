@@ -24,12 +24,7 @@ export const STATUS_SORT_ORDER: Record<Status, number> = {
 	failed: 8
 };
 
-type ProvisionStatus =
-	| 'provisioning'
-	| 'ready'
-	| 'destroying'
-	| 'provision-failed'
-	| 'unhealthy';
+type ProvisionStatus = 'provisioning' | 'ready' | 'destroying' | 'provision-failed' | 'unhealthy';
 
 export interface SessionListItem {
 	id: number;

@@ -34,13 +34,14 @@ export const load: PageLoad = async ({ url }) => {
 		: 'prod';
 
 	const rawStatuses = url.searchParams.getAll('status');
-	const selectedStatuses = rawStatuses.length > 0
-		? rawStatuses.filter((s): s is WorkshopStatus =>
-			ALL_WORKSHOP_STATUSES.includes(s as WorkshopStatus)
-		)
-		: hasAnyParams
-			? []
-			: (['scheduled', 'provisioning', 'failed', 'degraded'] as WorkshopStatus[]);
+	const selectedStatuses =
+		rawStatuses.length > 0
+			? rawStatuses.filter((s): s is WorkshopStatus =>
+					ALL_WORKSHOP_STATUSES.includes(s as WorkshopStatus)
+				)
+			: hasAnyParams
+				? []
+				: (['scheduled', 'provisioning', 'failed', 'degraded'] as WorkshopStatus[]);
 
 	const hasFailures = url.searchParams.get('has_failures') === 'true';
 

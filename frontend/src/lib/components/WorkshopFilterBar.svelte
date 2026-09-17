@@ -1,7 +1,12 @@
 <script lang="ts">
 	import type { WorkshopStatus } from '$lib/types';
 	import type { ProvisionTypeFilter, TimeWindowFilter, EnvironmentFilter } from '$lib/utils';
-	import { workshopStatusLabel, ALL_WORKSHOP_STATUSES, ENVIRONMENT_VALUES, environmentLabel } from '$lib/utils';
+	import {
+		workshopStatusLabel,
+		ALL_WORKSHOP_STATUSES,
+		ENVIRONMENT_VALUES,
+		environmentLabel
+	} from '$lib/utils';
 
 	let {
 		clusters,
@@ -71,7 +76,11 @@
 	);
 
 	let hasSecondaryFilters = $derived(
-		whiteGlove || multiAssetOnly || provisionType !== 'all' || hasFailures || selectedClusters.length > 0
+		whiteGlove ||
+			multiAssetOnly ||
+			provisionType !== 'all' ||
+			hasFailures ||
+			selectedClusters.length > 0
 	);
 
 	let secondaryOpen = $derived(showSecondary || hasSecondaryFilters);
@@ -91,11 +100,18 @@
 			});
 		}
 		if (timeWindow !== 'all') {
-			const labels: Record<string, string> = { today: 'Today', '24h': 'Next 24h', week: 'This week' };
+			const labels: Record<string, string> = {
+				today: 'Today',
+				'24h': 'Next 24h',
+				week: 'This week'
+			};
 			pills.push({
 				key: 'time',
 				label: `Time: ${labels[timeWindow] ?? timeWindow}`,
-				clear: () => { timeWindow = 'all'; onchange(); }
+				clear: () => {
+					timeWindow = 'all';
+					onchange();
+				}
 			});
 		}
 		for (const s of selectedStatuses) {
@@ -112,36 +128,54 @@
 			pills.push({
 				key: 'wg',
 				label: 'White-glove',
-				clear: () => { whiteGlove = false; onchange(); }
+				clear: () => {
+					whiteGlove = false;
+					onchange();
+				}
 			});
 		}
 		if (multiAssetOnly) {
 			pills.push({
 				key: 'multi',
 				label: 'Multi-asset',
-				clear: () => { multiAssetOnly = false; onchange(); }
+				clear: () => {
+					multiAssetOnly = false;
+					onchange();
+				}
 			});
 		}
 		if (hasFailures) {
 			pills.push({
 				key: 'failures',
 				label: 'Has failures',
-				clear: () => { hasFailures = false; onchange(); }
+				clear: () => {
+					hasFailures = false;
+					onchange();
+				}
 			});
 		}
 		if (provisionType !== 'all') {
-			const labels: Record<string, string> = { self_service: 'Self-service', demo_team: 'Demo team' };
+			const labels: Record<string, string> = {
+				self_service: 'Self-service',
+				demo_team: 'Demo team'
+			};
 			pills.push({
 				key: 'provision',
 				label: `Provisioned by: ${labels[provisionType] ?? provisionType}`,
-				clear: () => { provisionType = 'all'; onchange(); }
+				clear: () => {
+					provisionType = 'all';
+					onchange();
+				}
 			});
 		}
 		if (environment !== 'all') {
 			pills.push({
 				key: 'env',
 				label: `Env: ${environmentLabel(environment)}`,
-				clear: () => { environment = 'all'; onchange(); }
+				clear: () => {
+					environment = 'all';
+					onchange();
+				}
 			});
 		}
 		return pills;
@@ -158,26 +192,38 @@
 					class="filter-chip"
 					class:active={timeWindow === 'all'}
 					aria-pressed={timeWindow === 'all'}
-					onclick={() => { timeWindow = 'all'; onchange(); }}
-				>All</button>
+					onclick={() => {
+						timeWindow = 'all';
+						onchange();
+					}}>All</button
+				>
 				<button
 					class="filter-chip"
 					class:active={timeWindow === 'today'}
 					aria-pressed={timeWindow === 'today'}
-					onclick={() => { timeWindow = 'today'; onchange(); }}
-				>Today</button>
+					onclick={() => {
+						timeWindow = 'today';
+						onchange();
+					}}>Today</button
+				>
 				<button
 					class="filter-chip"
 					class:active={timeWindow === '24h'}
 					aria-pressed={timeWindow === '24h'}
-					onclick={() => { timeWindow = '24h'; onchange(); }}
-				>Next 24h</button>
+					onclick={() => {
+						timeWindow = '24h';
+						onchange();
+					}}>Next 24h</button
+				>
 				<button
 					class="filter-chip"
 					class:active={timeWindow === 'week'}
 					aria-pressed={timeWindow === 'week'}
-					onclick={() => { timeWindow = 'week'; onchange(); }}
-				>This week</button>
+					onclick={() => {
+						timeWindow = 'week';
+						onchange();
+					}}>This week</button
+				>
 			</div>
 		</div>
 
@@ -190,8 +236,8 @@
 						class="filter-chip"
 						class:active={selectedStatuses.includes(status)}
 						aria-pressed={selectedStatuses.includes(status)}
-						onclick={() => toggleStatus(status)}
-					>{workshopStatusLabel(status)}</button>
+						onclick={() => toggleStatus(status)}>{workshopStatusLabel(status)}</button
+					>
 				{/each}
 			</div>
 		</div>
@@ -204,15 +250,21 @@
 					class="filter-chip"
 					class:active={environment === 'all'}
 					aria-pressed={environment === 'all'}
-					onclick={() => { environment = 'all'; onchange(); }}
-				>All</button>
+					onclick={() => {
+						environment = 'all';
+						onchange();
+					}}>All</button
+				>
 				{#each ENVIRONMENT_VALUES as env}
 					<button
 						class="filter-chip"
 						class:active={environment === env}
 						aria-pressed={environment === env}
-						onclick={() => { environment = env; onchange(); }}
-					>{environmentLabel(env)}</button>
+						onclick={() => {
+							environment = env;
+							onchange();
+						}}>{environmentLabel(env)}</button
+					>
 				{/each}
 			</div>
 		</div>
@@ -221,22 +273,30 @@
 			<button
 				class="more-filters-btn"
 				class:more-filters-btn--active={secondaryOpen}
-				onclick={() => { showSecondary = !showSecondary; }}
+				onclick={() => {
+					showSecondary = !showSecondary;
+				}}
 				aria-expanded={secondaryOpen}
 			>
 				<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
-					<path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .4.8L9.667 7.933V13.5a.5.5 0 0 1-.243.429l-2.667 1.6A.5.5 0 0 1 6 15.1V7.933L1.1 1.8a.5.5 0 0 1 .4-.8z" />
+					<path
+						d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .4.8L9.667 7.933V13.5a.5.5 0 0 1-.243.429l-2.667 1.6A.5.5 0 0 1 6 15.1V7.933L1.1 1.8a.5.5 0 0 1 .4-.8z"
+					/>
 				</svg>
 				More filters
 				{#if hasSecondaryFilters}
-					<span class="filter-count">{(whiteGlove ? 1 : 0) + (multiAssetOnly ? 1 : 0) + (hasFailures ? 1 : 0) + (provisionType !== 'all' ? 1 : 0) + selectedClusters.length}</span>
+					<span class="filter-count"
+						>{(whiteGlove ? 1 : 0) +
+							(multiAssetOnly ? 1 : 0) +
+							(hasFailures ? 1 : 0) +
+							(provisionType !== 'all' ? 1 : 0) +
+							selectedClusters.length}</span
+					>
 				{/if}
 			</button>
 
 			{#if hasActiveFilters}
-				<button class="clear-filters-btn" onclick={clearFilters}>
-					Clear all
-				</button>
+				<button class="clear-filters-btn" onclick={clearFilters}> Clear all </button>
 			{/if}
 		</div>
 	</div>
@@ -251,20 +311,29 @@
 						class="filter-chip"
 						class:active={whiteGlove}
 						aria-pressed={whiteGlove}
-						onclick={() => { whiteGlove = !whiteGlove; onchange(); }}
-					>White-glove</button>
+						onclick={() => {
+							whiteGlove = !whiteGlove;
+							onchange();
+						}}>White-glove</button
+					>
 					<button
 						class="filter-chip"
 						class:active={multiAssetOnly}
 						aria-pressed={multiAssetOnly}
-						onclick={() => { multiAssetOnly = !multiAssetOnly; onchange(); }}
-					>Multi-asset</button>
+						onclick={() => {
+							multiAssetOnly = !multiAssetOnly;
+							onchange();
+						}}>Multi-asset</button
+					>
 					<button
 						class="filter-chip"
 						class:active={hasFailures}
 						aria-pressed={hasFailures}
-						onclick={() => { hasFailures = !hasFailures; onchange(); }}
-					>Has failures</button>
+						onclick={() => {
+							hasFailures = !hasFailures;
+							onchange();
+						}}>Has failures</button
+					>
 				</div>
 			</div>
 
@@ -277,20 +346,29 @@
 						class="filter-chip"
 						class:active={provisionType === 'all'}
 						aria-pressed={provisionType === 'all'}
-						onclick={() => { provisionType = 'all'; onchange(); }}
-					>All</button>
+						onclick={() => {
+							provisionType = 'all';
+							onchange();
+						}}>All</button
+					>
 					<button
 						class="filter-chip"
 						class:active={provisionType === 'self_service'}
 						aria-pressed={provisionType === 'self_service'}
-						onclick={() => { provisionType = 'self_service'; onchange(); }}
-					>Self-service</button>
+						onclick={() => {
+							provisionType = 'self_service';
+							onchange();
+						}}>Self-service</button
+					>
 					<button
 						class="filter-chip"
 						class:active={provisionType === 'demo_team'}
 						aria-pressed={provisionType === 'demo_team'}
-						onclick={() => { provisionType = 'demo_team'; onchange(); }}
-					>Demo team</button>
+						onclick={() => {
+							provisionType = 'demo_team';
+							onchange();
+						}}>Demo team</button
+					>
 				</div>
 			</div>
 
@@ -305,8 +383,8 @@
 								class="filter-chip"
 								class:active={selectedClusters.includes(cluster)}
 								onclick={() => toggleCluster(cluster)}
-								aria-pressed={selectedClusters.includes(cluster)}
-							>{cluster}</button>
+								aria-pressed={selectedClusters.includes(cluster)}>{cluster}</button
+							>
 						{/each}
 					</div>
 				</div>
@@ -326,7 +404,9 @@
 						aria-label="Remove {pill.label} filter"
 					>
 						<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true">
-							<path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
+							<path
+								d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"
+							/>
 						</svg>
 					</button>
 				</span>
@@ -395,7 +475,10 @@
 		background: var(--pf-t--global--background--color--primary--default, #fff);
 		font-size: 0.75rem;
 		cursor: pointer;
-		transition: background 0.15s, border-color 0.15s, color 0.15s;
+		transition:
+			background 0.15s,
+			border-color 0.15s,
+			color 0.15s;
 		color: inherit;
 	}
 
@@ -427,7 +510,9 @@
 		background: var(--pf-t--global--background--color--primary--default, #fff);
 		font-size: 0.75rem;
 		cursor: pointer;
-		transition: background 0.15s, border-color 0.15s;
+		transition:
+			background 0.15s,
+			border-color 0.15s;
 		color: inherit;
 	}
 
@@ -506,7 +591,9 @@
 		color: inherit;
 		cursor: pointer;
 		opacity: 0.6;
-		transition: opacity 0.15s, background 0.15s;
+		transition:
+			opacity 0.15s,
+			background 0.15s;
 	}
 
 	.filter-pill__remove:hover {

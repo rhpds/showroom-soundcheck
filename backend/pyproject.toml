@@ -42,3 +42,10 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["soundcheck"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Ruff's built-in fastapi exemption for B008 doesn't recognize `Query()` when
+# the parameter is annotated as a generic (e.g. `list[str] | None`), even
+# though `Query()` is required there to avoid a mutable default. Extend the
+# allowlist explicitly instead of scattering `# noqa: B008` comments.
+extend-immutable-calls = ["fastapi.Query", "fastapi.Depends"]

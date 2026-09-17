@@ -1,7 +1,6 @@
 """Shared model-to-schema serializers for route modules."""
 
 from ..models import CheckResult, CheckSession, GroupRun, SessionGroup, SessionTarget
-from ..services import babylon_client
 from ..schemas import (
     CheckResultPublic,
     GroupListItem,
@@ -11,6 +10,7 @@ from ..schemas import (
     SessionPublic,
     TargetPublic,
 )
+from ..services import babylon_client
 from ..utils import sanitize_error
 
 
@@ -96,17 +96,17 @@ def target_to_public(t: SessionTarget) -> TargetPublic:
 
 
 def result_to_public(r: CheckResult) -> CheckResultPublic:
- return CheckResultPublic(
- id=r.id,
- target_id=r.target_id,
- tier=r.tier,
- is_healthy=r.is_healthy,
- status_code=r.status_code,
- response_time_ms=r.response_time_ms,
- error_message=sanitize_error(r.error_message),
- detail=r.detail,
- checked_at=r.checked_at,
- )
+    return CheckResultPublic(
+        id=r.id,
+        target_id=r.target_id,
+        tier=r.tier,
+        is_healthy=r.is_healthy,
+        status_code=r.status_code,
+        response_time_ms=r.response_time_ms,
+        error_message=sanitize_error(r.error_message),
+        detail=r.detail,
+        checked_at=r.checked_at,
+    )
 
 
 # ---------------------------------------------------------------------------

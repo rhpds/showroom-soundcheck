@@ -231,9 +231,6 @@ export function groupStream(groupId: string): EventSource {
 }
 
 export async function checkRedirect(params: URLSearchParams, init?: RequestInit): Promise<string> {
-	const resp = await fetchJson<{ session_id: string }>(
-		`${BASE}/check?${params.toString()}`,
-		init
-	);
+	const resp = await fetchJson<{ session_id: string }>(`${BASE}/check?${params.toString()}`, init);
 	return resp.session_id;
 }

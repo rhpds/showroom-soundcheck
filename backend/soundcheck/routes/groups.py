@@ -11,7 +11,6 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import col, select
 
 from ..config import MAX_SSE_CONNECTIONS
-
 from ..database import DbSession, async_session_factory
 from ..models import CheckSession, GroupRun, SessionGroup, SessionTarget
 from ..schemas import (

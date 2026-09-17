@@ -54,6 +54,7 @@ def sanitize_error(msg: str | None) -> str | None:
     msg = _FILE_PATH_RE.sub("<path>", msg)
     return msg
 
+
 # ---------------------------------------------------------------------------
 # URL allowlist (SSRF prevention)
 # ---------------------------------------------------------------------------

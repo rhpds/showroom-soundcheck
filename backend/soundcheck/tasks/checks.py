@@ -21,7 +21,15 @@ from .events import publish_group_event, publish_session_event
 logger = logging.getLogger(__name__)
 
 
-async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url: str, group_id: str = "", request_id: str = "") -> None:
+async def check_target(
+    ctx: TaskContext,
+    *,
+    target_id: int,
+    session_id: str,
+    url: str,
+    group_id: str = "",
+    request_id: str = "",
+) -> None:
     """Check a single target URL, write the result, and try to finalize."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
@@ -123,7 +131,10 @@ async def check_target(ctx: TaskContext, *, target_id: int, session_id: str, url
     )
     if finalized:
         await publish_session_event(
-            redis, session_id, "session_complete", {"status": final_status or "failed"},
+            redis,
+            session_id,
+            "session_complete",
+            {"status": final_status or "failed"},
         )
         if group_run_id and group_id:
             await _try_finalize_group_run(session_factory, group_run_id, group_id)

@@ -55,10 +55,7 @@
 	}
 
 	function isGroupActive(detail: GroupDetail): boolean {
-		return (
-			detail.group.status === 'running' ||
-			detail.runs.some((r) => r.status === 'running')
-		);
+		return detail.group.status === 'running' || detail.runs.some((r) => r.status === 'running');
 	}
 
 	$effect(() => {
@@ -247,30 +244,57 @@
 			<div class="group-header">
 				<div class="group-header__top">
 					<div class="group-header__title-group" style="flex: 1">
-						<div class="pf-v6-c-skeleton pf-m-text-2xl" style="--pf-v6-c-skeleton--Width: 200px"></div>
-						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 80px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+						<div
+							class="pf-v6-c-skeleton pf-m-text-2xl"
+							style="--pf-v6-c-skeleton--Width: 200px"
+						></div>
+						<div
+							class="pf-v6-c-skeleton"
+							style="--pf-v6-c-skeleton--Width: 80px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"
+						></div>
 					</div>
 				</div>
 				<div class="group-header__meta">
-					<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 52px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+					<div
+						class="pf-v6-c-skeleton"
+						style="--pf-v6-c-skeleton--Width: 52px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"
+					></div>
 				</div>
 			</div>
 			<div class="skeleton-section">
 				<div class="skeleton-section__header">
 					<div class="pf-v6-c-skeleton pf-m-text-lg" style="--pf-v6-c-skeleton--Width: 100px"></div>
 					<div class="skeleton-section__header-right">
-						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 90px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
-						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 80px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+						<div
+							class="pf-v6-c-skeleton"
+							style="--pf-v6-c-skeleton--Width: 90px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"
+						></div>
+						<div
+							class="pf-v6-c-skeleton"
+							style="--pf-v6-c-skeleton--Width: 80px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"
+						></div>
 					</div>
 				</div>
 			</div>
 			<div class="skeleton-section">
-				<div class="pf-v6-c-skeleton pf-m-text-lg" style="--pf-v6-c-skeleton--Width: 100px; margin-bottom: 12px"></div>
+				<div
+					class="pf-v6-c-skeleton pf-m-text-lg"
+					style="--pf-v6-c-skeleton--Width: 100px; margin-bottom: 12px"
+				></div>
 				{#each [280, 260, 270, 250] as w}
 					<div class="skeleton-row">
-						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 70px; --pf-v6-c-skeleton--Height: 20px; border-radius: 10px"></div>
-						<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: 70px"></div>
-						<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: {w}px"></div>
+						<div
+							class="pf-v6-c-skeleton"
+							style="--pf-v6-c-skeleton--Width: 70px; --pf-v6-c-skeleton--Height: 20px; border-radius: 10px"
+						></div>
+						<div
+							class="pf-v6-c-skeleton pf-m-text-sm"
+							style="--pf-v6-c-skeleton--Width: 70px"
+						></div>
+						<div
+							class="pf-v6-c-skeleton pf-m-text-sm"
+							style="--pf-v6-c-skeleton--Width: {w}px"
+						></div>
 					</div>
 				{/each}
 			</div>
@@ -295,16 +319,16 @@
 		</div>
 	{:else if data}
 		{#if error}
-		<div class="pf-v6-c-alert pf-m-danger pf-m-inline pf-v6-u-mb-md" role="alert">
-			<div class="pf-v6-c-alert__icon">
-				<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"
-					><path
-						d="M8.58 1.55a.67.67 0 0 0-1.16 0l-6.25 11A.67.67 0 0 0 1.75 14h12.5a.67.67 0 0 0 .58-1.01l-6.25-11ZM8 5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm.56 5.56a.56.56 0 1 1-1.12 0 .56.56 0 0 1 1.12 0Z"
-					/></svg
-				>
+			<div class="pf-v6-c-alert pf-m-danger pf-m-inline pf-v6-u-mb-md" role="alert">
+				<div class="pf-v6-c-alert__icon">
+					<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"
+						><path
+							d="M8.58 1.55a.67.67 0 0 0-1.16 0l-6.25 11A.67.67 0 0 0 1.75 14h12.5a.67.67 0 0 0 .58-1.01l-6.25-11ZM8 5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm.56 5.56a.56.56 0 1 1-1.12 0 .56.56 0 0 1 1.12 0Z"
+						/></svg
+					>
+				</div>
+				<h4 class="pf-v6-c-alert__title">{error}</h4>
 			</div>
-			<h4 class="pf-v6-c-alert__title">{error}</h4>
-		</div>
 		{/if}
 
 		{#if streamFailed}

@@ -27,28 +27,38 @@ def upgrade() -> None:
     # --- Clean up orphaned rows so FK constraints can be created ---
     conn = op.get_bind()
 
-    conn.execute(sa.text("""
+    conn.execute(
+        sa.text("""
         DELETE FROM check_results
         WHERE target_id NOT IN (SELECT id FROM session_targets)
-    """))
-    conn.execute(sa.text("""
+    """)
+    )
+    conn.execute(
+        sa.text("""
         DELETE FROM session_targets
         WHERE session_id NOT IN (SELECT session_id FROM sessions)
-    """))
-    conn.execute(sa.text("""
+    """)
+    )
+    conn.execute(
+        sa.text("""
         DELETE FROM sessions
         WHERE group_id IS NOT NULL
           AND group_id NOT IN (SELECT group_id FROM session_groups)
-    """))
-    conn.execute(sa.text("""
+    """)
+    )
+    conn.execute(
+        sa.text("""
         UPDATE sessions SET group_run_id = NULL
         WHERE group_run_id IS NOT NULL
           AND group_run_id NOT IN (SELECT run_id FROM group_runs)
-    """))
-    conn.execute(sa.text("""
+    """)
+    )
+    conn.execute(
+        sa.text("""
         DELETE FROM group_runs
         WHERE group_id NOT IN (SELECT group_id FROM session_groups)
-    """))
+    """)
+    )
 
     # --- Add UNIQUE constraints (required for FK targets) ---
     op.create_unique_constraint("uq_session_groups_group_id", "session_groups", ["group_id"])
@@ -58,32 +68,42 @@ def upgrade() -> None:
     # --- Add FK constraints with ON DELETE CASCADE ---
     op.create_foreign_key(
         "fk_group_runs_group_id",
-        "group_runs", "session_groups",
-        ["group_id"], ["group_id"],
+        "group_runs",
+        "session_groups",
+        ["group_id"],
+        ["group_id"],
         ondelete="CASCADE",
     )
     op.create_foreign_key(
         "fk_sessions_group_id",
-        "sessions", "session_groups",
-        ["group_id"], ["group_id"],
+        "sessions",
+        "session_groups",
+        ["group_id"],
+        ["group_id"],
         ondelete="CASCADE",
     )
     op.create_foreign_key(
         "fk_sessions_group_run_id",
-        "sessions", "group_runs",
-        ["group_run_id"], ["run_id"],
+        "sessions",
+        "group_runs",
+        ["group_run_id"],
+        ["run_id"],
         ondelete="CASCADE",
     )
     op.create_foreign_key(
         "fk_session_targets_session_id",
-        "session_targets", "sessions",
-        ["session_id"], ["session_id"],
+        "session_targets",
+        "sessions",
+        ["session_id"],
+        ["session_id"],
         ondelete="CASCADE",
     )
     op.create_foreign_key(
         "fk_check_results_target_id",
-        "check_results", "session_targets",
-        ["target_id"], ["id"],
+        "check_results",
+        "session_targets",
+        ["target_id"],
+        ["id"],
         ondelete="CASCADE",
     )
 

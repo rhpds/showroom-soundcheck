@@ -200,7 +200,11 @@ async def stream_session(session_id: str, request: Request) -> AsyncIterator[Ser
         results_cache: dict[int, CheckResult] = {r.id: r for r in data["results"]}
 
         yield _sse_update(
-            session_id, session_status, targets_cache, results_cache, session=cs,
+            session_id,
+            session_status,
+            targets_cache,
+            results_cache,
+            session=cs,
         )
 
         if session_status in ("completed", "failed"):

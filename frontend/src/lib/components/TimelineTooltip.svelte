@@ -1,12 +1,22 @@
 <script lang="ts">
-	import type { MultiWorkshopDashboardItem, WorkshopDashboardItem, WorkshopCheckStatusMap } from '$lib/types';
+	import type {
+		MultiWorkshopDashboardItem,
+		WorkshopDashboardItem,
+		WorkshopCheckStatusMap
+	} from '$lib/types';
 	import { workshopStatusLabel } from '$lib/utils';
 	import { checkStatusLabel } from '$lib/checkStatuses.svelte';
 
 	type TimelineRow =
 		| { kind: 'workshop'; item: WorkshopDashboardItem; startMs: number; endMs: number }
 		| { kind: 'multi'; item: MultiWorkshopDashboardItem; startMs: number; endMs: number }
-		| { kind: 'child'; item: WorkshopDashboardItem; parentName: string; startMs: number; endMs: number };
+		| {
+				kind: 'child';
+				item: WorkshopDashboardItem;
+				parentName: string;
+				startMs: number;
+				endMs: number;
+		  };
 
 	let {
 		row,
@@ -37,7 +47,11 @@
 	{#if row.kind === 'multi'}
 		<strong class="tooltip-name">{row.item.display_name}</strong>
 		{#if row.item.requester}
-			<span>User: {row.item.requester}{#if row.item.ordered_by && row.item.ordered_by !== row.item.requester} (by {row.item.ordered_by}){/if}</span>
+			<span
+				>User: {row.item
+					.requester}{#if row.item.ordered_by && row.item.ordered_by !== row.item.requester}
+					(by {row.item.ordered_by}){/if}</span
+			>
 		{:else if row.item.ordered_by}
 			<span>Ordered by: {row.item.ordered_by}</span>
 		{/if}
@@ -61,7 +75,10 @@
 		{@const ws = row.item}
 		<strong class="tooltip-name">{ws.display_name}</strong>
 		{#if ws.requester}
-			<span>User: {ws.requester}{#if ws.ordered_by && ws.ordered_by !== ws.requester} (by {ws.ordered_by}){/if}</span>
+			<span
+				>User: {ws.requester}{#if ws.ordered_by && ws.ordered_by !== ws.requester}
+					(by {ws.ordered_by}){/if}</span
+			>
 		{:else if ws.ordered_by}
 			<span>Ordered by: {ws.ordered_by}</span>
 		{/if}

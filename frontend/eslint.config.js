@@ -26,6 +26,14 @@ export default ts.config(
 		}
 	},
 	{
+		files: ['.docker/**'],
+		languageOptions: {
+			globals: {
+				...globals.node
+			}
+		}
+	},
+	{
 		rules: {
 			'@typescript-eslint/no-unused-vars': [
 				'error',

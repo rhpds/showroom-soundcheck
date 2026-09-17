@@ -81,7 +81,7 @@ async def list_workshops(
             all_fetched_at.append(cluster_ts)
 
     raw_multiworkshops: list[dict[str, Any]] = []
-    for i, result in enumerate(all_results[len(target_clusters):]):
+    for i, result in enumerate(all_results[len(target_clusters) :]):
         if isinstance(result, BaseException):
             logger.warning("MultiWorkshop fetch failed for cluster '%s': %s", target_clusters[i], result)
             all_errors.append(f"Cluster '{target_clusters[i]}' multiworkshop fetch failed: {result}")
@@ -108,14 +108,18 @@ async def list_workshops(
             if matches_filters(child, cluster, status, white_glove, provision_type, has_failures, from_time, to_time)
         ]
         if matching_children:
-            filtered_multi.append(mws.model_copy(update={
-                "children": matching_children,
-                "provision_ordered": sum(c.provision_ordered for c in matching_children),
-                "provision_active": sum(c.provision_active for c in matching_children),
-                "provision_failed": sum(c.provision_failed for c in matching_children),
-                "users_assigned": sum(c.users_assigned for c in matching_children),
-                "users_total": sum(c.users_total for c in matching_children),
-            }))
+            filtered_multi.append(
+                mws.model_copy(
+                    update={
+                        "children": matching_children,
+                        "provision_ordered": sum(c.provision_ordered for c in matching_children),
+                        "provision_active": sum(c.provision_active for c in matching_children),
+                        "provision_failed": sum(c.provision_failed for c in matching_children),
+                        "users_assigned": sum(c.users_assigned for c in matching_children),
+                        "users_total": sum(c.users_total for c in matching_children),
+                    }
+                )
+            )
 
     filtered_standalone.sort(key=lambda w: (w.lifespan_start or "", w.name), reverse=True)
     filtered_multi.sort(key=lambda m: (m.start_date or "", m.name), reverse=True)
@@ -125,11 +129,14 @@ async def list_workshops(
         all_filtered_workshops.extend(mws.children)
     summary = build_summary(all_filtered_workshops)
 
-    paginated = filtered_standalone[offset:offset + limit]
+    paginated = filtered_standalone[offset : offset + limit]
     fetched_at = min(all_fetched_at) if all_fetched_at else ""
     return WorkshopListResponse(
-        items=paginated, multi_workshops=filtered_multi, summary=summary,
-        cluster_errors=all_errors, fetched_at=fetched_at,
+        items=paginated,
+        multi_workshops=filtered_multi,
+        summary=summary,
+        cluster_errors=all_errors,
+        fetched_at=fetched_at,
     )
 
 
