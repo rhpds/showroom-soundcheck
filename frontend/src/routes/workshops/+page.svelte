@@ -21,7 +21,16 @@
 	const emptyWorkshops: WorkshopListResponse = {
 		items: [],
 		multi_workshops: [],
-		summary: { total: 0, scheduled: 0, provisioning: 0, running: 0, stopped: 0, degraded: 0, failed: 0, completed: 0 },
+		summary: {
+			total: 0,
+			scheduled: 0,
+			provisioning: 0,
+			running: 0,
+			stopped: 0,
+			degraded: 0,
+			failed: 0,
+			completed: 0
+		},
 		cluster_errors: [],
 		fetched_at: ''
 	};
@@ -84,15 +93,18 @@
 		error = '';
 		try {
 			const timeRange = getTimeRange(timeWindow);
-			refreshedData = await listWorkshops({
-				cluster: selectedClusters.length > 0 ? selectedClusters : undefined,
-				status: selectedStatuses.length > 0 ? selectedStatuses : undefined,
-				white_glove: whiteGlove ? 'true' : undefined,
-				provision_type: provisionType !== 'all' ? provisionType : undefined,
-				has_failures: hasFailures || undefined,
-				limit: 500,
-				...timeRange
-			}, { signal });
+			refreshedData = await listWorkshops(
+				{
+					cluster: selectedClusters.length > 0 ? selectedClusters : undefined,
+					status: selectedStatuses.length > 0 ? selectedStatuses : undefined,
+					white_glove: whiteGlove ? 'true' : undefined,
+					provision_type: provisionType !== 'all' ? provisionType : undefined,
+					has_failures: hasFailures || undefined,
+					limit: 500,
+					...timeRange
+				},
+				{ signal }
+			);
 		} catch (e: unknown) {
 			if (e instanceof DOMException && e.name === 'AbortError') return;
 			error = e instanceof Error ? e.message : 'Failed to load workshops';
@@ -190,7 +202,14 @@
 			onclick={() => loadData()}
 			disabled={refreshing}
 		>
-			<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true" class:spin={refreshing}>
+			<svg
+				viewBox="0 0 16 16"
+				width="16"
+				height="16"
+				fill="currentColor"
+				aria-hidden="true"
+				class:spin={refreshing}
+			>
 				<path
 					d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36A.25.25 0 0 1 11.534 7zm-7.068 2H.534a.25.25 0 0 1-.192-.41l1.966-2.36a.25.25 0 0 1 .384 0l1.966 2.36A.25.25 0 0 1 4.466 9zM8 3a5 5 0 0 0-4.546 2.914.5.5 0 1 1-.908-.428A6 6 0 0 1 13.938 7H12.5A5.002 5.002 0 0 0 8 3zm5.454 7.086A5 5 0 0 1 3.5 9h1.438a4.002 4.002 0 0 0 7.646.914.5.5 0 0 1 .87.172z"
 				/>
@@ -246,7 +265,19 @@
 			</div>
 			{#if selectedClusters.length > 0 || whiteGlove || provisionType !== 'all' || environment !== 'all' || selectedStatuses.length > 0 || hasFailures || timeWindow !== 'all'}
 				<div class="pf-v6-c-empty-state__actions">
-					<button class="pf-v6-c-button pf-m-link" onclick={() => { selectedClusters = []; whiteGlove = false; provisionType = 'all'; environment = 'all'; selectedStatuses = []; hasFailures = false; timeWindow = 'all'; handleFilterChange(); }}>
+					<button
+						class="pf-v6-c-button pf-m-link"
+						onclick={() => {
+							selectedClusters = [];
+							whiteGlove = false;
+							provisionType = 'all';
+							environment = 'all';
+							selectedStatuses = [];
+							hasFailures = false;
+							timeWindow = 'all';
+							handleFilterChange();
+						}}
+					>
 						Clear filters
 					</button>
 				</div>
@@ -302,8 +333,12 @@
 	}
 
 	@keyframes spin {
-		from { transform: rotate(0deg); }
-		to { transform: rotate(360deg); }
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.spin {
@@ -346,7 +381,11 @@
 	}
 
 	@keyframes shimmer {
-		0% { background-position: 200% 0; }
-		100% { background-position: -200% 0; }
+		0% {
+			background-position: 200% 0;
+		}
+		100% {
+			background-position: -200% 0;
+		}
 	}
 </style>

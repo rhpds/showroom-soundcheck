@@ -175,8 +175,13 @@ def extract_workshop_item(
     provision_disabled = spec.get("provisionDisabled", False)
 
     derived_status = derive_status(
-        lifespan_start, lifespan_end, provision_ordered, provision_active, provision_failed,
-        provision_disabled, resource_claim_state,
+        lifespan_start,
+        lifespan_end,
+        provision_ordered,
+        provision_active,
+        provision_failed,
+        provision_disabled,
+        resource_claim_state,
     )
 
     SIX_MONTHS_S = 6 * 30 * 24 * 3600
@@ -285,9 +290,7 @@ def _build_multi_workshop_item(
     mws_namespace = meta.get("namespace", "")
     base_url = get_catalog_url(cluster)
     catalog_url = (
-        f"{base_url}/multi-workshop/{mws_namespace}/{mws_name}"
-        if base_url and mws_namespace and mws_name
-        else ""
+        f"{base_url}/multi-workshop/{mws_namespace}/{mws_name}" if base_url and mws_namespace and mws_name else ""
     )
 
     return MultiWorkshopDashboardItem(
@@ -326,7 +329,10 @@ async def fetch_workshops_from_cluster(
     errors: list[str] = []
     try:
         result = await babylon_client.k8s_list_cluster_wide(
-            cluster, BABYLON_GROUP, BABYLON_VERSION, WS_PLURAL,
+            cluster,
+            BABYLON_GROUP,
+            BABYLON_VERSION,
+            WS_PLURAL,
         )
     except Exception as e:
         msg = f"Failed to fetch workshops from cluster '{cluster}': {e}"
@@ -349,7 +355,12 @@ async def fetch_workshops_from_cluster(
     if unique_rc_keys:
         rc_tasks = {
             (ns, name): babylon_client.k8s_get_resource(
-                cluster, RC_GROUP, RC_VERSION, RC_PLURAL, ns, name,
+                cluster,
+                RC_GROUP,
+                RC_VERSION,
+                RC_PLURAL,
+                ns,
+                name,
             )
             for ns, name in unique_rc_keys
         }
@@ -367,8 +378,7 @@ async def fetch_workshops_from_cluster(
             rc_states[ws_uid] = _rc_summary_state(rc_def)
 
     items = [
-        extract_workshop_item(ws, cluster, rc_states.get(ws.get("metadata", {}).get("uid", ""), ""))
-        for ws in workshops
+        extract_workshop_item(ws, cluster, rc_states.get(ws.get("metadata", {}).get("uid", ""), "")) for ws in workshops
     ]
     return items, errors
 
@@ -379,7 +389,10 @@ async def fetch_multiworkshops_from_cluster(
     """Fetch all MultiWorkshop CRDs from a single cluster (raw K8s objects)."""
     try:
         result = await babylon_client.k8s_list_cluster_wide(
-            cluster, BABYLON_GROUP, BABYLON_VERSION, MWS_PLURAL,
+            cluster,
+            BABYLON_GROUP,
+            BABYLON_VERSION,
+            MWS_PLURAL,
         )
     except Exception as e:
         msg = f"Failed to fetch multiworkshops from cluster '{cluster}': {e}"
@@ -619,8 +632,13 @@ def build_summary(items: list[WorkshopDashboardItem]) -> WorkshopSummary:
     """Compute aggregated counts from filtered items."""
     summary = WorkshopSummary(
         total=len(items),
-        scheduled=0, provisioning=0, running=0,
-        stopped=0, degraded=0, failed=0, completed=0,
+        scheduled=0,
+        provisioning=0,
+        running=0,
+        stopped=0,
+        degraded=0,
+        failed=0,
+        completed=0,
     )
     for item in items:
         if item.status == "scheduled":

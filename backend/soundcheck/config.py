@@ -81,6 +81,5 @@ def warn_default_credentials() -> None:
                 "Set ENVIRONMENT=development to use default credentials for local work."
             )
         logger.warning(
-            "Using default database credentials (soundcheck_dev). "
-            "Set POSTGRES_PASSWORD or DATABASE_URL for production."
+            "Using default database credentials (soundcheck_dev). Set POSTGRES_PASSWORD or DATABASE_URL for production."
         )

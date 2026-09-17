@@ -52,8 +52,12 @@ async def run_session_checks(ctx: TaskContext, *, session_id: str, request_id: s
         async with session_factory() as db:
             cs = (await db.execute(select(CheckSession).where(CheckSession.session_id == session_id))).scalars().first()
         await _on_session_finalized(
-            session_factory, redis, session_id, "failed",
-            cs.group_run_id if cs else None, cs.group_id if cs else None,
+            session_factory,
+            redis,
+            session_id,
+            "failed",
+            cs.group_run_id if cs else None,
+            cs.group_id if cs else None,
         )
 
 
@@ -73,7 +77,9 @@ async def run_group(ctx: TaskContext, *, group_id: str, request_id: str = "") ->
         await orchestration_queue.enqueue("run_session_checks", session_id=sid, request_id=request_id, timeout=900)
 
 
-async def run_single_source(ctx: TaskContext, *, group_id: str, source_type: str, source_value: str, request_id: str = "") -> None:
+async def run_single_source(
+    ctx: TaskContext, *, group_id: str, source_type: str, source_value: str, request_id: str = ""
+) -> None:
     """Create a session for one group source and enqueue it."""
     session_factory = ctx["session_factory"]
     redis = ctx["redis"]
@@ -133,20 +139,37 @@ async def _create_group_sessions(
     async with session_factory() as db:
         for guid in rc_guids:
             sid = await create_session(
-                db, name=f"RC: {guid}", urls=[], guids=[guid],
-                babylon_cluster=cluster, group_id=group_id, group_run_id=run_id,
+                db,
+                name=f"RC: {guid}",
+                urls=[],
+                guids=[guid],
+                babylon_cluster=cluster,
+                group_id=group_id,
+                group_run_id=run_id,
             )
             session_ids.append(sid)
         for ws_guid in ws_guids:
             sid = await create_session(
-                db, name=f"Workshop: {ws_guid}", urls=[], guids=[],
-                workshop_guids=[ws_guid], babylon_cluster=cluster, group_id=group_id, group_run_id=run_id,
+                db,
+                name=f"Workshop: {ws_guid}",
+                urls=[],
+                guids=[],
+                workshop_guids=[ws_guid],
+                babylon_cluster=cluster,
+                group_id=group_id,
+                group_run_id=run_id,
             )
             session_ids.append(sid)
         for pool in pools:
             sid = await create_session(
-                db, name=f"Pool: {pool}", urls=[], guids=[],
-                resource_pools=[pool], babylon_cluster=cluster, group_id=group_id, group_run_id=run_id,
+                db,
+                name=f"Pool: {pool}",
+                urls=[],
+                guids=[],
+                resource_pools=[pool],
+                babylon_cluster=cluster,
+                group_id=group_id,
+                group_run_id=run_id,
             )
             session_ids.append(sid)
 
@@ -181,9 +204,13 @@ async def _create_single_source_session(
         if source_type == "rc_guid":
             sid = await create_session(db, name=f"RC: {source_value}", guids=[source_value], **kwargs)
         elif source_type == "workshop_guid":
-            sid = await create_session(db, name=f"Workshop: {source_value}", guids=[], workshop_guids=[source_value], **kwargs)
+            sid = await create_session(
+                db, name=f"Workshop: {source_value}", guids=[], workshop_guids=[source_value], **kwargs
+            )
         elif source_type == "pool":
-            sid = await create_session(db, name=f"Pool: {source_value}", guids=[], resource_pools=[source_value], **kwargs)
+            sid = await create_session(
+                db, name=f"Pool: {source_value}", guids=[], resource_pools=[source_value], **kwargs
+            )
         else:
             return None, None
 
@@ -214,8 +241,12 @@ async def _enqueue_target_checks(session_factory, redis, checks_queue, sid: str,
             async with session_factory() as db:
                 cs = (await db.execute(select(CheckSession).where(CheckSession.session_id == sid))).scalars().first()
             await _on_session_finalized(
-                session_factory, redis, sid, "failed",
-                cs.group_run_id if cs else None, cs.group_id if cs else None,
+                session_factory,
+                redis,
+                sid,
+                "failed",
+                cs.group_run_id if cs else None,
+                cs.group_id if cs else None,
             )
         else:
             finalized, final_status, group_run_id, group_id = await _try_finalize_session(session_factory, sid)
@@ -242,7 +273,9 @@ async def _enqueue_target_checks(session_factory, redis, checks_queue, sid: str,
     for t in targets:
         await checks_queue.enqueue(
             "check_target",
-            target_id=t.id, session_id=sid, url=t.url,
+            target_id=t.id,
+            session_id=sid,
+            url=t.url,
             group_id=group_id or "",
             request_id=request_id,
             timeout=300,
@@ -250,8 +283,12 @@ async def _enqueue_target_checks(session_factory, redis, checks_queue, sid: str,
 
 
 async def _on_session_finalized(
-    session_factory, redis, session_id: str,
-    final_status: str | None, group_run_id: str | None, group_id: str | None,
+    session_factory,
+    redis,
+    session_id: str,
+    final_status: str | None,
+    group_run_id: str | None,
+    group_id: str | None,
 ) -> None:
     """Publish session completion and cascade to group finalization."""
     await publish_session_event(redis, session_id, "session_complete", {"status": final_status or "failed"})

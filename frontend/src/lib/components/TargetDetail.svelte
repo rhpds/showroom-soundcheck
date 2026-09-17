@@ -142,36 +142,36 @@
 							> Copy{/if}
 					</button>
 				{/if}
-			{#if targetCatalogUrl}
-				<a
-					href={targetCatalogUrl}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="td__catalog-link"
-				>
-					<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"
-						><path
-							d="M9 2.5a.5.5 0 0 1 .5-.5H13a.5.5 0 0 1 .5.5V6a.5.5 0 0 1-1 0V3.71L8.35 7.85a.5.5 0 1 1-.7-.7L11.79 3H9.5a.5.5 0 0 1-.5-.5ZM3.5 4A1.5 1.5 0 0 0 2 5.5v7A1.5 1.5 0 0 0 3.5 14h7a1.5 1.5 0 0 0 1.5-1.5V9a.5.5 0 0 0-1 0v3.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5H7a.5.5 0 0 0 0-1H3.5Z"
-						/></svg
+				{#if targetCatalogUrl}
+					<a
+						href={targetCatalogUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="td__catalog-link"
 					>
-					View in Catalog
-				</a>
-			{/if}
-			{#if target.tier_used}
-				<span class="pf-v6-c-label pf-m-compact"
-					><span class="pf-v6-c-label__content"
-						><span class="pf-v6-c-label__text">Tier {target.tier_used}</span></span
-					></span
-				>
-			{/if}
-			{#if target.response_time_ms}
-				<span class="pf-v6-c-label pf-m-compact"
-					><span class="pf-v6-c-label__content"
-						><span class="pf-v6-c-label__text">{target.response_time_ms}ms</span></span
-					></span
-				>
-			{/if}
-		</div>
+						<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"
+							><path
+								d="M9 2.5a.5.5 0 0 1 .5-.5H13a.5.5 0 0 1 .5.5V6a.5.5 0 0 1-1 0V3.71L8.35 7.85a.5.5 0 1 1-.7-.7L11.79 3H9.5a.5.5 0 0 1-.5-.5ZM3.5 4A1.5 1.5 0 0 0 2 5.5v7A1.5 1.5 0 0 0 3.5 14h7a1.5 1.5 0 0 0 1.5-1.5V9a.5.5 0 0 0-1 0v3.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5H7a.5.5 0 0 0 0-1H3.5Z"
+							/></svg
+						>
+						View in Catalog
+					</a>
+				{/if}
+				{#if target.tier_used}
+					<span class="pf-v6-c-label pf-m-compact"
+						><span class="pf-v6-c-label__content"
+							><span class="pf-v6-c-label__text">Tier {target.tier_used}</span></span
+						></span
+					>
+				{/if}
+				{#if target.response_time_ms}
+					<span class="pf-v6-c-label pf-m-compact"
+						><span class="pf-v6-c-label__content"
+							><span class="pf-v6-c-label__text">{target.response_time_ms}ms</span></span
+						></span
+					>
+				{/if}
+			</div>
 
 			{#if target.error_message}
 				<div class="pf-v6-c-alert pf-m-danger pf-m-inline td__error">
@@ -246,7 +246,8 @@
 							{#each tabs as tab}
 								<li
 									class="td__list-item"
-									class:td__list-item--muted={tab.initial_state === 'deferred' || tab.initial_state === 'skip'}
+									class:td__list-item--muted={tab.initial_state === 'deferred' ||
+										tab.initial_state === 'skip'}
 									role="listitem"
 								>
 									<div class="td__list-row">
@@ -347,9 +348,7 @@
 									{/if}
 									{#if tab.error && tab.initial_state !== 'skip'}
 										<div
-											class={tab.initial_state === 'deferred'
-												? 'td__list-sub'
-												: 'td__list-error'}
+											class={tab.initial_state === 'deferred' ? 'td__list-sub' : 'td__list-error'}
 										>
 											{tab.error}
 										</div>

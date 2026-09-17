@@ -59,18 +59,15 @@
 							{#each sessions as cs}
 								{@const sessionTargets = targetsBySession[cs.session_id] || []}
 								{@const healthy = sessionTargets.filter((t) => t.status === 'healthy').length}
-							<button
-								class="run-list__session"
-								onclick={() => onPreview(cs.session_id)}
-							>
-								<span class="run-list__session-left">
-									<StatusBadge status={cs.status} size="sm" />
-									<span>{cs.name || cs.display_label}</span>
-								</span>
-								<span class="run-list__session-stat"
-									>{healthy}/{sessionTargets.length} healthy</span
-								>
-							</button>
+								<button class="run-list__session" onclick={() => onPreview(cs.session_id)}>
+									<span class="run-list__session-left">
+										<StatusBadge status={cs.status} size="sm" />
+										<span>{cs.name || cs.display_label}</span>
+									</span>
+									<span class="run-list__session-stat"
+										>{healthy}/{sessionTargets.length} healthy</span
+									>
+								</button>
 							{/each}
 						</div>
 					{/if}

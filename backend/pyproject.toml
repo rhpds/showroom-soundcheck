@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "Session-based health check tool for showroom environments"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115,<1",
+    "fastapi>=0.135,<1",
     "uvicorn[standard]>=0.30,<1",
     "sqlmodel>=0.0.22,<1",
     "sqlalchemy[asyncio]>=2.0,<3",
@@ -42,3 +42,10 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["soundcheck"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Ruff's built-in fastapi exemption for B008 doesn't recognize `Query()` when
+# the parameter is annotated as a generic (e.g. `list[str] | None`), even
+# though `Query()` is required there to avoid a mutable default. Extend the
+# allowlist explicitly instead of scattering `# noqa: B008` comments.
+extend-immutable-calls = ["fastapi.Query", "fastapi.Depends"]

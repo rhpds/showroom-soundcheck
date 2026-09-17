@@ -5,7 +5,12 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import TargetDetail from '$lib/components/TargetDetail.svelte';
 	import type { SessionDetail, TargetPublic } from '$lib/types';
-	import { ISSUE_STATUSES, IN_PROGRESS_STATUSES, TERMINAL_STATUSES, STATUS_SORT_ORDER } from '$lib/types';
+	import {
+		ISSUE_STATUSES,
+		IN_PROGRESS_STATUSES,
+		TERMINAL_STATUSES,
+		STATUS_SORT_ORDER
+	} from '$lib/types';
 
 	let {
 		sessionId,
@@ -86,28 +91,31 @@
 		loading = false;
 	}
 
+	function applySessionUpdate(event: Event) {
+		try {
+			const update = JSON.parse((event as MessageEvent).data);
+			if (data) {
+				data = {
+					session: update.session ?? { ...data.session, status: update.status },
+					targets: update.targets,
+					results: update.results
+				};
+			}
+		} catch (e) {
+			console.error('Failed to parse SSE message', e);
+		}
+	}
+
 	function startStreaming() {
 		closeStream();
 		retryCount = 0;
 		eventSource = sessionStream(sessionId);
 
-		eventSource.onmessage = (event) => {
-			try {
-				const update = JSON.parse(event.data);
-				if (data) {
-					data = {
-						session: update.session ?? { ...data.session, status: update.status },
-						targets: update.targets,
-						results: update.results
-					};
-				}
-				if (update.status === 'completed' || update.status === 'failed') {
-					closeStream();
-				}
-			} catch (e) {
-				console.error('Failed to parse SSE message', e);
-			}
-		};
+		eventSource.addEventListener('session_update', applySessionUpdate);
+		eventSource.addEventListener('session_complete', (event) => {
+			applySessionUpdate(event);
+			closeStream();
+		});
 
 		eventSource.onerror = () => {
 			eventSource?.close();
@@ -158,8 +166,7 @@
 			(a, b) => (STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99)
 		);
 		if (filter === 'all') return sorted;
-		if (filter === 'issues')
-			return sorted.filter((t) => ISSUE_STATUSES.includes(t.status));
+		if (filter === 'issues') return sorted.filter((t) => ISSUE_STATUSES.includes(t.status));
 		if (filter === 'healthy') return sorted.filter((t) => t.status === 'healthy');
 		return sorted.filter((t) => IN_PROGRESS_STATUSES.includes(t.status));
 	}
@@ -220,8 +227,14 @@
 		<div class="session-header">
 			<div class="session-header__top">
 				<div class="session-header__title-group" style="flex: 1">
-					<div class="pf-v6-c-skeleton pf-m-text-2xl" style="--pf-v6-c-skeleton--Width: 340px; max-width: 60%"></div>
-					<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 80px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+					<div
+						class="pf-v6-c-skeleton pf-m-text-2xl"
+						style="--pf-v6-c-skeleton--Width: 340px; max-width: 60%"
+					></div>
+					<div
+						class="pf-v6-c-skeleton"
+						style="--pf-v6-c-skeleton--Width: 80px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"
+					></div>
 				</div>
 			</div>
 			<div class="session-header__meta" style="margin-top: 12px">
@@ -229,12 +242,18 @@
 				<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: 150px"></div>
 			</div>
 			<div style="display: flex; align-items: center; gap: 8px; margin-top: 12px">
-				<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 90px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"></div>
+				<div
+					class="pf-v6-c-skeleton"
+					style="--pf-v6-c-skeleton--Width: 90px; --pf-v6-c-skeleton--Height: 22px; border-radius: 12px"
+				></div>
 				<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: 60px"></div>
 			</div>
 			<div class="session-header__counts" style="margin-top: 16px">
 				{#each [90, 80, 72] as w}
-					<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: {w}px; --pf-v6-c-skeleton--Height: 24px; border-radius: 12px"></div>
+					<div
+						class="pf-v6-c-skeleton"
+						style="--pf-v6-c-skeleton--Width: {w}px; --pf-v6-c-skeleton--Height: 24px; border-radius: 12px"
+					></div>
 				{/each}
 			</div>
 		</div>
@@ -246,11 +265,20 @@
 			</div>
 			{#each [220, 200, 190, 210, 195, 185, 205, 215] as w}
 				<div class="skeleton-target-row">
-					<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 56px; --pf-v6-c-skeleton--Height: 20px; border-radius: 10px"></div>
+					<div
+						class="pf-v6-c-skeleton"
+						style="--pf-v6-c-skeleton--Width: 56px; --pf-v6-c-skeleton--Height: 20px; border-radius: 10px"
+					></div>
 					<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: {w}px"></div>
 					<div class="skeleton-target-row__right">
-						<div class="pf-v6-c-skeleton" style="--pf-v6-c-skeleton--Width: 42px; --pf-v6-c-skeleton--Height: 18px; border-radius: 10px"></div>
-						<div class="pf-v6-c-skeleton pf-m-text-sm" style="--pf-v6-c-skeleton--Width: 50px"></div>
+						<div
+							class="pf-v6-c-skeleton"
+							style="--pf-v6-c-skeleton--Width: 42px; --pf-v6-c-skeleton--Height: 18px; border-radius: 10px"
+						></div>
+						<div
+							class="pf-v6-c-skeleton pf-m-text-sm"
+							style="--pf-v6-c-skeleton--Width: 50px"
+						></div>
 					</div>
 				</div>
 			{/each}
@@ -323,56 +351,60 @@
 						Group
 					</a>
 				{/if}
-		{#if data.session.resource_kind}
-			{@const resourceCatalogUrl = String(data.session.resource_metadata?.catalog_url ?? '') || (() => {
-				const base = data.session.catalog_base_url;
-				const name = data.session.resource_name;
-				const ns = data.session.resource_namespace;
-				if (!base || !name) return '';
-				if (data.session.resource_kind === 'Workshop') return `${base}/workshops/${ns}/${name}`;
-				if (data.session.resource_kind === 'ResourcePool') return `${base}/admin/resourcepools/${name}/details`;
-				return `${base}/services/${ns}/${name}`;
-			})()}
-			<svelte:element
-					this={resourceCatalogUrl ? 'a' : 'span'}
-					href={resourceCatalogUrl || undefined}
-					target={resourceCatalogUrl ? '_blank' : undefined}
-					rel={resourceCatalogUrl ? 'noopener noreferrer' : undefined}
-					class="context-chip {data.session.resource_kind === 'Workshop'
-						? 'context-chip--blue'
-						: data.session.resource_kind === 'ResourcePool'
-							? 'context-chip--orange'
-							: 'context-chip--purple'}"
-				>
-					{#if data.session.resource_kind === 'Workshop'}
-						<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"
-							><path
-								d="M2 3a1 1 0 0 1 1-1h4.586a1 1 0 0 1 .707.293l.707.707H13a1 1 0 0 1 1 1v2h-1V4H8.586l-.707-.707H3v9h5v1H3a1 1 0 0 1-1-1V3Zm8 5.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .354.854l-2 2a.5.5 0 0 1-.708 0l-2-2A.5.5 0 0 1 10 8.5ZM10.5 11a.5.5 0 0 0-.354.854l2 2a.5.5 0 0 0 .708 0l2-2A.5.5 0 0 0 14.5 11h-4Z"
-							/></svg
-						>
-					{:else if data.session.resource_kind === 'ResourcePool'}
-						<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"
-							><path
-								d="M8 1.5c-3.314 0-6 1.12-6 2.5v8c0 1.38 2.686 2.5 6 2.5s6-1.12 6-2.5V4c0-1.38-2.686-2.5-6-2.5ZM3 7.08c1.274.57 3.044.92 5 .92s3.726-.35 5-.92V9c0 .69-2.015 1.5-5 1.5S3 9.69 3 9V7.08ZM8 6c-2.985 0-5-.81-5-1.5S5.015 3 8 3s5 .81 5 1.5S10.985 6 8 6Zm0 8c-2.985 0-5-.81-5-1.5v-1.92c1.274.57 3.044.92 5 .92s3.726-.35 5-.92V12.5c0 .69-2.015 1.5-5 1.5Z"
-							/></svg
-						>
-					{:else}
-						<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"
-							><path
-								d="M4 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H4Zm4 3a.75.75 0 0 1 .75.75v1.5h1.5a.75.75 0 0 1 0 1.5h-1.5v1.5a.75.75 0 0 1-1.5 0v-1.5h-1.5a.75.75 0 0 1 0-1.5h1.5v-1.5A.75.75 0 0 1 8 5Z"
-							/></svg
-						>
-					{/if}
-					{data.session.resource_kind}
-					{#if resourceCatalogUrl}
-						<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true"
-							><path
-								d="M9 2.5a.5.5 0 0 1 .5-.5H13a.5.5 0 0 1 .5.5V6a.5.5 0 0 1-1 0V3.71L8.35 7.85a.5.5 0 1 1-.7-.7L11.79 3H9.5a.5.5 0 0 1-.5-.5ZM3.5 4A1.5 1.5 0 0 0 2 5.5v7A1.5 1.5 0 0 0 3.5 14h7a1.5 1.5 0 0 0 1.5-1.5V9a.5.5 0 0 0-1 0v3.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5H7a.5.5 0 0 0 0-1H3.5Z"
-							/></svg
-						>
-					{/if}
-				</svelte:element>
-			{/if}
+				{#if data.session.resource_kind}
+					{@const resourceCatalogUrl =
+						String(data.session.resource_metadata?.catalog_url ?? '') ||
+						(() => {
+							const base = data.session.catalog_base_url;
+							const name = data.session.resource_name;
+							const ns = data.session.resource_namespace;
+							if (!base || !name) return '';
+							if (data.session.resource_kind === 'Workshop')
+								return `${base}/workshops/${ns}/${name}`;
+							if (data.session.resource_kind === 'ResourcePool')
+								return `${base}/admin/resourcepools/${name}/details`;
+							return `${base}/services/${ns}/${name}`;
+						})()}
+					<svelte:element
+						this={resourceCatalogUrl ? 'a' : 'span'}
+						href={resourceCatalogUrl || undefined}
+						target={resourceCatalogUrl ? '_blank' : undefined}
+						rel={resourceCatalogUrl ? 'noopener noreferrer' : undefined}
+						class="context-chip {data.session.resource_kind === 'Workshop'
+							? 'context-chip--blue'
+							: data.session.resource_kind === 'ResourcePool'
+								? 'context-chip--orange'
+								: 'context-chip--purple'}"
+					>
+						{#if data.session.resource_kind === 'Workshop'}
+							<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"
+								><path
+									d="M2 3a1 1 0 0 1 1-1h4.586a1 1 0 0 1 .707.293l.707.707H13a1 1 0 0 1 1 1v2h-1V4H8.586l-.707-.707H3v9h5v1H3a1 1 0 0 1-1-1V3Zm8 5.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .354.854l-2 2a.5.5 0 0 1-.708 0l-2-2A.5.5 0 0 1 10 8.5ZM10.5 11a.5.5 0 0 0-.354.854l2 2a.5.5 0 0 0 .708 0l2-2A.5.5 0 0 0 14.5 11h-4Z"
+								/></svg
+							>
+						{:else if data.session.resource_kind === 'ResourcePool'}
+							<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"
+								><path
+									d="M8 1.5c-3.314 0-6 1.12-6 2.5v8c0 1.38 2.686 2.5 6 2.5s6-1.12 6-2.5V4c0-1.38-2.686-2.5-6-2.5ZM3 7.08c1.274.57 3.044.92 5 .92s3.726-.35 5-.92V9c0 .69-2.015 1.5-5 1.5S3 9.69 3 9V7.08ZM8 6c-2.985 0-5-.81-5-1.5S5.015 3 8 3s5 .81 5 1.5S10.985 6 8 6Zm0 8c-2.985 0-5-.81-5-1.5v-1.92c1.274.57 3.044.92 5 .92s3.726-.35 5-.92V12.5c0 .69-2.015 1.5-5 1.5Z"
+								/></svg
+							>
+						{:else}
+							<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"
+								><path
+									d="M4 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H4Zm4 3a.75.75 0 0 1 .75.75v1.5h1.5a.75.75 0 0 1 0 1.5h-1.5v1.5a.75.75 0 0 1-1.5 0v-1.5h-1.5a.75.75 0 0 1 0-1.5h1.5v-1.5A.75.75 0 0 1 8 5Z"
+								/></svg
+							>
+						{/if}
+						{data.session.resource_kind}
+						{#if resourceCatalogUrl}
+							<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true"
+								><path
+									d="M9 2.5a.5.5 0 0 1 .5-.5H13a.5.5 0 0 1 .5.5V6a.5.5 0 0 1-1 0V3.71L8.35 7.85a.5.5 0 1 1-.7-.7L11.79 3H9.5a.5.5 0 0 1-.5-.5ZM3.5 4A1.5 1.5 0 0 0 2 5.5v7A1.5 1.5 0 0 0 3.5 14h7a1.5 1.5 0 0 0 1.5-1.5V9a.5.5 0 0 0-1 0v3.5a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5H7a.5.5 0 0 0 0-1H3.5Z"
+								/></svg
+							>
+						{/if}
+					</svelte:element>
+				{/if}
 				{#if data.session.source_workshop_guids?.[0] || data.session.source_guids?.[0] || data.session.source_resource_pools?.[0]}
 					<span class="context-guid"
 						>{data.session.source_workshop_guids?.[0] ||
@@ -541,7 +573,9 @@
 							<button
 								class="target-list__button"
 								disabled={target.status === 'provisioning'}
-								onclick={() => { selectedTargetId = target.id; }}
+								onclick={() => {
+									selectedTargetId = target.id;
+								}}
 							>
 								<div class="target-list__main">
 									<StatusBadge status={target.status} size="sm" />

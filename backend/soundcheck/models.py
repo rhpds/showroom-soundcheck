@@ -55,7 +55,9 @@ class GroupRun(SQLModel, table=True):
     __tablename__ = "group_runs"
     __table_args__ = (
         sa.ForeignKeyConstraint(
-            ["group_id"], ["session_groups.group_id"], ondelete="CASCADE",
+            ["group_id"],
+            ["session_groups.group_id"],
+            ondelete="CASCADE",
         ),
     )
 
@@ -79,10 +81,14 @@ class CheckSession(SQLModel, table=True):
         sa.Index("ix_sessions_status", "status"),
         sa.Index("ix_sessions_created_at", "created_at"),
         sa.ForeignKeyConstraint(
-            ["group_id"], ["session_groups.group_id"], ondelete="CASCADE",
+            ["group_id"],
+            ["session_groups.group_id"],
+            ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["group_run_id"], ["group_runs.run_id"], ondelete="CASCADE",
+            ["group_run_id"],
+            ["group_runs.run_id"],
+            ondelete="CASCADE",
         ),
     )
 
@@ -135,7 +141,9 @@ class SessionTarget(SQLModel, table=True):
     __tablename__ = "session_targets"
     __table_args__ = (
         sa.ForeignKeyConstraint(
-            ["session_id"], ["sessions.session_id"], ondelete="CASCADE",
+            ["session_id"],
+            ["sessions.session_id"],
+            ondelete="CASCADE",
         ),
     )
 
@@ -163,7 +171,9 @@ class CheckResult(SQLModel, table=True):
     __tablename__ = "check_results"
     __table_args__ = (
         sa.ForeignKeyConstraint(
-            ["target_id"], ["session_targets.id"], ondelete="CASCADE",
+            ["target_id"],
+            ["session_targets.id"],
+            ondelete="CASCADE",
         ),
     )
 

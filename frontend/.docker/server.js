@@ -63,7 +63,12 @@ function proxyToBackend(req, res) {
 const server = createServer(async (req, res) => {
 	const pathname = new URL(req.url, `http://localhost:${PORT}`).pathname;
 
-	if (pathname.startsWith('/api/') || pathname === '/docs' || pathname === '/redoc' || pathname === '/openapi.json') {
+	if (
+		pathname.startsWith('/api/') ||
+		pathname === '/docs' ||
+		pathname === '/redoc' ||
+		pathname === '/openapi.json'
+	) {
 		return proxyToBackend(req, res);
 	}
 
@@ -71,7 +76,7 @@ const server = createServer(async (req, res) => {
 	if (await serveFile(res, filePath)) return;
 
 	// SPA fallback
-	if (!await serveFile(res, join(STATIC_DIR, 'index.html'))) {
+	if (!(await serveFile(res, join(STATIC_DIR, 'index.html')))) {
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
 		res.end('Not Found');
 	}

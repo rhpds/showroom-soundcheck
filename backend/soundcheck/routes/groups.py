@@ -3,14 +3,14 @@
 import asyncio
 import time
 import uuid
+from collections.abc import AsyncIterator
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.sse import EventSourceResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import col, select
 
 from ..config import MAX_SSE_CONNECTIONS
-
 from ..database import DbSession, async_session_factory
 from ..models import CheckSession, GroupRun, SessionGroup, SessionTarget
 from ..schemas import (
@@ -37,10 +37,12 @@ from ._serializers import (
     session_to_list_item,
     target_to_public,
 )
+from ._sse import sse_capacity_guard
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
 _sse_semaphore = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
+_sse_guard = sse_capacity_guard(_sse_semaphore)
 
 
 @router.post("", response_model=GroupPublic, status_code=201)
@@ -148,72 +150,72 @@ async def get_group(group_id: str):
     return detail
 
 
-@router.get("/{group_id}/stream")
-async def stream_group(group_id: str, request: Request):
+def _group_has_active(detail: GroupDetail) -> bool:
+    return detail.group.status == "running" or any(r.status == "running" for r in detail.runs)
+
+
+@router.get(
+    "/{group_id}/stream",
+    response_class=EventSourceResponse,
+    dependencies=[Depends(_sse_guard)],
+)
+async def stream_group(group_id: str, request: Request) -> AsyncIterator[ServerSentEvent]:
     """SSE stream for live group progress updates.
 
     Subscribes to the group's Redis Pub/Sub channel and re-fetches
     the full GroupDetail on each event.  Throttled to at most one
     DB refresh per second to handle bursts of target completions.
     """
-    if _sse_semaphore.locked():
-        raise HTTPException(status_code=503, detail="Too many concurrent SSE connections")
-
     MAX_WAIT_SECONDS = 600
     THROTTLE_SECONDS = 1.0
 
-    async def event_generator():
-        async with _sse_semaphore:
-            redis = queue.redis
-            pubsub = redis.pubsub()
-            await pubsub.subscribe(f"group:{group_id}")
-            try:
-                detail = await _fetch_group_detail(group_id)
-                if not detail:
-                    return
+    redis = queue.redis
+    pubsub = redis.pubsub()
+    await pubsub.subscribe(f"group:{group_id}")
+    try:
+        detail = await _fetch_group_detail(group_id)
+        if not detail:
+            return
 
-                payload = detail.model_dump_json()
-                yield f"data: {payload}\n\n"
+        has_active = _group_has_active(detail)
+        yield ServerSentEvent(data=detail, event="group_update" if has_active else "group_complete")
+        if not has_active:
+            return
 
-                elapsed = 0
-                last_yield = time.monotonic()
-                pending_refresh = False
+        elapsed = 0
+        last_yield = time.monotonic()
+        pending_refresh = False
 
-                while elapsed < MAX_WAIT_SECONDS:
-                    if await request.is_disconnected():
-                        return
+        while elapsed < MAX_WAIT_SECONDS:
+            if await request.is_disconnected():
+                return
 
-                    msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                    if msg and msg.get("data"):
-                        now = time.monotonic()
-                        if now - last_yield < THROTTLE_SECONDS:
-                            pending_refresh = True
-                            continue
-                    elif pending_refresh:
-                        pass
-                    else:
-                        elapsed += 1
-                        continue
+            msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            if msg and msg.get("data"):
+                now = time.monotonic()
+                if now - last_yield < THROTTLE_SECONDS:
+                    pending_refresh = True
+                    continue
+            elif pending_refresh:
+                pass
+            else:
+                elapsed += 1
+                continue
 
-                    pending_refresh = False
-                    detail = await _fetch_group_detail(group_id)
-                    if not detail:
-                        return
+            pending_refresh = False
+            detail = await _fetch_group_detail(group_id)
+            if not detail:
+                return
 
-                    payload = detail.model_dump_json()
-                    yield f"data: {payload}\n\n"
-                    last_yield = time.monotonic()
+            has_active = _group_has_active(detail)
+            yield ServerSentEvent(data=detail, event="group_update" if has_active else "group_complete")
+            last_yield = time.monotonic()
 
-                    has_active = detail.group.status == "running" or any(
-                        r.status == "running" for r in detail.runs
-                    )
-                    if not has_active:
-                        return
-            finally:
-                await pubsub.unsubscribe(f"group:{group_id}")
-                await pubsub.close()
-
-    return EventSourceResponse(event_generator())
+            if not has_active:
+                return
+    finally:
+        await pubsub.unsubscribe(f"group:{group_id}")
+        await pubsub.close()
 
 
 @router.post("/{group_id}/run", response_model=StatusResponse)

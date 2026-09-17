@@ -9,7 +9,10 @@ export function relativeTime(dateStr: string): string {
 	return `${days}d ago`;
 }
 
-export function getTimeRange(timeWindow: TimeWindowFilter): { from_time?: string; to_time?: string } {
+export function getTimeRange(timeWindow: TimeWindowFilter): {
+	from_time?: string;
+	to_time?: string;
+} {
 	const now = new Date();
 	switch (timeWindow) {
 		case 'today': {
@@ -43,14 +46,62 @@ export interface WorkshopStatusStyle {
 }
 
 const WORKSHOP_STATUS_MAP: Record<WorkshopStatus, WorkshopStatusStyle> = {
-	running: { bg: 'var(--sc-green-bg)', text: 'var(--sc-green-text)', border: 'var(--sc-green-border)', label: 'Running', colorName: 'green' },
-	provisioning: { bg: 'var(--sc-blue-bg)', text: 'var(--sc-blue-text)', border: 'var(--sc-blue-border)', label: 'Provisioning', colorName: 'blue' },
-	scheduled: { bg: 'var(--sc-gold-bg)', text: 'var(--sc-gold-text)', border: 'var(--sc-gold-border)', label: 'Scheduled', colorName: 'gold' },
-	stopped: { bg: 'var(--sc-muted-bg)', text: 'var(--sc-muted-text)', border: 'var(--sc-muted-border)', label: 'Stopped', colorName: 'grey' },
-	degraded: { bg: 'var(--sc-orange-bg)', text: 'var(--sc-orange-text)', border: 'var(--sc-orange-border)', label: 'Degraded', colorName: 'orange' },
-	failed: { bg: 'var(--sc-red-bg)', text: 'var(--sc-red-text)', border: 'var(--sc-red-border)', label: 'Failed', colorName: 'red' },
-	completed: { bg: 'var(--sc-grey-bg)', text: 'var(--sc-grey-text)', border: 'var(--sc-grey-border)', label: 'Completed', colorName: 'grey' },
-	unknown: { bg: 'var(--sc-grey-bg)', text: 'var(--sc-grey-text)', border: 'var(--sc-grey-border)', label: 'Unknown', colorName: 'grey' }
+	running: {
+		bg: 'var(--sc-green-bg)',
+		text: 'var(--sc-green-text)',
+		border: 'var(--sc-green-border)',
+		label: 'Running',
+		colorName: 'green'
+	},
+	provisioning: {
+		bg: 'var(--sc-blue-bg)',
+		text: 'var(--sc-blue-text)',
+		border: 'var(--sc-blue-border)',
+		label: 'Provisioning',
+		colorName: 'blue'
+	},
+	scheduled: {
+		bg: 'var(--sc-gold-bg)',
+		text: 'var(--sc-gold-text)',
+		border: 'var(--sc-gold-border)',
+		label: 'Scheduled',
+		colorName: 'gold'
+	},
+	stopped: {
+		bg: 'var(--sc-muted-bg)',
+		text: 'var(--sc-muted-text)',
+		border: 'var(--sc-muted-border)',
+		label: 'Stopped',
+		colorName: 'grey'
+	},
+	degraded: {
+		bg: 'var(--sc-orange-bg)',
+		text: 'var(--sc-orange-text)',
+		border: 'var(--sc-orange-border)',
+		label: 'Degraded',
+		colorName: 'orange'
+	},
+	failed: {
+		bg: 'var(--sc-red-bg)',
+		text: 'var(--sc-red-text)',
+		border: 'var(--sc-red-border)',
+		label: 'Failed',
+		colorName: 'red'
+	},
+	completed: {
+		bg: 'var(--sc-grey-bg)',
+		text: 'var(--sc-grey-text)',
+		border: 'var(--sc-grey-border)',
+		label: 'Completed',
+		colorName: 'grey'
+	},
+	unknown: {
+		bg: 'var(--sc-grey-bg)',
+		text: 'var(--sc-grey-text)',
+		border: 'var(--sc-grey-border)',
+		label: 'Unknown',
+		colorName: 'grey'
+	}
 };
 
 export function workshopStatusStyle(status: WorkshopStatus): WorkshopStatusStyle {
@@ -115,5 +166,11 @@ export function extractEnvironment(name: string): EnvironmentType | null {
 }
 
 export const ALL_WORKSHOP_STATUSES: WorkshopStatus[] = [
-	'scheduled', 'provisioning', 'running', 'stopped', 'degraded', 'failed', 'completed'
+	'scheduled',
+	'provisioning',
+	'running',
+	'stopped',
+	'degraded',
+	'failed',
+	'completed'
 ];

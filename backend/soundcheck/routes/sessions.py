@@ -2,9 +2,10 @@
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.sse import EventSourceResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import select
 
 from ..config import MAX_SSE_CONNECTIONS
@@ -24,8 +25,10 @@ from ..services import session_service
 from ..utils import InputValidationError, parse_check_params
 from ..worker import queue
 from ._serializers import result_to_public, session_to_list_item, session_to_public, target_to_public
+from ._sse import sse_capacity_guard
 
 _sse_semaphore = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
+_sse_guard = sse_capacity_guard(_sse_semaphore)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -144,25 +147,30 @@ async def toggle_pin(session_id: str, db: DbSession):
     return PinnedResponse(pinned=cs.pinned)
 
 
-def _build_sse_update(
+def _sse_update(
     session_id: str,
     status: str,
     targets_cache: dict[int, SessionTarget],
     results_cache: dict[int, CheckResult],
     session: "CheckSession | None" = None,
-) -> str:
-    payload = SessionUpdate(
+) -> ServerSentEvent:
+    update = SessionUpdate(
         session_id=session_id,
         status=status,
         session=session_to_public(session) if session else None,
         targets=[target_to_public(t) for t in targets_cache.values()],
         results=[result_to_public(r) for r in results_cache.values()],
-    ).model_dump_json()
-    return f"data: {payload}\n\n"
+    )
+    event = "session_complete" if status in ("completed", "failed") else "session_update"
+    return ServerSentEvent(data=update, event=event)
 
 
-@router.get("/{session_id}/stream")
-async def stream_session(session_id: str, request: Request):
+@router.get(
+    "/{session_id}/stream",
+    response_class=EventSourceResponse,
+    dependencies=[Depends(_sse_guard)],
+)
+async def stream_session(session_id: str, request: Request) -> AsyncIterator[ServerSentEvent]:
     """SSE stream for live session progress updates via Redis Pub/Sub.
 
     Uses an in-memory cache so that frequent target_update events only
@@ -170,9 +178,6 @@ async def stream_session(session_id: str, request: Request):
     session.  Full refreshes are limited to initial load and session
     completion.
     """
-    if _sse_semaphore.locked():
-        raise HTTPException(status_code=503, detail="Too many concurrent SSE connections")
-
     MAX_WAIT_SECONDS = 600
 
     async def _full_refresh(session_id):
@@ -180,111 +185,111 @@ async def stream_session(session_id: str, request: Request):
         async with async_session_factory() as db:
             return await session_service.fetch_session_data(db, session_id)
 
-    async def event_generator():
-        async with _sse_semaphore:
-            redis = queue.redis
-            pubsub = redis.pubsub()
-            await pubsub.subscribe(f"session:{session_id}")
-            try:
-                data = await _full_refresh(session_id)
+    redis = queue.redis
+    pubsub = redis.pubsub()
+    await pubsub.subscribe(f"session:{session_id}")
+    try:
+        data = await _full_refresh(session_id)
 
-                cs = data["session"]
-                if not cs:
+        cs = data["session"]
+        if not cs:
+            return
+
+        session_status = cs.status
+        targets_cache: dict[int, SessionTarget] = {t.id: t for t in data["targets"]}
+        results_cache: dict[int, CheckResult] = {r.id: r for r in data["results"]}
+
+        yield _sse_update(
+            session_id,
+            session_status,
+            targets_cache,
+            results_cache,
+            session=cs,
+        )
+
+        if session_status in ("completed", "failed"):
+            return
+
+        elapsed = 0
+        while elapsed < MAX_WAIT_SECONDS:
+            if await request.is_disconnected():
+                return
+
+            msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            if msg and msg.get("data"):
+                raw = msg["data"]
+                if isinstance(raw, bytes):
+                    raw = raw.decode()
+                event_data = json.loads(raw)
+                event_type = event_data.get("type")
+
+                if event_type == "session_complete":
+                    data = await _full_refresh(session_id)
+                    if data["session"]:
+                        targets_cache = {t.id: t for t in data["targets"]}
+                        results_cache = {r.id: r for r in data["results"]}
+                        yield _sse_update(
+                            session_id,
+                            data["session"].status,
+                            targets_cache,
+                            results_cache,
+                            session=data["session"],
+                        )
                     return
 
-                session_status = cs.status
-                targets_cache: dict[int, SessionTarget] = {t.id: t for t in data["targets"]}
-                results_cache: dict[int, CheckResult] = {r.id: r for r in data["results"]}
-
-                yield _build_sse_update(
-                    session_id, session_status, targets_cache, results_cache, session=cs,
-                )
-
-                if session_status in ("completed", "failed"):
-                    return
-
-                elapsed = 0
-                while elapsed < MAX_WAIT_SECONDS:
-                    if await request.is_disconnected():
-                        return
-
-                    msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                    if msg and msg.get("data"):
-                        raw = msg["data"]
-                        if isinstance(raw, bytes):
-                            raw = raw.decode()
-                        event_data = json.loads(raw)
-                        event_type = event_data.get("type")
-
-                        if event_type == "session_complete":
-                            data = await _full_refresh(session_id)
-                            if data["session"]:
-                                targets_cache = {t.id: t for t in data["targets"]}
-                                results_cache = {r.id: r for r in data["results"]}
-                                yield _build_sse_update(
-                                    session_id,
-                                    data["session"].status,
-                                    targets_cache,
-                                    results_cache,
-                                    session=data["session"],
-                                )
-                            return
-
-                        if event_type == "target_update":
-                            target_id = event_data.get("target_id")
-                            if target_id:
-                                async with async_session_factory() as db:
-                                    target, results = await session_service.fetch_target_with_results(
-                                        db,
-                                        target_id,
-                                    )
-                                if target:
-                                    targets_cache[target.id] = target
-                                for r in results:
-                                    results_cache[r.id] = r
-                            yield _build_sse_update(
-                                session_id,
-                                session_status,
-                                targets_cache,
-                                results_cache,
+                if event_type == "target_update":
+                    target_id = event_data.get("target_id")
+                    if target_id:
+                        async with async_session_factory() as db:
+                            target, results = await session_service.fetch_target_with_results(
+                                db,
+                                target_id,
                             )
+                        if target:
+                            targets_cache[target.id] = target
+                        for r in results:
+                            results_cache[r.id] = r
+                    yield _sse_update(
+                        session_id,
+                        session_status,
+                        targets_cache,
+                        results_cache,
+                    )
 
-                        elif event_type == "session_running":
-                            data = await _full_refresh(session_id)
-                            if data["session"]:
-                                cs = data["session"]
-                                session_status = cs.status
-                                targets_cache = {t.id: t for t in data["targets"]}
-                                results_cache = {r.id: r for r in data["results"]}
-                            yield _build_sse_update(
-                                session_id,
-                                session_status,
-                                targets_cache,
-                                results_cache,
-                                session=cs,
-                            )
+                elif event_type == "session_running":
+                    data = await _full_refresh(session_id)
+                    if data["session"]:
+                        cs = data["session"]
+                        session_status = cs.status
+                        targets_cache = {t.id: t for t in data["targets"]}
+                        results_cache = {r.id: r for r in data["results"]}
+                    yield _sse_update(
+                        session_id,
+                        session_status,
+                        targets_cache,
+                        results_cache,
+                        session=cs,
+                    )
 
-                        elif event_type == "targets_running":
-                            target_ids = event_data.get("target_ids", [])
-                            has_unknown = any(tid not in targets_cache for tid in target_ids)
-                            if has_unknown:
-                                data = await _full_refresh(session_id)
-                                if data["session"]:
-                                    targets_cache = {t.id: t for t in data["targets"]}
-                                    results_cache = {r.id: r for r in data["results"]}
-                            else:
-                                for tid in target_ids:
-                                    targets_cache[tid].status = "running"
-                            yield _build_sse_update(
-                                session_id,
-                                session_status,
-                                targets_cache,
-                                results_cache,
-                            )
+                elif event_type == "targets_running":
+                    target_ids = event_data.get("target_ids", [])
+                    has_unknown = any(tid not in targets_cache for tid in target_ids)
+                    if has_unknown:
+                        data = await _full_refresh(session_id)
+                        if data["session"]:
+                            targets_cache = {t.id: t for t in data["targets"]}
+                            results_cache = {r.id: r for r in data["results"]}
                     else:
-                        elapsed += 1
-            finally:
-                await pubsub.unsubscribe(f"session:{session_id}")
-                await pubsub.close()
-
-    return EventSourceResponse(event_generator())
+                        for tid in target_ids:
+                            targets_cache[tid].status = "running"
+                    yield _sse_update(
+                        session_id,
+                        session_status,
+                        targets_cache,
+                        results_cache,
+                    )
+            else:
+                elapsed += 1
+    finally:
+        await pubsub.unsubscribe(f"session:{session_id}")
+        await pubsub.close()

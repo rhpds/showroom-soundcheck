@@ -363,11 +363,15 @@ async def _probe_tabs(
     async def _probe_one(label: str, tab_url: str | None, initial_state: str) -> TabProbeResult:
         if initial_state == "skip":
             return TabProbeResult(
-                name=label, url=tab_url, initial_state="skip",
+                name=label,
+                url=tab_url,
+                initial_state="skip",
             )
         if not tab_url:
             return TabProbeResult(
-                name=label, url=None, error="no url configured",
+                name=label,
+                url=None,
+                error="no url configured",
                 initial_state=initial_state,
             )
         probe = await _probe_url(client, tab_url)
@@ -382,9 +386,7 @@ async def _probe_tabs(
             initial_state=initial_state,
         )
 
-    return list(await asyncio.gather(*[
-        _probe_one(label, url, state) for label, url, state in entries
-    ]))
+    return list(await asyncio.gather(*[_probe_one(label, url, state) for label, url, state in entries]))
 
 
 async def _run_tier1(
@@ -485,7 +487,9 @@ async def _run_tier1(
 
     all_content_reachable = bool(tier2.content_probes) and all(c.reachable for c in tier2.content_probes)
     active_tabs = [t for t in tier2.tabs if t.initial_state == "active"]
-    all_tabs_ok = len(active_tabs) == 0 or all(t.reachable and (not t.iframe_blocked or t.external) for t in active_tabs)
+    all_tabs_ok = len(active_tabs) == 0 or all(
+        t.reachable and (not t.iframe_blocked or t.external) for t in active_tabs
+    )
     all_healthy = all_content_reachable and all_tabs_ok
     some_tabs_ok = any(t.reachable and (not t.iframe_blocked or t.external) for t in active_tabs)
     is_degraded = all_content_reachable and not all_tabs_ok and some_tabs_ok

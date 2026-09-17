@@ -28,9 +28,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        sa.text(
-            'ALTER TABLE check_results ALTER COLUMN "detail" TYPE VARCHAR'
-            ' USING "detail"::text'
-        )
-    )
+    op.execute(sa.text('ALTER TABLE check_results ALTER COLUMN "detail" TYPE VARCHAR USING "detail"::text'))

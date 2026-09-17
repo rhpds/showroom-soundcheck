@@ -3,18 +3,26 @@ import type { WorkshopCheckStatusMap, CheckSessionStatus } from '$lib/types';
 
 export function checkStatusColor(status: CheckSessionStatus): string {
 	switch (status) {
-		case 'completed': return 'green';
-		case 'running': case 'pending': return 'blue';
-		case 'failed': return 'red';
+		case 'completed':
+			return 'green';
+		case 'running':
+		case 'pending':
+			return 'blue';
+		case 'failed':
+			return 'red';
 	}
 }
 
 export function checkStatusLabel(status: CheckSessionStatus): string {
 	switch (status) {
-		case 'completed': return 'Passed';
-		case 'running': return 'Running';
-		case 'pending': return 'Pending';
-		case 'failed': return 'Failed';
+		case 'completed':
+			return 'Passed';
+		case 'running':
+			return 'Running';
+		case 'pending':
+			return 'Pending';
+		case 'failed':
+			return 'Failed';
 	}
 }
 
@@ -34,9 +42,7 @@ export function createCheckStatusManager(getWorkshopIds: () => string[]) {
 
 		const hasInFlight =
 			running.size > 0 ||
-			Object.values(statuses).some(
-				(s) => s && (s.status === 'running' || s.status === 'pending')
-			);
+			Object.values(statuses).some((s) => s && (s.status === 'running' || s.status === 'pending'));
 		if (hasInFlight && !pollTimer) {
 			pollTimer = setInterval(load, 10000);
 		} else if (!hasInFlight && pollTimer) {
@@ -90,8 +96,12 @@ export function createCheckStatusManager(getWorkshopIds: () => string[]) {
 	}
 
 	return {
-		get statuses() { return statuses; },
-		get running() { return running; },
+		get statuses() {
+			return statuses;
+		},
+		get running() {
+			return running;
+		},
 		load,
 		run,
 		destroy
