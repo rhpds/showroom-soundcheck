@@ -86,28 +86,31 @@
 		loading = false;
 	}
 
+	function applySessionUpdate(event: Event) {
+		try {
+			const update = JSON.parse((event as MessageEvent).data);
+			if (data) {
+				data = {
+					session: update.session ?? { ...data.session, status: update.status },
+					targets: update.targets,
+					results: update.results
+				};
+			}
+		} catch (e) {
+			console.error('Failed to parse SSE message', e);
+		}
+	}
+
 	function startStreaming() {
 		closeStream();
 		retryCount = 0;
 		eventSource = sessionStream(sessionId);
 
-		eventSource.onmessage = (event) => {
-			try {
-				const update = JSON.parse(event.data);
-				if (data) {
-					data = {
-						session: update.session ?? { ...data.session, status: update.status },
-						targets: update.targets,
-						results: update.results
-					};
-				}
-				if (update.status === 'completed' || update.status === 'failed') {
-					closeStream();
-				}
-			} catch (e) {
-				console.error('Failed to parse SSE message', e);
-			}
-		};
+		eventSource.addEventListener('session_update', applySessionUpdate);
+		eventSource.addEventListener('session_complete', (event) => {
+			applySessionUpdate(event);
+			closeStream();
+		});
 
 		eventSource.onerror = () => {
 			eventSource?.close();

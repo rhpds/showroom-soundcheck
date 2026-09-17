@@ -108,39 +108,41 @@
 
 	let sawActive = false;
 
+	function applyGroupUpdate(event: Event) {
+		try {
+			const update = JSON.parse((event as MessageEvent).data);
+			data = update;
+
+			if (rerunKnownRunIds) {
+				const newRun = update.runs.find(
+					(r: { run_id: string }) => !rerunKnownRunIds!.has(r.run_id)
+				);
+				if (newRun) {
+					const sessions = update.run_sessions[newRun.run_id];
+					if (sessions?.length) {
+						previewSessionId = sessions[0].session_id;
+						rerunKnownRunIds = null;
+					}
+				}
+			}
+
+			if (isGroupActive(update)) sawActive = true;
+		} catch (e) {
+			console.error('Failed to parse group SSE message', e);
+		}
+	}
+
 	function startStreaming() {
 		closeStream();
 		retryCount = 0;
 		sawActive = false;
 		eventSource = groupStream(groupId);
 
-		eventSource.onmessage = (event) => {
-			try {
-				const update = JSON.parse(event.data);
-				data = update;
-
-				if (rerunKnownRunIds) {
-					const newRun = update.runs.find(
-						(r: { run_id: string }) => !rerunKnownRunIds!.has(r.run_id)
-					);
-					if (newRun) {
-						const sessions = update.run_sessions[newRun.run_id];
-						if (sessions?.length) {
-							previewSessionId = sessions[0].session_id;
-							rerunKnownRunIds = null;
-						}
-					}
-				}
-
-				const active = isGroupActive(update);
-				if (active) sawActive = true;
-				if (sawActive && !active) {
-					closeStream();
-				}
-			} catch (e) {
-				console.error('Failed to parse group SSE message', e);
-			}
-		};
+		eventSource.addEventListener('group_update', applyGroupUpdate);
+		eventSource.addEventListener('group_complete', (event) => {
+			applyGroupUpdate(event);
+			closeStream();
+		});
 
 		eventSource.onerror = () => {
 			eventSource?.close();
