@@ -115,7 +115,7 @@ oc set image deployment/showroom-soundcheck-frontend \
 | `postgres-secret.yaml`      | Secret (DB credentials) — git-ignored      |
 | `postgres-service.yaml`     | Headless Service (postgres)                |
 | `postgres-statefulset.yaml` | StatefulSet (postgres)                     |
-| `redis-deployment.yaml`     | Deployment (redis)                         |
+| `redis-deployment.yaml`     | PersistentVolumeClaim + Deployment (redis) |
 | `redis-service.yaml`        | Service (redis)                            |
 | `app-serviceaccount.yaml`   | ServiceAccount (OAuth redirect annotation) |
 | `app-oauth-secret.yaml`     | Secret (proxy session cookie) — git-ignored |
