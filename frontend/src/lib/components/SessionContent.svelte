@@ -109,16 +109,26 @@
 	function startStreaming() {
 		closeStream();
 		retryCount = 0;
-		eventSource = sessionStream(sessionId);
+		// Capture the EventSource this closure belongs to so a message that
+		// was already queued for a since-superseded connection (e.g. the
+		// browser delivering it just after sessionId changed and a new
+		// stream was opened) can't overwrite fresher state.
+		const es = sessionStream(sessionId);
+		eventSource = es;
 
-		eventSource.addEventListener('session_update', applySessionUpdate);
-		eventSource.addEventListener('session_complete', (event) => {
+		es.addEventListener('session_update', (event) => {
+			if (eventSource !== es) return;
+			applySessionUpdate(event);
+		});
+		es.addEventListener('session_complete', (event) => {
+			if (eventSource !== es) return;
 			applySessionUpdate(event);
 			closeStream();
 		});
 
-		eventSource.onerror = () => {
-			eventSource?.close();
+		es.onerror = () => {
+			if (eventSource !== es) return;
+			es.close();
 			eventSource = null;
 			if (data?.session?.status === 'completed' || data?.session?.status === 'failed') {
 				return;
