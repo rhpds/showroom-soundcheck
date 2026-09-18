@@ -220,9 +220,7 @@ def extract_workshop_item(
         users_available=user_count.get("available", 0),
         users_total=user_count.get("total", 0),
         white_glove=labels.get(WHITE_GLOVE_LABEL, "false").lower() == "true",
-        demo_team_provisioned=(
-            annotations.get(f"{DEMO_DOMAIN}/orderedBy", "").strip().lower() in DEMO_TEAM_EMAILS
-        ),
+        demo_team_provisioned=(annotations.get(f"{DEMO_DOMAIN}/orderedBy", "").strip().lower() in DEMO_TEAM_EMAILS),
         locked=labels.get(LOCK_ENABLED_LABEL, "false").lower() == "true",
         disable_auto_stop=disable_auto_stop,
         open_registration=spec.get("openRegistration", False),
