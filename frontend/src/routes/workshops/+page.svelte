@@ -8,6 +8,8 @@
 	import {
 		getTimeRange,
 		extractEnvironment,
+		WORKSHOP_SIZE_MIN,
+		WORKSHOP_SIZE_MAX,
 		type ProvisionTypeFilter,
 		type TimeWindowFilter,
 		type EnvironmentFilter
@@ -64,22 +66,55 @@
 	let selectedStatuses = $state<WorkshopStatus[]>(pageData.filters.selectedStatuses);
 	let hasFailures = $state(pageData.filters.hasFailures);
 	let timeWindow = $state<TimeWindowFilter>(pageData.filters.timeWindow);
+	let minSize = $state(pageData.filters.minSize);
+	let maxSize = $state(pageData.filters.maxSize);
+
+	function matchesEnvironment(name: string): boolean {
+		return environment === 'all' || extractEnvironment(name) === environment;
+	}
+
+	function matchesSize(usersTotal: number): boolean {
+		if (usersTotal < minSize) return false;
+		if (maxSize < WORKSHOP_SIZE_MAX && usersTotal > maxSize) return false;
+		return true;
+	}
 
 	let filteredItems = $derived(
-		environment === 'all'
-			? data.items
-			: data.items.filter((w) => extractEnvironment(w.name) === environment)
+		data.items.filter((w) => matchesEnvironment(w.name) && matchesSize(w.users_total))
 	);
 
 	let filteredMultiWorkshops = $derived(
-		environment === 'all'
-			? (data.multi_workshops ?? [])
-			: (data.multi_workshops ?? []).filter((mw) =>
-					mw.children.some((child) => extractEnvironment(child.name) === environment)
-				)
+		(data.multi_workshops ?? []).filter((mw) =>
+			mw.children.some((child) => matchesEnvironment(child.name) && matchesSize(child.users_total))
+		)
 	);
 
 	let hasContent = $derived(filteredItems.length > 0 || filteredMultiWorkshops.length > 0);
+
+	let hasActiveFilters = $derived(
+		selectedClusters.length > 0 ||
+			whiteGlove ||
+			provisionType !== 'all' ||
+			environment !== 'all' ||
+			selectedStatuses.length > 0 ||
+			hasFailures ||
+			timeWindow !== 'all' ||
+			minSize > WORKSHOP_SIZE_MIN ||
+			maxSize < WORKSHOP_SIZE_MAX
+	);
+
+	function clearAllFilters() {
+		selectedClusters = [];
+		whiteGlove = false;
+		provisionType = 'all';
+		environment = 'all';
+		selectedStatuses = [];
+		hasFailures = false;
+		timeWindow = 'all';
+		minSize = WORKSHOP_SIZE_MIN;
+		maxSize = WORKSHOP_SIZE_MAX;
+		handleFilterChange();
+	}
 
 	async function loadData(opts: { showSkeleton?: boolean } = {}) {
 		workshopAbort?.abort();
@@ -123,6 +158,8 @@
 		if (environment !== 'all') params.set('environment', environment);
 		for (const s of selectedStatuses) params.append('status', s);
 		if (hasFailures) params.set('has_failures', 'true');
+		if (minSize > WORKSHOP_SIZE_MIN) params.set('size_min', String(minSize));
+		if (maxSize < WORKSHOP_SIZE_MAX) params.set('size_max', String(maxSize));
 		params.set('time', timeWindow);
 		const qs = params.toString();
 		replaceState(`${page.url.pathname}${qs ? `?${qs}` : ''}`, {});
@@ -230,6 +267,8 @@
 	bind:selectedStatuses
 	bind:hasFailures
 	bind:timeWindow
+	bind:minSize
+	bind:maxSize
 	onchange={handleFilterChange}
 />
 
@@ -257,27 +296,15 @@
 		<div class="pf-v6-c-empty-state__content">
 			<h2 class="pf-v6-c-empty-state__title-text">No workshops found</h2>
 			<div class="pf-v6-c-empty-state__body">
-				{#if selectedClusters.length > 0 || whiteGlove || provisionType !== 'all' || environment !== 'all' || selectedStatuses.length > 0 || hasFailures || timeWindow !== 'all'}
+				{#if hasActiveFilters}
 					No workshops match the current filters.
 				{:else}
 					No workshops are currently active across configured clusters.
 				{/if}
 			</div>
-			{#if selectedClusters.length > 0 || whiteGlove || provisionType !== 'all' || environment !== 'all' || selectedStatuses.length > 0 || hasFailures || timeWindow !== 'all'}
+			{#if hasActiveFilters}
 				<div class="pf-v6-c-empty-state__actions">
-					<button
-						class="pf-v6-c-button pf-m-link"
-						onclick={() => {
-							selectedClusters = [];
-							whiteGlove = false;
-							provisionType = 'all';
-							environment = 'all';
-							selectedStatuses = [];
-							hasFailures = false;
-							timeWindow = 'all';
-							handleFilterChange();
-						}}
-					>
+					<button class="pf-v6-c-button pf-m-link" onclick={clearAllFilters}>
 						Clear filters
 					</button>
 				</div>

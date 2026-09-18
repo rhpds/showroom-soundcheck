@@ -5,8 +5,12 @@
 		workshopStatusLabel,
 		ALL_WORKSHOP_STATUSES,
 		ENVIRONMENT_VALUES,
-		environmentLabel
+		environmentLabel,
+		WORKSHOP_SIZE_STEPS,
+		WORKSHOP_SIZE_MIN,
+		WORKSHOP_SIZE_MAX
 	} from '$lib/utils';
+	import RangeSlider from './RangeSlider.svelte';
 
 	let {
 		clusters,
@@ -18,6 +22,8 @@
 		selectedStatuses = $bindable([] as WorkshopStatus[]),
 		hasFailures = $bindable(false),
 		timeWindow = $bindable('all' as TimeWindowFilter),
+		minSize = $bindable(WORKSHOP_SIZE_MIN),
+		maxSize = $bindable(WORKSHOP_SIZE_MAX),
 		onchange
 	}: {
 		clusters: string[];
@@ -29,6 +35,8 @@
 		selectedStatuses: WorkshopStatus[];
 		hasFailures: boolean;
 		timeWindow: TimeWindowFilter;
+		minSize: number;
+		maxSize: number;
 		onchange: () => void;
 	} = $props();
 
@@ -61,8 +69,12 @@
 		selectedStatuses = [];
 		hasFailures = false;
 		timeWindow = 'all';
+		minSize = WORKSHOP_SIZE_MIN;
+		maxSize = WORKSHOP_SIZE_MAX;
 		onchange();
 	}
+
+	let sizeFilterActive = $derived(minSize > WORKSHOP_SIZE_MIN || maxSize < WORKSHOP_SIZE_MAX);
 
 	let hasActiveFilters = $derived(
 		selectedClusters.length > 0 ||
@@ -72,7 +84,8 @@
 			environment !== 'all' ||
 			selectedStatuses.length > 0 ||
 			hasFailures ||
-			timeWindow !== 'all'
+			timeWindow !== 'all' ||
+			sizeFilterActive
 	);
 
 	let hasSecondaryFilters = $derived(
@@ -80,7 +93,8 @@
 			multiAssetOnly ||
 			provisionType !== 'all' ||
 			hasFailures ||
-			selectedClusters.length > 0
+			selectedClusters.length > 0 ||
+			sizeFilterActive
 	);
 
 	let secondaryOpen = $derived(showSecondary || hasSecondaryFilters);
@@ -174,6 +188,28 @@
 				label: `Env: ${environmentLabel(environment)}`,
 				clear: () => {
 					environment = 'all';
+					onchange();
+				}
+			});
+		}
+		if (sizeFilterActive) {
+			const minActive = minSize > WORKSHOP_SIZE_MIN;
+			const maxActive = maxSize < WORKSHOP_SIZE_MAX;
+			const maxLabel = maxSize >= WORKSHOP_SIZE_MAX ? `${maxSize}+` : `${maxSize}`;
+			let label: string;
+			if (minActive && maxActive) {
+				label = `Size: ${minSize}\u2013${maxLabel} users`;
+			} else if (minActive) {
+				label = `Size: ${minSize}+ users`;
+			} else {
+				label = `Size: \u2264${maxLabel} users`;
+			}
+			pills.push({
+				key: 'size',
+				label,
+				clear: () => {
+					minSize = WORKSHOP_SIZE_MIN;
+					maxSize = WORKSHOP_SIZE_MAX;
 					onchange();
 				}
 			});
@@ -290,6 +326,7 @@
 							(multiAssetOnly ? 1 : 0) +
 							(hasFailures ? 1 : 0) +
 							(provisionType !== 'all' ? 1 : 0) +
+							(sizeFilterActive ? 1 : 0) +
 							selectedClusters.length}</span
 					>
 				{/if}
@@ -335,6 +372,20 @@
 						}}>Has failures</button
 					>
 				</div>
+			</div>
+
+			<div class="filter-separator"></div>
+
+			<div class="filter-group">
+				<span class="filter-label">Size</span>
+				<RangeSlider
+					steps={[...WORKSHOP_SIZE_STEPS]}
+					bind:valueMin={minSize}
+					bind:valueMax={maxSize}
+					{onchange}
+					minAriaLabel="Minimum workshop size"
+					maxAriaLabel="Maximum workshop size"
+				/>
 			</div>
 
 			<div class="filter-separator"></div>

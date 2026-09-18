@@ -174,3 +174,16 @@ export const ALL_WORKSHOP_STATUSES: WorkshopStatus[] = [
 	'failed',
 	'completed'
 ];
+
+/**
+ * Discrete, ordered step values for the workshop size range filter.
+ * Spaced denser at the low end (where most workshops fall: 1-15 users)
+ * and coarser at the high end, giving a "log-scale-like" feel without
+ * needing exponential math. The top step is treated as uncapped ("300+")
+ * since very few workshops exceed it.
+ */
+export const WORKSHOP_SIZE_STEPS = [
+	1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 50, 75, 100, 150, 200, 300
+] as const;
+export const WORKSHOP_SIZE_MIN: number = WORKSHOP_SIZE_STEPS[0];
+export const WORKSHOP_SIZE_MAX: number = WORKSHOP_SIZE_STEPS[WORKSHOP_SIZE_STEPS.length - 1];
