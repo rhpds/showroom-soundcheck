@@ -67,11 +67,14 @@
 		}
 	}
 
-	async function loadSession() {
+	async function loadSession(opts: { background?: boolean } = {}) {
 		const myLoadId = ++currentLoadId;
 		abortController?.abort();
 		abortController = new AbortController();
-		loading = true;
+		// Background reconnects (SSE retry after a transient drop) revalidate
+		// in place rather than replacing the already-rendered target list with
+		// the full loading skeleton.
+		if (!opts.background) loading = true;
 		notFound = false;
 		loadError = '';
 		try {
@@ -136,7 +139,10 @@
 			if (retryCount < MAX_RETRIES) {
 				retryCount++;
 				const jitter = Math.random() * 1000;
-				retryTimeout = setTimeout(loadSession, Math.min(1000 * 2 ** retryCount + jitter, 30000));
+				retryTimeout = setTimeout(
+					() => loadSession({ background: true }),
+					Math.min(1000 * 2 ** retryCount + jitter, 30000)
+				);
 			} else {
 				streamFailed = true;
 			}
@@ -311,7 +317,7 @@
 			</div>
 			<h4 class="pf-v6-c-alert__title">{loadError}</h4>
 		</div>
-		<button class="pf-v6-c-button pf-m-primary" onclick={loadSession}>Retry</button>
+		<button class="pf-v6-c-button pf-m-primary" onclick={() => loadSession()}>Retry</button>
 	</div>
 {:else if data}
 	<div class="session-header">
