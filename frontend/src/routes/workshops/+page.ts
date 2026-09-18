@@ -6,11 +6,20 @@ import {
 	VALID_TIME_WINDOWS,
 	VALID_ENVIRONMENT_FILTERS,
 	ALL_WORKSHOP_STATUSES,
+	WORKSHOP_SIZE_STEPS,
+	WORKSHOP_SIZE_MIN,
+	WORKSHOP_SIZE_MAX,
 	getTimeRange,
 	type ProvisionTypeFilter,
 	type TimeWindowFilter,
 	type EnvironmentFilter
 } from '$lib/utils';
+
+function parseSizeParam(raw: string | null, fallback: number): number {
+	if (raw === null) return fallback;
+	const parsed = Number(raw);
+	return (WORKSHOP_SIZE_STEPS as readonly number[]).includes(parsed) ? parsed : fallback;
+}
 
 export const load: PageLoad = async ({ url }) => {
 	const hasAnyParams = url.searchParams.toString().length > 0;
@@ -45,6 +54,12 @@ export const load: PageLoad = async ({ url }) => {
 
 	const hasFailures = url.searchParams.get('has_failures') === 'true';
 
+	let minSize = parseSizeParam(url.searchParams.get('size_min'), WORKSHOP_SIZE_MIN);
+	let maxSize = parseSizeParam(url.searchParams.get('size_max'), WORKSHOP_SIZE_MAX);
+	if (minSize > maxSize) {
+		[minSize, maxSize] = [maxSize, minSize];
+	}
+
 	const rawTime = url.searchParams.get('time') || (hasAnyParams ? 'all' : '24h');
 	const timeWindow: TimeWindowFilter = VALID_TIME_WINDOWS.includes(rawTime as TimeWindowFilter)
 		? (rawTime as TimeWindowFilter)
@@ -78,7 +93,9 @@ export const load: PageLoad = async ({ url }) => {
 			environment,
 			selectedStatuses,
 			hasFailures,
-			timeWindow
+			timeWindow,
+			minSize,
+			maxSize
 		}
 	};
 };
