@@ -70,6 +70,27 @@
 	let maxSize = $state(pageData.filters.maxSize);
 	let search = $state(pageData.filters.search ?? '');
 
+	// `$state()` only captures its initial value. SvelteKit reuses this same
+	// component instance across same-route navigations (e.g. clicking the
+	// "Workshops" nav link while already on /workshops with active filters),
+	// which reruns `load()` and produces a fresh `pageData.filters` without
+	// otherwise updating these locals. Re-sync them whenever `pageData`
+	// actually changes so the filter bar never shows stale selections.
+	$effect(() => {
+		const f = pageData.filters;
+		selectedClusters = f.selectedClusters;
+		whiteGlove = f.whiteGlove;
+		multiAssetOnly = f.multiAssetOnly ?? false;
+		provisionType = f.provisionType;
+		selectedEnvironments = f.selectedEnvironments ?? [];
+		selectedStatuses = f.selectedStatuses;
+		hasFailures = f.hasFailures;
+		timeWindow = f.timeWindow;
+		minSize = f.minSize;
+		maxSize = f.maxSize;
+		search = f.search ?? '';
+	});
+
 	function matchesEnvironment(name: string): boolean {
 		if (selectedEnvironments.length === 0) return true;
 		const env = extractEnvironment(name);
