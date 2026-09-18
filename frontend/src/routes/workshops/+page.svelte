@@ -68,6 +68,7 @@
 	let timeWindow = $state<TimeWindowFilter>(pageData.filters.timeWindow);
 	let minSize = $state(pageData.filters.minSize);
 	let maxSize = $state(pageData.filters.maxSize);
+	let search = $state(pageData.filters.search ?? '');
 
 	function matchesEnvironment(name: string): boolean {
 		return environment === 'all' || extractEnvironment(name) === environment;
@@ -100,7 +101,8 @@
 			hasFailures ||
 			timeWindow !== 'all' ||
 			minSize > WORKSHOP_SIZE_MIN ||
-			maxSize < WORKSHOP_SIZE_MAX
+			maxSize < WORKSHOP_SIZE_MAX ||
+			search !== ''
 	);
 
 	function clearAllFilters() {
@@ -113,6 +115,7 @@
 		timeWindow = 'all';
 		minSize = WORKSHOP_SIZE_MIN;
 		maxSize = WORKSHOP_SIZE_MAX;
+		search = '';
 		handleFilterChange();
 	}
 
@@ -135,6 +138,7 @@
 					white_glove: whiteGlove ? 'true' : undefined,
 					provision_type: provisionType !== 'all' ? provisionType : undefined,
 					has_failures: hasFailures || undefined,
+					search: search || undefined,
 					limit: 500,
 					...timeRange
 				},
@@ -160,6 +164,7 @@
 		if (hasFailures) params.set('has_failures', 'true');
 		if (minSize > WORKSHOP_SIZE_MIN) params.set('size_min', String(minSize));
 		if (maxSize < WORKSHOP_SIZE_MAX) params.set('size_max', String(maxSize));
+		if (search) params.set('search', search);
 		params.set('time', timeWindow);
 		const qs = params.toString();
 		replaceState(`${page.url.pathname}${qs ? `?${qs}` : ''}`, {});
@@ -269,6 +274,7 @@
 	bind:timeWindow
 	bind:minSize
 	bind:maxSize
+	bind:search
 	onchange={handleFilterChange}
 />
 

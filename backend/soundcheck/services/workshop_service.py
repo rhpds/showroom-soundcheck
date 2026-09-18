@@ -574,6 +574,44 @@ def group_workshops_with_multiworkshops(
     return standalone, multi_workshops
 
 
+def _workshop_search_fields(item: WorkshopDashboardItem) -> list[str]:
+    return [
+        item.name,
+        item.namespace,
+        item.display_name,
+        item.ordered_by,
+        item.requester,
+        item.catalog_item,
+        item.workshop_id,
+    ]
+
+
+def _multiworkshop_search_fields(item: MultiWorkshopDashboardItem) -> list[str]:
+    return [
+        item.name,
+        item.namespace,
+        item.display_name,
+        item.ordered_by,
+        item.requester,
+        item.purpose,
+        item.multi_workshop_id,
+    ]
+
+
+def matches_search_term(fields: list[str], search: str | None) -> bool:
+    """Case-insensitive substring match against a list of string fields."""
+    if not search:
+        return True
+    term = search.strip().lower()
+    if not term:
+        return True
+    return any(term in (f or "").lower() for f in fields)
+
+
+def multiworkshop_matches_search(item: MultiWorkshopDashboardItem, search: str | None) -> bool:
+    return matches_search_term(_multiworkshop_search_fields(item), search)
+
+
 def matches_filters(
     item: WorkshopDashboardItem,
     clusters: list[str] | None,
@@ -583,6 +621,7 @@ def matches_filters(
     has_failures: bool,
     from_time: str | None,
     to_time: str | None,
+    search: str | None = None,
 ) -> bool:
     """Apply client-requested filters to a workshop item."""
     if clusters and item.cluster not in clusters:
@@ -618,7 +657,7 @@ def matches_filters(
         except (ValueError, TypeError):
             pass
 
-    return True
+    return matches_search_term(_workshop_search_fields(item), search)
 
 
 def build_summary(items: list[WorkshopDashboardItem]) -> WorkshopSummary:
