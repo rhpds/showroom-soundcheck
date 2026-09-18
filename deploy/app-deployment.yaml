@@ -39,6 +39,8 @@ spec:
                 name: showroom-soundcheck-config
             - secretRef:
                 name: postgres-credentials
+            - secretRef:
+                name: showroom-soundcheck-app-secrets
           env:
             - name: PYTHONUNBUFFERED
               value: "1"

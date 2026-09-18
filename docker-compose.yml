@@ -20,6 +20,7 @@ services:
       VERIFY_SSL: ${VERIFY_SSL:-false}
       ALLOWED_URL_PATTERNS: ${ALLOWED_URL_PATTERNS:-*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8000}
+      DEMO_TEAM_EMAILS: ${DEMO_TEAM_EMAILS:-}
       API_KEY: ${API_KEY:-}
       PYTHONPATH: /app
       UVICORN_RELOAD: "true"

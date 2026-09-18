@@ -63,6 +63,12 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 ENABLE_DOCS = os.environ.get("ENABLE_DOCS", "true").lower() in ("true", "1", "yes")
 MAX_SSE_CONNECTIONS = _positive_int_env("MAX_SSE_CONNECTIONS", 200)
 
+DEMO_TEAM_EMAILS = frozenset(e.strip().lower() for e in os.environ.get("DEMO_TEAM_EMAILS", "").split(",") if e.strip())
+if not DEMO_TEAM_EMAILS:
+    logger.warning(
+        "DEMO_TEAM_EMAILS is not set — the workshop 'Provisioned by: Demo team' filter will not match any workshops."
+    )
+
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development").lower()
 

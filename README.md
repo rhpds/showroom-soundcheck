@@ -119,6 +119,7 @@ npm run dev
 | `VERIFY_SSL` | `true` | TLS verification for checks (compose defaults to `false`) |
 | `ALLOWED_URL_PATTERNS` | **required** | Comma-separated hostname globs for URL allowlist (e.g. `*.example.com,*.opentlc.com`) |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins |
+| `DEMO_TEAM_EMAILS` | _(empty)_ | Comma-separated emails treated as "Demo team" provisioners for the workshop "Provisioned by" filter (set in local `.env`; in OpenShift via `deploy/app-secret.yaml` — see `deploy/README.md`) |
 | `API_KEY` | _(empty)_ | If set, required via `X-API-Key` header for mutating requests |
 | `LOG_FORMAT` | `text` | Log output format: `text` or `json` |
 
