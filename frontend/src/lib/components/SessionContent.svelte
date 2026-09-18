@@ -97,13 +97,19 @@
 	function applySessionUpdate(event: Event) {
 		try {
 			const update = JSON.parse((event as MessageEvent).data);
-			if (data) {
-				data = {
-					session: update.session ?? { ...data.session, status: update.status },
-					targets: update.targets,
-					results: update.results
-				};
+			if (!data) return;
+			// Guard against a malformed/partial payload before it propagates into
+			// downstream $derived computations (filteredTargets, targetCounts,
+			// etc.), which assume `targets`/`results` are always arrays.
+			if (!Array.isArray(update?.targets) || !Array.isArray(update?.results)) {
+				console.error('Ignoring malformed SSE session update (missing targets/results)', update);
+				return;
 			}
+			data = {
+				session: update.session ?? { ...data.session, status: update.status },
+				targets: update.targets,
+				results: update.results
+			};
 		} catch (e) {
 			console.error('Failed to parse SSE message', e);
 		}
