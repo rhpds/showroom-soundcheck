@@ -28,6 +28,7 @@ from ..services.workshop_service import (
     fetch_workshops_cached,
     group_workshops_with_multiworkshops,
     matches_filters,
+    multiworkshop_matches_search,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ async def list_workshops(
     has_failures: bool = Query(default=False),
     from_time: str | None = Query(default=None),
     to_time: str | None = Query(default=None),
+    search: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ):
@@ -97,15 +99,37 @@ async def list_workshops(
     filtered_standalone = [
         item
         for item in standalone
-        if matches_filters(item, cluster, status, white_glove, provision_type, has_failures, from_time, to_time)
+        if matches_filters(
+            item,
+            cluster,
+            status,
+            white_glove,
+            provision_type,
+            has_failures,
+            from_time,
+            to_time,
+            search,
+        )
     ]
 
     filtered_multi: list[MultiWorkshopDashboardItem] = []
     for mws in multi_workshops:
+        event_matches_search = multiworkshop_matches_search(mws, search)
+        child_search = None if event_matches_search else search
         matching_children = [
             child
             for child in mws.children
-            if matches_filters(child, cluster, status, white_glove, provision_type, has_failures, from_time, to_time)
+            if matches_filters(
+                child,
+                cluster,
+                status,
+                white_glove,
+                provision_type,
+                has_failures,
+                from_time,
+                to_time,
+                child_search,
+            )
         ]
         if matching_children:
             filtered_multi.append(

@@ -54,6 +54,8 @@ export const load: PageLoad = async ({ url }) => {
 
 	const hasFailures = url.searchParams.get('has_failures') === 'true';
 
+	const search = url.searchParams.get('search') ?? '';
+
 	let minSize = parseSizeParam(url.searchParams.get('size_min'), WORKSHOP_SIZE_MIN);
 	let maxSize = parseSizeParam(url.searchParams.get('size_max'), WORKSHOP_SIZE_MAX);
 	if (minSize > maxSize) {
@@ -73,6 +75,7 @@ export const load: PageLoad = async ({ url }) => {
 		provision_type:
 			provisionType !== 'all' ? (provisionType as 'self_service' | 'demo_team') : undefined,
 		has_failures: hasFailures || undefined,
+		search: search || undefined,
 		limit: 500,
 		...timeRange
 	};
@@ -95,7 +98,8 @@ export const load: PageLoad = async ({ url }) => {
 			hasFailures,
 			timeWindow,
 			minSize,
-			maxSize
+			maxSize,
+			search
 		}
 	};
 };

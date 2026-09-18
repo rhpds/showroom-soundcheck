@@ -24,6 +24,7 @@
 		timeWindow = $bindable('all' as TimeWindowFilter),
 		minSize = $bindable(WORKSHOP_SIZE_MIN),
 		maxSize = $bindable(WORKSHOP_SIZE_MAX),
+		search = $bindable(''),
 		onchange
 	}: {
 		clusters: string[];
@@ -37,10 +38,29 @@
 		timeWindow: TimeWindowFilter;
 		minSize: number;
 		maxSize: number;
+		search: string;
 		onchange: () => void;
 	} = $props();
 
 	let showSecondary = $state(false);
+
+	// Local, uncommitted search text — recomputed from `search` whenever it
+	// changes externally (e.g. "Clear all", removing the search pill, or a
+	// browser back/forward navigation), but overridable while typing without
+	// committing on every keystroke.
+	let searchInput = $derived(search);
+
+	function commitSearch() {
+		if (search === searchInput) return;
+		search = searchInput;
+		onchange();
+	}
+
+	function clearSearch() {
+		search = '';
+		searchInput = '';
+		onchange();
+	}
 
 	function toggleCluster(cluster: string) {
 		if (selectedClusters.includes(cluster)) {
@@ -71,6 +91,8 @@
 		timeWindow = 'all';
 		minSize = WORKSHOP_SIZE_MIN;
 		maxSize = WORKSHOP_SIZE_MAX;
+		search = '';
+		searchInput = '';
 		onchange();
 	}
 
@@ -85,7 +107,8 @@
 			selectedStatuses.length > 0 ||
 			hasFailures ||
 			timeWindow !== 'all' ||
-			sizeFilterActive
+			sizeFilterActive ||
+			search !== ''
 	);
 
 	let hasSecondaryFilters = $derived(
@@ -103,6 +126,15 @@
 
 	let activePills = $derived.by(() => {
 		const pills: ActivePill[] = [];
+		if (search) {
+			pills.push({
+				key: 'search',
+				label: `Search: "${search}"`,
+				clear: () => {
+					clearSearch();
+				}
+			});
+		}
 		for (const c of selectedClusters) {
 			pills.push({
 				key: `cluster-${c}`,
@@ -221,6 +253,22 @@
 <div class="filter-bar" role="toolbar" aria-label="Workshop filters">
 	<!-- Primary filters row -->
 	<div class="filter-row filter-row--primary">
+		<div class="filter-group">
+			<span class="filter-label">Search</span>
+			<input
+				type="search"
+				class="search-input"
+				placeholder="Name, email, namespace..."
+				aria-label="Search workshops"
+				bind:value={searchInput}
+				onkeydown={(e) => {
+					if (e.key === 'Enter') commitSearch();
+				}}
+				onblur={commitSearch}
+			/>
+		</div>
+
+		<div class="filter-separator"></div>
 		<div class="filter-group">
 			<span class="filter-label">Time</span>
 			<div class="filter-chips" role="group" aria-label="Time window filter">
@@ -541,6 +589,21 @@
 		background: var(--pf-t--global--color--brand--default, #0066cc);
 		border-color: var(--pf-t--global--color--brand--default, #0066cc);
 		color: #fff;
+	}
+
+	.search-input {
+		width: 200px;
+		padding: 3px 10px;
+		border-radius: 14px;
+		border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+		background: var(--pf-t--global--background--color--primary--default, #fff);
+		font-size: 0.75rem;
+		color: inherit;
+	}
+
+	.search-input:focus {
+		outline: none;
+		border-color: var(--pf-t--global--color--brand--default, #0066cc);
 	}
 
 	/* Actions area (right-aligned) */
