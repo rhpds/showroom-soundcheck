@@ -348,7 +348,7 @@
 				width={LABEL_WIDTH + chartWidth + 20}
 				height={svgHeight}
 				class="timeline-svg"
-				role="img"
+				role="group"
 				aria-label="Workshop timeline chart showing {timelineItems.length} workshops"
 			>
 				<!-- Time axis ticks -->
@@ -463,7 +463,13 @@
 								href={mws.catalog_url}
 								target="_blank"
 								rel="noopener noreferrer"
-								aria-label="Open {mws.display_name} in catalog"
+								aria-label="{barAriaLabel(tRow)} (opens catalog)"
+								data-bar-key={key}
+								onmouseenter={(e) => handleBarEnter(key, e)}
+								onmousemove={handleBarMove}
+								onmouseleave={() => (hoveredKey = null)}
+								onfocus={() => handleBarFocus(key)}
+								onblur={() => (hoveredKey = null)}
 							>
 								<rect
 									x={LABEL_WIDTH + barX}
@@ -477,13 +483,6 @@
 									stroke-width="2"
 									stroke-dasharray="4 2"
 									class="timeline-bar"
-									data-bar-key={key}
-									aria-label={barAriaLabel(tRow)}
-									onmouseenter={(e) => handleBarEnter(key, e)}
-									onmousemove={handleBarMove}
-									onmouseleave={() => (hoveredKey = null)}
-									onfocus={() => handleBarFocus(key)}
-									onblur={() => (hoveredKey = null)}
 								/>
 							</a>
 						{:else}
@@ -500,7 +499,7 @@
 								stroke-dasharray="4 2"
 								class="timeline-bar"
 								data-bar-key={key}
-								role="img"
+								role="button"
 								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
 								onmouseenter={(e) => handleBarEnter(key, e)}
@@ -638,7 +637,13 @@
 								href={child.catalog_url}
 								target="_blank"
 								rel="noopener noreferrer"
-								aria-label="Open {child.display_name} in catalog"
+								aria-label="{barAriaLabel(tRow)} (opens catalog)"
+								data-bar-key={key}
+								onmouseenter={(e) => handleBarEnter(key, e)}
+								onmousemove={handleBarMove}
+								onmouseleave={() => (hoveredKey = null)}
+								onfocus={() => handleBarFocus(key)}
+								onblur={() => (hoveredKey = null)}
 							>
 								<rect
 									x={LABEL_WIDTH + barX}
@@ -649,13 +654,6 @@
 									fill={workshopStatusBg(child.status)}
 									opacity={hoveredKey === key ? 1 : 0.8}
 									class="timeline-bar"
-									data-bar-key={key}
-									aria-label={barAriaLabel(tRow)}
-									onmouseenter={(e) => handleBarEnter(key, e)}
-									onmousemove={handleBarMove}
-									onmouseleave={() => (hoveredKey = null)}
-									onfocus={() => handleBarFocus(key)}
-									onblur={() => (hoveredKey = null)}
 								/>
 							</a>
 						{:else}
@@ -669,7 +667,7 @@
 								opacity={hoveredKey === key ? 1 : 0.8}
 								class="timeline-bar"
 								data-bar-key={key}
-								role="img"
+								role="button"
 								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
 								onmouseenter={(e) => handleBarEnter(key, e)}
@@ -856,7 +854,13 @@
 								href={tItem.item.catalog_url}
 								target="_blank"
 								rel="noopener noreferrer"
-								aria-label="Open {tItem.item.display_name} in catalog"
+								aria-label="{barAriaLabel(tRow)} (opens catalog)"
+								data-bar-key={key}
+								onmouseenter={(e) => handleBarEnter(key, e)}
+								onmousemove={handleBarMove}
+								onmouseleave={() => (hoveredKey = null)}
+								onfocus={() => handleBarFocus(key)}
+								onblur={() => (hoveredKey = null)}
 							>
 								<rect
 									x={LABEL_WIDTH + barX}
@@ -867,13 +871,6 @@
 									fill={workshopStatusBg(tItem.item.status)}
 									opacity={hoveredKey === key ? 1 : 0.8}
 									class="timeline-bar"
-									data-bar-key={key}
-									aria-label={barAriaLabel(tRow)}
-									onmouseenter={(e) => handleBarEnter(key, e)}
-									onmousemove={handleBarMove}
-									onmouseleave={() => (hoveredKey = null)}
-									onfocus={() => handleBarFocus(key)}
-									onblur={() => (hoveredKey = null)}
 								/>
 							</a>
 						{:else}
@@ -887,7 +884,7 @@
 								opacity={hoveredKey === key ? 1 : 0.8}
 								class="timeline-bar"
 								data-bar-key={key}
-								role="img"
+								role="button"
 								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
 								onmouseenter={(e) => handleBarEnter(key, e)}
