@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import type { WorkshopStatus } from '$lib/types';
-	import type { ProvisionTypeFilter, TimeWindowFilter, EnvironmentFilter } from '$lib/utils';
+	import type { ProvisionTypeFilter, TimeWindowFilter, EnvironmentType } from '$lib/utils';
 	import {
 		workshopStatusLabel,
 		ALL_WORKSHOP_STATUSES,
@@ -18,7 +19,7 @@
 		whiteGlove = $bindable(false),
 		multiAssetOnly = $bindable(false),
 		provisionType = $bindable('all' as ProvisionTypeFilter),
-		environment = $bindable('all' as EnvironmentFilter),
+		selectedEnvironments = $bindable([] as EnvironmentType[]),
 		selectedStatuses = $bindable([] as WorkshopStatus[]),
 		hasFailures = $bindable(false),
 		timeWindow = $bindable('all' as TimeWindowFilter),
@@ -32,7 +33,7 @@
 		whiteGlove: boolean;
 		multiAssetOnly: boolean;
 		provisionType: ProvisionTypeFilter;
-		environment: EnvironmentFilter;
+		selectedEnvironments: EnvironmentType[];
 		selectedStatuses: WorkshopStatus[];
 		hasFailures: boolean;
 		timeWindow: TimeWindowFilter;
@@ -42,7 +43,24 @@
 		onchange: () => void;
 	} = $props();
 
-	let showSecondary = $state(false);
+	// Whether the secondary "More filters" row is expanded. Seeded once from
+	// whether any secondary filter *other than Environment* is already active
+	// (e.g. a deep link like `?cluster=...`), so such links land expanded.
+	// After that, this is purely toggled by the "More filters" button — it is
+	// intentionally NOT re-derived from filter state, so the row can always be
+	// manually collapsed even while filters inside it remain active.
+	let showSecondary = $state(
+		untrack(
+			() =>
+				whiteGlove ||
+				multiAssetOnly ||
+				provisionType !== 'all' ||
+				hasFailures ||
+				selectedClusters.length > 0 ||
+				minSize > WORKSHOP_SIZE_MIN ||
+				maxSize < WORKSHOP_SIZE_MAX
+		)
+	);
 
 	// Local, uncommitted search text — recomputed from `search` whenever it
 	// changes externally (e.g. "Clear all", removing the search pill, or a
@@ -80,12 +98,21 @@
 		onchange();
 	}
 
+	function toggleEnvironment(env: EnvironmentType) {
+		if (selectedEnvironments.includes(env)) {
+			selectedEnvironments = selectedEnvironments.filter((e) => e !== env);
+		} else {
+			selectedEnvironments = [...selectedEnvironments, env];
+		}
+		onchange();
+	}
+
 	function clearFilters() {
 		selectedClusters = [];
 		whiteGlove = false;
 		multiAssetOnly = false;
 		provisionType = 'all';
-		environment = 'all';
+		selectedEnvironments = [];
 		selectedStatuses = [];
 		hasFailures = false;
 		timeWindow = 'all';
@@ -103,7 +130,7 @@
 			whiteGlove ||
 			multiAssetOnly ||
 			provisionType !== 'all' ||
-			environment !== 'all' ||
+			selectedEnvironments.length > 0 ||
 			selectedStatuses.length > 0 ||
 			hasFailures ||
 			timeWindow !== 'all' ||
@@ -111,16 +138,18 @@
 			search !== ''
 	);
 
-	let hasSecondaryFilters = $derived(
-		whiteGlove ||
-			multiAssetOnly ||
-			provisionType !== 'all' ||
-			hasFailures ||
-			selectedClusters.length > 0 ||
-			sizeFilterActive
+	// Count of active filters that live in the secondary "More filters" row,
+	// shown as a badge on the toggle button. This is independent of whether
+	// the row is currently expanded (see `showSecondary`).
+	let secondaryFilterCount = $derived(
+		(whiteGlove ? 1 : 0) +
+			(multiAssetOnly ? 1 : 0) +
+			(hasFailures ? 1 : 0) +
+			(provisionType !== 'all' ? 1 : 0) +
+			(sizeFilterActive ? 1 : 0) +
+			selectedClusters.length +
+			selectedEnvironments.length
 	);
-
-	let secondaryOpen = $derived(showSecondary || hasSecondaryFilters);
 
 	type ActivePill = { key: string; label: string; clear: () => void };
 
@@ -214,12 +243,12 @@
 				}
 			});
 		}
-		if (environment !== 'all') {
+		for (const env of selectedEnvironments) {
 			pills.push({
-				key: 'env',
-				label: `Env: ${environmentLabel(environment)}`,
+				key: `env-${env}`,
+				label: `Env: ${environmentLabel(env)}`,
 				clear: () => {
-					environment = 'all';
+					selectedEnvironments = selectedEnvironments.filter((e) => e !== env);
 					onchange();
 				}
 			});
@@ -326,41 +355,14 @@
 			</div>
 		</div>
 
-		<div class="filter-separator"></div>
-		<div class="filter-group">
-			<span class="filter-label">Environment</span>
-			<div class="filter-chips" role="group" aria-label="Environment filter">
-				<button
-					class="filter-chip"
-					class:active={environment === 'all'}
-					aria-pressed={environment === 'all'}
-					onclick={() => {
-						environment = 'all';
-						onchange();
-					}}>All</button
-				>
-				{#each ENVIRONMENT_VALUES as env}
-					<button
-						class="filter-chip"
-						class:active={environment === env}
-						aria-pressed={environment === env}
-						onclick={() => {
-							environment = env;
-							onchange();
-						}}>{environmentLabel(env)}</button
-					>
-				{/each}
-			</div>
-		</div>
-
 		<div class="filter-actions">
 			<button
 				class="more-filters-btn"
-				class:more-filters-btn--active={secondaryOpen}
+				class:more-filters-btn--active={showSecondary}
 				onclick={() => {
 					showSecondary = !showSecondary;
 				}}
-				aria-expanded={secondaryOpen}
+				aria-expanded={showSecondary}
 			>
 				<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
 					<path
@@ -368,15 +370,8 @@
 					/>
 				</svg>
 				More filters
-				{#if hasSecondaryFilters}
-					<span class="filter-count"
-						>{(whiteGlove ? 1 : 0) +
-							(multiAssetOnly ? 1 : 0) +
-							(hasFailures ? 1 : 0) +
-							(provisionType !== 'all' ? 1 : 0) +
-							(sizeFilterActive ? 1 : 0) +
-							selectedClusters.length}</span
-					>
+				{#if secondaryFilterCount > 0}
+					<span class="filter-count">{secondaryFilterCount}</span>
 				{/if}
 			</button>
 
@@ -387,8 +382,24 @@
 	</div>
 
 	<!-- Secondary filters row (collapsible) -->
-	{#if secondaryOpen}
+	{#if showSecondary}
 		<div class="filter-row filter-row--secondary">
+			<div class="filter-group">
+				<span class="filter-label">Environment</span>
+				<div class="filter-chips" role="group" aria-label="Environment filter">
+					{#each ENVIRONMENT_VALUES as env}
+						<button
+							class="filter-chip"
+							class:active={selectedEnvironments.includes(env)}
+							aria-pressed={selectedEnvironments.includes(env)}
+							onclick={() => toggleEnvironment(env)}>{environmentLabel(env)}</button
+						>
+					{/each}
+				</div>
+			</div>
+
+			<div class="filter-separator"></div>
+
 			<div class="filter-group">
 				<span class="filter-label">Flags</span>
 				<div class="filter-chips" role="group" aria-label="Flag filters">
