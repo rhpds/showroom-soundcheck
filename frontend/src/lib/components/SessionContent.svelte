@@ -67,11 +67,14 @@
 		}
 	}
 
-	async function loadSession() {
+	async function loadSession(opts: { background?: boolean } = {}) {
 		const myLoadId = ++currentLoadId;
 		abortController?.abort();
 		abortController = new AbortController();
-		loading = true;
+		// Background reconnects (SSE retry after a transient drop) revalidate
+		// in place rather than replacing the already-rendered target list with
+		// the full loading skeleton.
+		if (!opts.background) loading = true;
 		notFound = false;
 		loadError = '';
 		try {
@@ -94,13 +97,19 @@
 	function applySessionUpdate(event: Event) {
 		try {
 			const update = JSON.parse((event as MessageEvent).data);
-			if (data) {
-				data = {
-					session: update.session ?? { ...data.session, status: update.status },
-					targets: update.targets,
-					results: update.results
-				};
+			if (!data) return;
+			// Guard against a malformed/partial payload before it propagates into
+			// downstream $derived computations (filteredTargets, targetCounts,
+			// etc.), which assume `targets`/`results` are always arrays.
+			if (!Array.isArray(update?.targets) || !Array.isArray(update?.results)) {
+				console.error('Ignoring malformed SSE session update (missing targets/results)', update);
+				return;
 			}
+			data = {
+				session: update.session ?? { ...data.session, status: update.status },
+				targets: update.targets,
+				results: update.results
+			};
 		} catch (e) {
 			console.error('Failed to parse SSE message', e);
 		}
@@ -109,16 +118,26 @@
 	function startStreaming() {
 		closeStream();
 		retryCount = 0;
-		eventSource = sessionStream(sessionId);
+		// Capture the EventSource this closure belongs to so a message that
+		// was already queued for a since-superseded connection (e.g. the
+		// browser delivering it just after sessionId changed and a new
+		// stream was opened) can't overwrite fresher state.
+		const es = sessionStream(sessionId);
+		eventSource = es;
 
-		eventSource.addEventListener('session_update', applySessionUpdate);
-		eventSource.addEventListener('session_complete', (event) => {
+		es.addEventListener('session_update', (event) => {
+			if (eventSource !== es) return;
+			applySessionUpdate(event);
+		});
+		es.addEventListener('session_complete', (event) => {
+			if (eventSource !== es) return;
 			applySessionUpdate(event);
 			closeStream();
 		});
 
-		eventSource.onerror = () => {
-			eventSource?.close();
+		es.onerror = () => {
+			if (eventSource !== es) return;
+			es.close();
 			eventSource = null;
 			if (data?.session?.status === 'completed' || data?.session?.status === 'failed') {
 				return;
@@ -126,7 +145,10 @@
 			if (retryCount < MAX_RETRIES) {
 				retryCount++;
 				const jitter = Math.random() * 1000;
-				retryTimeout = setTimeout(loadSession, Math.min(1000 * 2 ** retryCount + jitter, 30000));
+				retryTimeout = setTimeout(
+					() => loadSession({ background: true }),
+					Math.min(1000 * 2 ** retryCount + jitter, 30000)
+				);
 			} else {
 				streamFailed = true;
 			}
@@ -301,7 +323,7 @@
 			</div>
 			<h4 class="pf-v6-c-alert__title">{loadError}</h4>
 		</div>
-		<button class="pf-v6-c-button pf-m-primary" onclick={loadSession}>Retry</button>
+		<button class="pf-v6-c-button pf-m-primary" onclick={() => loadSession()}>Retry</button>
 	</div>
 {:else if data}
 	<div class="session-header">

@@ -266,12 +266,23 @@
 		return result;
 	});
 
-	let hoveredIndex = $state<number | null>(null);
+	function rowKey(row: TimelineRow): string {
+		if (row.kind === 'multi') return `m:${row.item.name}`;
+		if (row.kind === 'child') return `c:${row.parentName}:${row.item.name}`;
+		return `w:${row.item.name}`;
+	}
+
+	let hoveredKey = $state<string | null>(null);
 	let tooltipX = $state(0);
 	let tooltipY = $state(0);
 
-	function handleBarEnter(idx: number, e: MouseEvent) {
-		hoveredIndex = idx;
+	// Looked up by stable key (not array index), so a reactive refresh or
+	// filter change that reorders/shrinks `timelineItems` can never leave
+	// this pointing at the wrong row or past the end of the array.
+	let hoveredRow = $derived(timelineItems.find((r) => rowKey(r) === hoveredKey) ?? null);
+
+	function handleBarEnter(key: string, e: MouseEvent) {
+		hoveredKey = key;
 		tooltipX = e.clientX;
 		tooltipY = e.clientY;
 	}
@@ -281,9 +292,9 @@
 		tooltipY = e.clientY;
 	}
 
-	function handleBarFocus(idx: number) {
-		hoveredIndex = idx;
-		const bar = container.querySelector(`[data-bar-idx="${idx}"]`) as SVGElement | null;
+	function handleBarFocus(key: string) {
+		hoveredKey = key;
+		const bar = container.querySelector(`[data-bar-key="${CSS.escape(key)}"]`) as SVGElement | null;
 		if (bar) {
 			const rect = bar.getBoundingClientRect();
 			tooltipX = rect.left + rect.width / 2;
@@ -337,7 +348,7 @@
 				width={LABEL_WIDTH + chartWidth + 20}
 				height={svgHeight}
 				class="timeline-svg"
-				role="img"
+				role="group"
 				aria-label="Workshop timeline chart showing {timelineItems.length} workshops"
 			>
 				<!-- Time axis ticks -->
@@ -386,7 +397,8 @@
 				{/if}
 
 				<!-- Workshop bars -->
-				{#each timelineItems as tRow, idx}
+				{#each timelineItems as tRow, idx (rowKey(tRow))}
+					{@const key = rowKey(tRow)}
 					{@const y = rowYPositions[idx]}
 					{@const h = rowHeight(tRow)}
 					{@const rawBarX = msToX(tRow.startMs)}
@@ -451,7 +463,13 @@
 								href={mws.catalog_url}
 								target="_blank"
 								rel="noopener noreferrer"
-								aria-label="Open {mws.display_name} in catalog"
+								aria-label="{barAriaLabel(tRow)} (opens catalog)"
+								data-bar-key={key}
+								onmouseenter={(e) => handleBarEnter(key, e)}
+								onmousemove={handleBarMove}
+								onmouseleave={() => (hoveredKey = null)}
+								onfocus={() => handleBarFocus(key)}
+								onblur={() => (hoveredKey = null)}
 							>
 								<rect
 									x={LABEL_WIDTH + barX}
@@ -460,18 +478,11 @@
 									height={h}
 									rx="6"
 									fill={workshopStatusBg(mws.status)}
-									opacity={hoveredIndex === idx ? 1 : 0.6}
+									opacity={hoveredKey === key ? 1 : 0.6}
 									stroke={workshopStatusBorder(mws.status)}
 									stroke-width="2"
 									stroke-dasharray="4 2"
 									class="timeline-bar"
-									data-bar-idx={idx}
-									aria-label={barAriaLabel(tRow)}
-									onmouseenter={(e) => handleBarEnter(idx, e)}
-									onmousemove={handleBarMove}
-									onmouseleave={() => (hoveredIndex = null)}
-									onfocus={() => handleBarFocus(idx)}
-									onblur={() => (hoveredIndex = null)}
 								/>
 							</a>
 						{:else}
@@ -482,20 +493,20 @@
 								height={h}
 								rx="6"
 								fill={workshopStatusBg(mws.status)}
-								opacity={hoveredIndex === idx ? 1 : 0.6}
+								opacity={hoveredKey === key ? 1 : 0.6}
 								stroke={workshopStatusBorder(mws.status)}
 								stroke-width="2"
 								stroke-dasharray="4 2"
 								class="timeline-bar"
-								data-bar-idx={idx}
-								role="img"
+								data-bar-key={key}
+								role="button"
 								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
-								onmouseenter={(e) => handleBarEnter(idx, e)}
+								onmouseenter={(e) => handleBarEnter(key, e)}
 								onmousemove={handleBarMove}
-								onmouseleave={() => (hoveredIndex = null)}
-								onfocus={() => handleBarFocus(idx)}
-								onblur={() => (hoveredIndex = null)}
+								onmouseleave={() => (hoveredKey = null)}
+								onfocus={() => handleBarFocus(key)}
+								onblur={() => (hoveredKey = null)}
 							/>
 						{/if}
 
@@ -626,7 +637,13 @@
 								href={child.catalog_url}
 								target="_blank"
 								rel="noopener noreferrer"
-								aria-label="Open {child.display_name} in catalog"
+								aria-label="{barAriaLabel(tRow)} (opens catalog)"
+								data-bar-key={key}
+								onmouseenter={(e) => handleBarEnter(key, e)}
+								onmousemove={handleBarMove}
+								onmouseleave={() => (hoveredKey = null)}
+								onfocus={() => handleBarFocus(key)}
+								onblur={() => (hoveredKey = null)}
 							>
 								<rect
 									x={LABEL_WIDTH + barX}
@@ -635,15 +652,8 @@
 									height={h}
 									rx="4"
 									fill={workshopStatusBg(child.status)}
-									opacity={hoveredIndex === idx ? 1 : 0.8}
+									opacity={hoveredKey === key ? 1 : 0.8}
 									class="timeline-bar"
-									data-bar-idx={idx}
-									aria-label={barAriaLabel(tRow)}
-									onmouseenter={(e) => handleBarEnter(idx, e)}
-									onmousemove={handleBarMove}
-									onmouseleave={() => (hoveredIndex = null)}
-									onfocus={() => handleBarFocus(idx)}
-									onblur={() => (hoveredIndex = null)}
 								/>
 							</a>
 						{:else}
@@ -654,17 +664,17 @@
 								height={h}
 								rx="4"
 								fill={workshopStatusBg(child.status)}
-								opacity={hoveredIndex === idx ? 1 : 0.8}
+								opacity={hoveredKey === key ? 1 : 0.8}
 								class="timeline-bar"
-								data-bar-idx={idx}
-								role="img"
+								data-bar-key={key}
+								role="button"
 								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
-								onmouseenter={(e) => handleBarEnter(idx, e)}
+								onmouseenter={(e) => handleBarEnter(key, e)}
 								onmousemove={handleBarMove}
-								onmouseleave={() => (hoveredIndex = null)}
-								onfocus={() => handleBarFocus(idx)}
-								onblur={() => (hoveredIndex = null)}
+								onmouseleave={() => (hoveredKey = null)}
+								onfocus={() => handleBarFocus(key)}
+								onblur={() => (hoveredKey = null)}
 							/>
 						{/if}
 
@@ -844,7 +854,13 @@
 								href={tItem.item.catalog_url}
 								target="_blank"
 								rel="noopener noreferrer"
-								aria-label="Open {tItem.item.display_name} in catalog"
+								aria-label="{barAriaLabel(tRow)} (opens catalog)"
+								data-bar-key={key}
+								onmouseenter={(e) => handleBarEnter(key, e)}
+								onmousemove={handleBarMove}
+								onmouseleave={() => (hoveredKey = null)}
+								onfocus={() => handleBarFocus(key)}
+								onblur={() => (hoveredKey = null)}
 							>
 								<rect
 									x={LABEL_WIDTH + barX}
@@ -853,15 +869,8 @@
 									height={h}
 									rx="4"
 									fill={workshopStatusBg(tItem.item.status)}
-									opacity={hoveredIndex === idx ? 1 : 0.8}
+									opacity={hoveredKey === key ? 1 : 0.8}
 									class="timeline-bar"
-									data-bar-idx={idx}
-									aria-label={barAriaLabel(tRow)}
-									onmouseenter={(e) => handleBarEnter(idx, e)}
-									onmousemove={handleBarMove}
-									onmouseleave={() => (hoveredIndex = null)}
-									onfocus={() => handleBarFocus(idx)}
-									onblur={() => (hoveredIndex = null)}
 								/>
 							</a>
 						{:else}
@@ -872,17 +881,17 @@
 								height={h}
 								rx="4"
 								fill={workshopStatusBg(tItem.item.status)}
-								opacity={hoveredIndex === idx ? 1 : 0.8}
+								opacity={hoveredKey === key ? 1 : 0.8}
 								class="timeline-bar"
-								data-bar-idx={idx}
-								role="img"
+								data-bar-key={key}
+								role="button"
 								tabindex="0"
 								aria-label={barAriaLabel(tRow)}
-								onmouseenter={(e) => handleBarEnter(idx, e)}
+								onmouseenter={(e) => handleBarEnter(key, e)}
 								onmousemove={handleBarMove}
-								onmouseleave={() => (hoveredIndex = null)}
-								onfocus={() => handleBarFocus(idx)}
-								onblur={() => (hoveredIndex = null)}
+								onmouseleave={() => (hoveredKey = null)}
+								onfocus={() => handleBarFocus(key)}
+								onblur={() => (hoveredKey = null)}
 							/>
 						{/if}
 
@@ -959,13 +968,8 @@
 			</svg>
 		</div>
 
-		{#if hoveredIndex !== null}
-			<TimelineTooltip
-				row={timelineItems[hoveredIndex]}
-				x={tooltipX}
-				y={tooltipY}
-				{checkStatuses}
-			/>
+		{#if hoveredRow}
+			<TimelineTooltip row={hoveredRow} x={tooltipX} y={tooltipY} {checkStatuses} />
 		{/if}
 	{/if}
 </div>
