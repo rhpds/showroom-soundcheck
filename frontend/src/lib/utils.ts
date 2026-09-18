@@ -136,8 +136,6 @@ export type TimeWindowFilter = (typeof VALID_TIME_WINDOWS)[number];
 
 export const ENVIRONMENT_VALUES = ['prod', 'dev', 'test', 'event'] as const;
 export type EnvironmentType = (typeof ENVIRONMENT_VALUES)[number];
-export const VALID_ENVIRONMENT_FILTERS = ['all', ...ENVIRONMENT_VALUES] as const;
-export type EnvironmentFilter = (typeof VALID_ENVIRONMENT_FILTERS)[number];
 
 const ENVIRONMENT_LABELS: Record<EnvironmentType, string> = {
 	prod: 'Prod',

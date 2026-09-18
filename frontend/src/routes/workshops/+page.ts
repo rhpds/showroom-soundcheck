@@ -4,7 +4,7 @@ import type { WorkshopListResponse, WorkshopStatus } from '$lib/types';
 import {
 	VALID_PROVISION_TYPES,
 	VALID_TIME_WINDOWS,
-	VALID_ENVIRONMENT_FILTERS,
+	ENVIRONMENT_VALUES,
 	ALL_WORKSHOP_STATUSES,
 	WORKSHOP_SIZE_STEPS,
 	WORKSHOP_SIZE_MIN,
@@ -12,7 +12,7 @@ import {
 	getTimeRange,
 	type ProvisionTypeFilter,
 	type TimeWindowFilter,
-	type EnvironmentFilter
+	type EnvironmentType
 } from '$lib/utils';
 
 function parseSizeParam(raw: string | null, fallback: number): number {
@@ -35,12 +35,15 @@ export const load: PageLoad = async ({ url }) => {
 		? (rawProvType as ProvisionTypeFilter)
 		: 'all';
 
-	const rawEnv = url.searchParams.get('environment') || (hasAnyParams ? 'all' : 'prod');
-	const environment: EnvironmentFilter = VALID_ENVIRONMENT_FILTERS.includes(
-		rawEnv as EnvironmentFilter
-	)
-		? (rawEnv as EnvironmentFilter)
-		: 'prod';
+	const rawEnvironments = url.searchParams.getAll('environment');
+	const selectedEnvironments: EnvironmentType[] =
+		rawEnvironments.length > 0
+			? rawEnvironments.filter((e): e is EnvironmentType =>
+					ENVIRONMENT_VALUES.includes(e as EnvironmentType)
+				)
+			: hasAnyParams
+				? []
+				: (['prod', 'event'] as EnvironmentType[]);
 
 	const rawStatuses = url.searchParams.getAll('status');
 	const selectedStatuses =
@@ -93,7 +96,7 @@ export const load: PageLoad = async ({ url }) => {
 			whiteGlove,
 			multiAssetOnly,
 			provisionType,
-			environment,
+			selectedEnvironments,
 			selectedStatuses,
 			hasFailures,
 			timeWindow,

@@ -12,7 +12,7 @@
 		WORKSHOP_SIZE_MAX,
 		type ProvisionTypeFilter,
 		type TimeWindowFilter,
-		type EnvironmentFilter
+		type EnvironmentType
 	} from '$lib/utils';
 	import WorkshopTimeline from '$lib/components/WorkshopTimeline.svelte';
 	import WorkshopSummaryCards from '$lib/components/WorkshopSummaryCards.svelte';
@@ -62,7 +62,7 @@
 	let whiteGlove = $state(pageData.filters.whiteGlove);
 	let multiAssetOnly = $state(pageData.filters.multiAssetOnly ?? false);
 	let provisionType = $state<ProvisionTypeFilter>(pageData.filters.provisionType);
-	let environment = $state<EnvironmentFilter>(pageData.filters.environment ?? 'all');
+	let selectedEnvironments = $state<EnvironmentType[]>(pageData.filters.selectedEnvironments ?? []);
 	let selectedStatuses = $state<WorkshopStatus[]>(pageData.filters.selectedStatuses);
 	let hasFailures = $state(pageData.filters.hasFailures);
 	let timeWindow = $state<TimeWindowFilter>(pageData.filters.timeWindow);
@@ -71,7 +71,9 @@
 	let search = $state(pageData.filters.search ?? '');
 
 	function matchesEnvironment(name: string): boolean {
-		return environment === 'all' || extractEnvironment(name) === environment;
+		if (selectedEnvironments.length === 0) return true;
+		const env = extractEnvironment(name);
+		return env !== null && selectedEnvironments.includes(env);
 	}
 
 	function matchesSize(usersTotal: number): boolean {
@@ -96,7 +98,7 @@
 		selectedClusters.length > 0 ||
 			whiteGlove ||
 			provisionType !== 'all' ||
-			environment !== 'all' ||
+			selectedEnvironments.length > 0 ||
 			selectedStatuses.length > 0 ||
 			hasFailures ||
 			timeWindow !== 'all' ||
@@ -109,7 +111,7 @@
 		selectedClusters = [];
 		whiteGlove = false;
 		provisionType = 'all';
-		environment = 'all';
+		selectedEnvironments = [];
 		selectedStatuses = [];
 		hasFailures = false;
 		timeWindow = 'all';
@@ -159,7 +161,7 @@
 		if (whiteGlove) params.set('white_glove', 'true');
 		if (multiAssetOnly) params.set('multi_asset', 'true');
 		if (provisionType !== 'all') params.set('provision_type', provisionType);
-		if (environment !== 'all') params.set('environment', environment);
+		for (const e of selectedEnvironments) params.append('environment', e);
 		for (const s of selectedStatuses) params.append('status', s);
 		if (hasFailures) params.set('has_failures', 'true');
 		if (minSize > WORKSHOP_SIZE_MIN) params.set('size_min', String(minSize));
@@ -268,7 +270,7 @@
 	bind:whiteGlove
 	bind:multiAssetOnly
 	bind:provisionType
-	bind:environment
+	bind:selectedEnvironments
 	bind:selectedStatuses
 	bind:hasFailures
 	bind:timeWindow
