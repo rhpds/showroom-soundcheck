@@ -173,9 +173,7 @@ def extract_workshop_item(
     # the Workshop's own creationTimestamp as a last resort, rather than letting
     # downstream consumers default to "now" (which would make an already-running
     # workshop look like it just started on every refresh).
-    lifespan_start = (
-        lifespan.get("start", "") or action_schedule.get("start", "") or meta.get("creationTimestamp", "")
-    )
+    lifespan_start = lifespan.get("start", "") or action_schedule.get("start", "") or meta.get("creationTimestamp", "")
     lifespan_end = lifespan.get("end", "")
     provision_ordered = provision_count.get("ordered", 0)
     provision_active = provision_count.get("active", 0)
