@@ -100,14 +100,18 @@
 
 	// `users_total` only reflects users actually assigned to a provisioned
 	// environment — it's 0 for every "scheduled" workshop that hasn't started
-	// provisioning yet. Fall back to `provision_ordered` (the intended/ordered
-	// seat count, populated as soon as the workshop is ordered) so the size
-	// filter doesn't spuriously exclude every not-yet-started workshop.
+	// provisioning yet, and stays far below `provision_ordered` (the
+	// intended/ordered instance count, populated as soon as the workshop is
+	// ordered) while provisioning is still in progress. A single workshop can
+	// therefore have very different user and instance counts at the same
+	// time (e.g. 120 instances ordered but only 2 users assigned so far), so
+	// collapsing them into one number (e.g. via `Math.max`) would make the
+	// size filter spuriously exclude/include workshops based on whichever
+	// count happens to be larger. Instead, match if *either* count falls
+	// within the selected range.
 	function matchesSize(item: WorkshopDashboardItem): boolean {
-		const size = Math.max(item.users_total, item.provision_ordered);
-		if (size < minSize) return false;
-		if (maxSize < WORKSHOP_SIZE_MAX && size > maxSize) return false;
-		return true;
+		const inRange = (n: number) => n >= minSize && (maxSize >= WORKSHOP_SIZE_MAX || n <= maxSize);
+		return inRange(item.users_total) || inRange(item.provision_ordered);
 	}
 
 	let filteredItems = $derived(
