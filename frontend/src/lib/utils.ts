@@ -35,7 +35,7 @@ export function getTimeRange(timeWindow: TimeWindowFilter): {
 	}
 }
 
-import type { WorkshopStatus } from './types';
+import type { WorkshopDashboardItem, WorkshopStatus, WorkshopSummary } from './types';
 
 export interface WorkshopStatusStyle {
 	bg: string;
@@ -126,6 +126,53 @@ export function workshopStatusTextColor(status: WorkshopStatus): string {
 
 export function workshopStatusBorder(status: WorkshopStatus): string {
 	return workshopStatusStyle(status).border;
+}
+
+/**
+ * Compute workshop summary counts from a concrete list of items, mirroring
+ * the backend's `build_summary()`. Used so the summary cards on /workshops
+ * reflect client-only filters (environment, size range, multi-asset-only)
+ * that never reach the server, rather than the server's own summary (which
+ * only accounts for server-side filters and goes stale once a client-only
+ * filter narrows what's actually displayed).
+ */
+export function buildWorkshopSummary(items: WorkshopDashboardItem[]): WorkshopSummary {
+	const summary: WorkshopSummary = {
+		total: items.length,
+		scheduled: 0,
+		provisioning: 0,
+		running: 0,
+		stopped: 0,
+		degraded: 0,
+		failed: 0,
+		completed: 0
+	};
+	for (const item of items) {
+		switch (item.status) {
+			case 'scheduled':
+				summary.scheduled++;
+				break;
+			case 'provisioning':
+				summary.provisioning++;
+				break;
+			case 'running':
+				summary.running++;
+				break;
+			case 'stopped':
+				summary.stopped++;
+				break;
+			case 'degraded':
+				summary.degraded++;
+				break;
+			case 'failed':
+				summary.failed++;
+				break;
+			case 'completed':
+				summary.completed++;
+				break;
+		}
+	}
+	return summary;
 }
 
 export const VALID_PROVISION_TYPES = ['all', 'self_service', 'demo_team'] as const;

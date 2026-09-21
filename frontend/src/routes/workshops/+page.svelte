@@ -8,6 +8,7 @@
 	import {
 		getTimeRange,
 		extractEnvironment,
+		buildWorkshopSummary,
 		WORKSHOP_SIZE_MIN,
 		WORKSHOP_SIZE_MAX,
 		type ProvisionTypeFilter,
@@ -114,6 +115,24 @@
 	);
 
 	let hasContent = $derived(filteredItems.length > 0 || filteredMultiWorkshops.length > 0);
+
+	// The server's `data.summary` only accounts for filters sent to the API
+	// (cluster, status, white_glove, provision_type, has_failures, time
+	// window, search). Environment, size range, and "multi-asset only" are
+	// applied purely client-side, so once any of those narrow what's
+	// rendered, `data.summary` goes stale relative to what's on screen.
+	// Recompute the summary from the same items actually being displayed so
+	// the counters always match the timeline below.
+	let displayedSummary = $derived(
+		buildWorkshopSummary([
+			...(multiAssetOnly ? [] : filteredItems),
+			...(data.multi_workshops ?? []).flatMap((mw) =>
+				mw.children.filter(
+					(child) => matchesEnvironment(child.name) && matchesSize(child.users_total)
+				)
+			)
+		])
+	);
 
 	let hasActiveFilters = $derived(
 		selectedClusters.length > 0 ||
@@ -283,7 +302,7 @@
 	</div>
 </div>
 
-<WorkshopSummaryCards summary={data.summary} />
+<WorkshopSummaryCards summary={displayedSummary} />
 
 <WorkshopFilterBar
 	{clusters}
