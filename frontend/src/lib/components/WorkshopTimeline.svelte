@@ -67,16 +67,60 @@
 	const MWS_ROW_HEIGHT = 52;
 	const SCROLL_CHROME = 18; // .timeline-scroll padding (8*2) + border (1*2)
 
+	// Lifecycle timestamps for a single workshop bar:
+	//  - scheduledMs: when it's scheduled/actually started (lifespan_start, with
+	//    a backend fallback to actionSchedule.start when lifespan.start is unset)
+	//  - destroyMs: when the environment will be/was reclaimed (lifespan_end)
+	//  - createdMs: when the Workshop resource was created (null skips the dotted lead-in)
+	//  - stopMs: when auto/manual stop happens, only set if it falls strictly
+	//    between scheduledMs and destroyMs and auto-stop isn't disabled
+	interface WorkshopTimes {
+		scheduledMs: number;
+		destroyMs: number;
+		createdMs: number | null;
+		stopMs: number | null;
+	}
+
+	function computeWorkshopTimes(
+		item: WorkshopDashboardItem,
+		fallbackStart: number,
+		fallbackEnd: number
+	): WorkshopTimes {
+		const scheduledMs = item.lifespan_start
+			? new Date(item.lifespan_start).getTime()
+			: fallbackStart;
+		let destroyMs = item.lifespan_end ? new Date(item.lifespan_end).getTime() : fallbackEnd;
+		if (isNaN(destroyMs) || destroyMs <= scheduledMs) destroyMs = scheduledMs + 3600000;
+
+		let createdMs: number | null = item.created_at ? new Date(item.created_at).getTime() : null;
+		if (createdMs !== null && (isNaN(createdMs) || createdMs >= scheduledMs)) createdMs = null;
+
+		let stopMs: number | null = null;
+		if (!item.disable_auto_stop && item.action_stop) {
+			const candidate = new Date(item.action_stop).getTime();
+			if (!isNaN(candidate) && candidate > scheduledMs && candidate < destroyMs) {
+				stopMs = candidate;
+			}
+		}
+
+		return { scheduledMs, destroyMs, createdMs, stopMs };
+	}
+
 	type TimelineRow =
-		| { kind: 'workshop'; item: WorkshopDashboardItem; startMs: number; endMs: number }
+		| ({
+				kind: 'workshop';
+				item: WorkshopDashboardItem;
+				startMs: number;
+				endMs: number;
+		  } & WorkshopTimes)
 		| { kind: 'multi'; item: MultiWorkshopDashboardItem; startMs: number; endMs: number }
-		| {
+		| ({
 				kind: 'child';
 				item: WorkshopDashboardItem;
 				parentName: string;
 				startMs: number;
 				endMs: number;
-		  };
+		  } & WorkshopTimes);
 
 	let timelineItems = $derived.by(() => {
 		const now = Date.now();
@@ -98,13 +142,17 @@
 		}
 
 		for (const item of items) {
-			const startMs = item.lifespan_start ? new Date(item.lifespan_start).getTime() : now;
-			let endMs = item.lifespan_end ? new Date(item.lifespan_end).getTime() : now + 4 * 3600000;
-			if (endMs <= startMs) endMs = startMs + 3600000;
-			if (!isNaN(startMs) && !isNaN(endMs)) {
+			const times = computeWorkshopTimes(item, now, now + 4 * 3600000);
+			if (!isNaN(times.scheduledMs) && !isNaN(times.destroyMs)) {
 				standaloneRows.push({
-					row: { kind: 'workshop', item, startMs, endMs },
-					sortMs: startMs
+					row: {
+						kind: 'workshop',
+						item,
+						startMs: times.scheduledMs,
+						endMs: times.destroyMs,
+						...times
+					},
+					sortMs: times.scheduledMs
 				});
 			}
 		}
@@ -116,17 +164,14 @@
 			rows.push(row);
 			if (row.kind === 'multi' && expandedMultiWorkshops.has(row.item.name)) {
 				for (const child of row.item.children) {
-					const childStart = child.lifespan_start
-						? new Date(child.lifespan_start).getTime()
-						: row.startMs;
-					let childEnd = child.lifespan_end ? new Date(child.lifespan_end).getTime() : row.endMs;
-					if (childEnd <= childStart) childEnd = childStart + 3600000;
+					const times = computeWorkshopTimes(child, row.startMs, row.endMs);
 					rows.push({
 						kind: 'child',
 						item: child,
 						parentName: row.item.name,
-						startMs: childStart,
-						endMs: childEnd
+						startMs: times.scheduledMs,
+						endMs: times.destroyMs,
+						...times
 					});
 				}
 			}
@@ -538,6 +583,13 @@
 						{/if}
 					{:else if tRow.kind === 'child'}
 						{@const child = tRow.item}
+						{@const destroyX = barX + barWidth}
+						{@const rawStopX = tRow.stopMs !== null ? msToX(tRow.stopMs) : null}
+						{@const stopX = rawStopX !== null ? Math.min(Math.max(rawStopX, barX), destroyX) : null}
+						{@const greyWidth = stopX !== null ? Math.max(destroyX - stopX, 0) : 0}
+						{@const rawCreatedX = tRow.createdMs !== null ? msToX(tRow.createdMs) : null}
+						{@const createdX = rawCreatedX !== null ? Math.max(rawCreatedX, 0) : null}
+						{@const showLeadIn = createdX !== null && createdX < barX}
 						<!-- Child workshop two-line label (indented) -->
 						<foreignObject x="0" {y} width={LABEL_WIDTH} height={h}>
 							<div class="tl-label-col tl-label-col--child">
@@ -631,6 +683,21 @@
 							</div>
 						</foreignObject>
 
+						<!-- Lead-in: created but not yet scheduled to start -->
+						{#if showLeadIn}
+							<line
+								x1={LABEL_WIDTH + createdX}
+								y1={y + h / 2}
+								x2={LABEL_WIDTH + barX}
+								y2={y + h / 2}
+								stroke={workshopStatusBorder(child.status)}
+								stroke-width="1.5"
+								stroke-dasharray="2 2"
+								pointer-events="none"
+								aria-hidden="true"
+							/>
+						{/if}
+
 						<!-- Child bar -->
 						{#if child.catalog_url}
 							<a
@@ -675,6 +742,20 @@
 								onmouseleave={() => (hoveredKey = null)}
 								onfocus={() => handleBarFocus(key)}
 								onblur={() => (hoveredKey = null)}
+							/>
+						{/if}
+
+						<!-- Stopped-but-not-destroyed buffer -->
+						{#if stopX !== null && greyWidth > 0}
+							<rect
+								x={LABEL_WIDTH + stopX}
+								{y}
+								width={greyWidth}
+								height={h}
+								fill={workshopStatusBg('stopped')}
+								opacity="0.45"
+								pointer-events="none"
+								aria-hidden="true"
 							/>
 						{/if}
 
@@ -745,6 +826,13 @@
 						{/if}
 					{:else}
 						{@const tItem = tRow}
+						{@const destroyX = barX + barWidth}
+						{@const rawStopX = tRow.stopMs !== null ? msToX(tRow.stopMs) : null}
+						{@const stopX = rawStopX !== null ? Math.min(Math.max(rawStopX, barX), destroyX) : null}
+						{@const greyWidth = stopX !== null ? Math.max(destroyX - stopX, 0) : 0}
+						{@const rawCreatedX = tRow.createdMs !== null ? msToX(tRow.createdMs) : null}
+						{@const createdX = rawCreatedX !== null ? Math.max(rawCreatedX, 0) : null}
+						{@const showLeadIn = createdX !== null && createdX < barX}
 						<!-- Standalone workshop two-line label -->
 						<foreignObject x="0" {y} width={LABEL_WIDTH} height={h}>
 							<div class="tl-label-col">
@@ -848,6 +936,21 @@
 							</div>
 						</foreignObject>
 
+						<!-- Lead-in: created but not yet scheduled to start -->
+						{#if showLeadIn}
+							<line
+								x1={LABEL_WIDTH + createdX}
+								y1={y + h / 2}
+								x2={LABEL_WIDTH + barX}
+								y2={y + h / 2}
+								stroke={workshopStatusBorder(tItem.item.status)}
+								stroke-width="1.5"
+								stroke-dasharray="2 2"
+								pointer-events="none"
+								aria-hidden="true"
+							/>
+						{/if}
+
 						<!-- Bar -->
 						{#if tItem.item.catalog_url}
 							<a
@@ -892,6 +995,20 @@
 								onmouseleave={() => (hoveredKey = null)}
 								onfocus={() => handleBarFocus(key)}
 								onblur={() => (hoveredKey = null)}
+							/>
+						{/if}
+
+						<!-- Stopped-but-not-destroyed buffer -->
+						{#if stopX !== null && greyWidth > 0}
+							<rect
+								x={LABEL_WIDTH + stopX}
+								{y}
+								width={greyWidth}
+								height={h}
+								fill={workshopStatusBg('stopped')}
+								opacity="0.45"
+								pointer-events="none"
+								aria-hidden="true"
 							/>
 						{/if}
 

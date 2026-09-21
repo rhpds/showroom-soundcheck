@@ -76,10 +76,12 @@ def derive_status(
             pass
 
     rc_state = resource_claim_state.lower().replace(" ", "-") if resource_claim_state else ""
-    if rc_state in ("started", "running", "available"):
+    if rc_state in ("started", "running", "available", "starting"):
         return "running"
     if rc_state in ("stopped", "stop-pending", "stopping"):
         return "stopped"
+    if rc_state == "provisioning":
+        return "provisioning"
     if rc_state in ("provision-failed", "failed", "stop-error"):
         return "failed"
 
@@ -163,7 +165,17 @@ def extract_workshop_item(
     provision_count = status.get("provisionCount", {})
     user_count = status.get("userCount", {})
 
-    lifespan_start = lifespan.get("start", "")
+    # Some Workshops never get spec.lifespan.start populated (e.g. immediate-start
+    # orders where only actionSchedule is set). actionSchedule.start is always kept
+    # live by the platform (including on manual start/stop), so it's a safe fallback
+    # for "when did/will this workshop actually start". Some Workshops (ordered
+    # without any explicit schedule) have neither field set at all — fall back to
+    # the Workshop's own creationTimestamp as a last resort, rather than letting
+    # downstream consumers default to "now" (which would make an already-running
+    # workshop look like it just started on every refresh).
+    lifespan_start = (
+        lifespan.get("start", "") or action_schedule.get("start", "") or meta.get("creationTimestamp", "")
+    )
     lifespan_end = lifespan.get("end", "")
     provision_ordered = provision_count.get("ordered", 0)
     provision_active = provision_count.get("active", 0)
@@ -207,6 +219,7 @@ def extract_workshop_item(
         workshop_url=status.get("workshopURL", ""),
         catalog_url=catalog_url,
         status=derived_status,
+        created_at=meta.get("creationTimestamp", ""),
         lifespan_start=lifespan_start,
         lifespan_end=lifespan_end,
         ready_by=lifespan.get("readyBy", ""),

@@ -85,8 +85,14 @@
 		{#if ws.catalog_item}
 			<span>Catalog: {ws.catalog_item}</span>
 		{/if}
-		<span>Start: {fmtDateTime(ws.lifespan_start)}</span>
-		<span>End: {fmtDateTime(ws.lifespan_end)}</span>
+		{#if ws.created_at && ws.created_at !== ws.lifespan_start}
+			<span>Created: {fmtDateTime(ws.created_at)}</span>
+		{/if}
+		<span>Scheduled start: {fmtDateTime(ws.lifespan_start)}</span>
+		{#if !ws.disable_auto_stop && ws.action_stop}
+			<span>Auto-stop: {fmtDateTime(ws.action_stop)}</span>
+		{/if}
+		<span>Destroy: {fmtDateTime(ws.lifespan_end)}</span>
 		<span>Cluster: {ws.cluster}</span>
 		<span>Status: {workshopStatusLabel(ws.status)}</span>
 		<span>Instances: {ws.provision_active}/{ws.provision_ordered}</span>
