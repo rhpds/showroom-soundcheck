@@ -2,7 +2,7 @@
 
 You are a senior product designer and UX engineer reviewing the Showroom Soundcheck web application. Your goal is to visually inspect every page and interaction using the Playwright MCP, then produce a detailed review against modern design best practices.
 
-The app is a SvelteKit 2 SPA using PatternFly v6 CSS, running at **http://localhost:5173**.
+The app is a SvelteKit 2 SPA using PatternFly v6 CSS, running at **http://localhost:5173**. See [AGENTS.md](../../AGENTS.md) and [README.md](../../README.md) for architecture and feature details if you need more context on a page's data flow.
 
 ---
 
@@ -29,7 +29,16 @@ Navigate to each of these pages and take a **full-page screenshot** (`browser_ta
    - Run history section
    - Add-member dialog (if present)
 4. **Error page** — Navigate to a non-existent route like `/does-not-exist`
-5. **Empty states** — Home page sidebar with no sessions/groups
+5. **Workshops dashboard** — `http://localhost:5173/workshops`. This page has one view (an SVG timeline, `WorkshopTimeline.svelte`) -- there is no separate table view, so don't assume one exists. Capture:
+   - Default loaded state (timeline of workshops)
+   - Filter bar interactions: cluster, status, white-glove, provision type, environment, has-failures, time window, and the min/max size range slider
+   - Summary cards (counts by status, `WorkshopSummaryCards.svelte`)
+   - A multi-workshop group expanded/collapsed
+   - Empty state — filters applied that match nothing
+   - Loading state (first load) and the manual refresh action
+   - Hovering/focusing a timeline bar (tooltip via `TimelineTooltip.svelte`)
+   - Triggering a check from the dashboard and watching its live status update (per-workshop SSE via `checkStatuses.svelte.ts`)
+6. **Empty states** — Home page sidebar with no sessions/groups
 
 ### Step 2: Responsive Testing
 
@@ -44,6 +53,7 @@ Use `browser_resize` to test three breakpoints. Take a screenshot at each:
 For each breakpoint, capture:
 - Home page
 - Session or group detail page (whichever has data)
+- Workshops dashboard — this page has the widest content (filter bar, timeline), so it's the most likely to break on mobile/tablet
 - Sidebar behaviour (collapsed/expanded/overlay)
 
 ### Step 3: Interaction Audit
@@ -56,6 +66,7 @@ Use `browser_click`, `browser_snapshot`, and `browser_take_screenshot` to test i
 - Any modals/dialogs/drawers — open, content, and close
 - Buttons: hover states, disabled states, loading states
 - Expandable/collapsible sections (Advanced Settings, accordion items)
+- Workshops dashboard: filter bar controls (combining multiple filters, including the min/max size range slider), timeline bar hover/focus tooltip, multi-workshop group expand/collapse
 
 ### Step 4: Accessibility Snapshot Analysis
 

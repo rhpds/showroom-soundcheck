@@ -4,59 +4,9 @@ You are a senior software engineer performing a thorough codebase hygiene audit 
 
 ## Codebase Overview
 
-This is a two-part application:
+See [AGENTS.md](../../AGENTS.md) for conventions and [README.md](../../README.md#architecture) for the full, current backend (`backend/soundcheck/`) and frontend (`frontend/src/`) file trees -- don't re-derive them here; re-list a file in this audit's findings only if you're flagging it as dead/stale. Infrastructure lives in `deploy/` (OpenShift manifests), `.github/` (Actions), and `scripts/`.
 
-- **Backend**: FastAPI + SQLModel + SAQ (async task queue) + Redis, located in `backend/soundcheck/`
-- **Frontend**: SvelteKit 2 SPA with Svelte 5 runes and PatternFly v6 CSS, located in `frontend/src/`
-- **Infrastructure**: Docker/Podman compose, OpenShift deploy manifests in `deploy/`, GitHub Actions in `.github/`, scripts in `scripts/`
-
-### Backend Architecture
-
-```
-backend/soundcheck/
-├── main.py              # FastAPI app, lifespan, CORS, router includes
-├── config.py            # Env-var config
-├── database.py          # Async engine, session factory
-├── models.py            # SQLModel table models
-├── schemas.py           # Pydantic request/response schemas
-├── utils.py             # GUID extraction, URL allowlist, input validation
-├── worker.py            # SAQ queue definitions, lifecycle hooks
-├── routes/
-│   ├── health.py        # GET /ping, /health, /config/clusters
-│   ├── check.py         # GET /check (deep-link session creation)
-│   ├── sessions.py      # Session CRUD, clone, run, SSE streaming
-│   ├── groups.py        # Group CRUD, members, run, sync-metadata
-│   └── _serializers.py  # Shared response serialization helpers
-├── services/
-│   ├── check_service.py  # Health check engine
-│   ├── session_service.py # Session/group DB orchestration
-│   ├── babylon_service.py # K8s GUID/Workshop/ResourcePool resolution
-│   └── babylon_client.py  # httpx K8s API client manager
-└── tasks/
-    ├── __init__.py      # TaskContext TypedDict
-    ├── orchestration.py # Coordinator tasks
-    ├── checks.py        # Leaf task: check_target
-    └── events.py        # Redis Pub/Sub helpers
-```
-
-### Frontend Architecture
-
-```
-frontend/src/
-├── routes/
-│   ├── +layout.svelte       # Root layout with sidebar
-│   ├── +page.svelte          # Home page (new check / new group tabs)
-│   ├── sessions/             # Session list
-│   ├── sessions/new/         # Create session form
-│   ├── session/[id]/         # Session detail with live SSE updates
-│   ├── groups/               # Group list + create
-│   ├── group/[id]/           # Group management + run history
-│   └── check/                # Deep-link redirect
-└── lib/
-    ├── api.ts               # Typed API client
-    ├── types.ts             # TypeScript types/interfaces
-    └── components/          # Shared UI components
-```
+**Don't skip the newer modules** when doing your file-by-file sweep -- they're easy to miss if working from an outdated mental model of the codebase: backend `routes/workshops.py`, `routes/_sse.py`, `services/workshop_service.py`, `schemas_workshops.py`; frontend `routes/workshops/`, and components `GroupSection.svelte`, `RangeSlider.svelte`, `TimelineTooltip.svelte`, `WorkshopFilterBar.svelte`, `WorkshopSummaryCards.svelte`, `WorkshopTimeline.svelte`, plus `lib/checkStatuses.svelte.ts`.
 
 ---
 
@@ -117,12 +67,13 @@ Systematically check for:
   - Comments explaining "why" something is done a certain way when the code now does it differently.
 - **Outdated docstrings**: Function/class docstrings that list parameters, return types, or behaviors that don't match the current signature or implementation.
 - **Stale TODOs**: `TODO`, `FIXME`, `HACK`, `XXX`, or `WORKAROUND` comments — for each one, evaluate whether the issue has been addressed, is still relevant, or refers to something that no longer exists.
-- **README drift**: Check `README.md` against the actual codebase:
-  - Are all listed environment variables still used?
-  - Does the architecture diagram match the current file layout?
+- **README / AGENTS.md drift**: Check `README.md` and `AGENTS.md` against the actual codebase:
+  - Are all listed environment variables still used? Are any `config.py` settings missing from README's env var table?
+  - Does README's architecture diagram match the current file layout?
   - Are the listed commands (`make lint`, `make format`, etc.) still valid?
   - Do the listed URLs, ports, and service names match docker-compose?
-  - Are features described that no longer exist, or missing features that do exist?
+  - Are features described that no longer exist, or missing features that do exist (e.g. a new dashboard/page with no README section)?
+  - Do `AGENTS.md`'s "architectural rules" and "Testing (current state)" section still match reality (e.g. if a real test suite has since been built out, that section is now stale and should say so)?
 - **Stale API documentation**: If there are OpenAPI overrides, docstrings on routes, or external API docs, verify they match the current route signatures, request/response schemas, and behavior.
 - **Outdated type annotations**: Type hints that don't match the actual runtime types (e.g., a function annotated as returning `str` but actually returns `dict`).
 

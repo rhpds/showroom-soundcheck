@@ -4,61 +4,16 @@ You are an expert Python test engineer specializing in **FastAPI**, **pytest-asy
 
 ## Codebase Overview
 
-This is a fully async Python 3.12+ FastAPI application that performs health checks against "showroom" lab environments. It deploys to both OpenShift and VMs.
+This is a fully async Python 3.12+ FastAPI application that performs health checks against "showroom" lab environments. It deploys to both OpenShift and VMs. See [AGENTS.md](../../AGENTS.md) for the tech stack, architectural rules (SAQ two-queue design, streaming-first/SSE, testing current-state), and conventions -- this plan assumes that context. Full file tree: [README.md](../../README.md#architecture).
 
-### Tech Stack
+**A minimal test suite already exists**: `pytest` is listed under `[project.optional-dependencies].dev` in `pyproject.toml`, and `[tool.pytest.ini_options]` is configured (`pythonpath = ["."]`). `backend/tests/test_config.py` already covers `config.py` settings parsing in depth. There is no `conftest.py`, no `__init__.py`, and no fixtures yet -- this plan extends that starting point rather than building from scratch.
 
-| Category | Technology |
-|----------|------------|
-| Language | Python >= 3.12 |
-| Web framework | FastAPI + Uvicorn (ASGI) |
-| ORM / models | SQLModel (Pydantic v2 + SQLAlchemy 2.x async) |
-| DB driver | asyncpg (via `sqlalchemy[asyncio]`) |
-| Database | PostgreSQL 16 |
-| Migrations | Alembic (async) |
-| Task queue | SAQ (`saq[redis,web,hiredis]`) — two queues: `orchestration` + `checks` |
-| Cache / pub-sub | Redis (hiredis accelerated) |
-| HTTP client | httpx (async) — health probes + Kubernetes API |
-| Config | Environment variables parsed in `config.py` |
-| Linting | Ruff |
+### Key Patterns to Be Aware Of (testing-specific)
 
-### Architecture
-
-```
-soundcheck/
-├── main.py              # FastAPI app, lifespan, CORS, router includes
-├── config.py            # Env-var config: DB URLs, REDIS_URL, concurrency settings
-├── database.py          # Async engine, session factory, DbSession dependency
-├── models.py            # SQLModel table models (CheckSession, SessionTarget, CheckResult, SessionGroup, GroupRun)
-├── schemas.py           # Pydantic v2 request/response schemas
-├── utils.py             # GUID extraction, URL allowlist (SSRF), input validation, display labels
-├── worker.py            # SAQ queue definitions, lifecycle hooks, settings dicts
-├── routes/
-│   ├── health.py        # GET /ping, /health, /config/clusters
-│   ├── check.py         # GET /check (deep-link session creation)
-│   ├── sessions.py      # Session CRUD, clone, run, pin, SSE streaming
-│   ├── groups.py        # Group CRUD, members, run, sync-metadata, SSE streaming
-│   └── _serializers.py  # Shared response serialization helpers
-├── services/
-│   ├── check_service.py  # HTTP health check engine (single-target checks, no DB)
-│   ├── session_service.py # Session/group DB orchestration, finalization
-│   ├── babylon_service.py # K8s GUID/Workshop/ResourcePool resolution
-│   └── babylon_client.py  # httpx-based K8s API client manager
-└── tasks/
-    ├── __init__.py      # TaskContext TypedDict for typed SAQ worker ctx
-    ├── orchestration.py # Coordinator tasks: run_session_checks, run_group, run_single_source, sync_metadata, sweep_stale_sessions
-    ├── checks.py        # Leaf task: check_target (individual HTTP health checks)
-    └── events.py        # Redis Pub/Sub helpers: publish_session_event, publish_group_event
-```
-
-### Key Patterns to Be Aware Of
-
-- **Two-queue SAQ design**: `orchestration` queue fans out work to the `checks` queue. Tasks receive a `ctx` dict containing `session_factory` (async DB session maker) and `redis` (Redis client).
 - **Fully async**: ~75+ `async def` functions. All DB access via `AsyncSession`, HTTP via `httpx.AsyncClient`, concurrency via `asyncio.gather()` and `asyncio.Semaphore`.
 - **Engine at import time**: `database.py` creates the SQLAlchemy async engine at module load. Tests must set env vars or mock before importing.
-- **Redis Pub/Sub for SSE**: Routes subscribe to Redis channels for real-time streaming; tasks publish events on session/group progress.
 - **Row-level locking**: Session finalization uses `SELECT ... FOR UPDATE` to prevent race conditions.
-- **SSRF protection**: `utils.py` validates URLs against an `ALLOWED_URL_PATTERNS` hostname allowlist.
+- **In-memory caches**: `workshop_service.py` keeps module-level `_ws_cache`/`_mws_cache` dicts refreshed by a background `asyncio` loop (`start_background_refresh()`/`stop_background_refresh()`) -- tests that import this module repeatedly in the same process should reset or isolate this state.
 
 ---
 
@@ -74,10 +29,12 @@ Target pure functions and isolated logic with no external dependencies.
 |--------|-------------|
 | `utils.py` | `extract_guids()`, `extract_urls()`, `is_url_allowed()`, `normalize_url()`, `sanitize_error()`, `make_display_label()`, GUID regex patterns, edge cases (empty input, malformed URLs, unicode) |
 | `schemas.py` | Pydantic model validation — required fields, defaults, coercion, rejection of invalid input, serialization round-trips |
+| `schemas_workshops.py` | Same as above for `WorkshopDashboardItem`, `MultiWorkshopDashboardItem`, `WorkshopCheckStatusRequest`/`Response`, `WorkshopSummary` |
 | `models.py` | Model instantiation, JSON helper methods, default values, field constraints |
-| `config.py` | Config parsing from env vars, default fallbacks, URL construction (`get_async_db_url`, `get_sync_db_url`) |
+| `config.py` | Config parsing from env vars, default fallbacks, URL construction (`get_async_db_url`, `get_sync_db_url`) -- **already covered** by `backend/tests/test_config.py`; extend rather than duplicate |
 | `_serializers.py` | Serialization output format, null handling, optional field behavior |
 | `tasks/events.py` | Event payload construction (mock the Redis client) |
+| `routes/_sse.py` | `sse_capacity_guard()` -- semaphore exhaustion raises 503, releases on generator exit, allows through when capacity available (mock `asyncio.Semaphore`) |
 
 **Mocking guidance**: These tests should need zero mocks for pure functions. For `config.py`, use `monkeypatch.setenv()`. For `events.py`, mock only the Redis `publish` call.
 
@@ -91,6 +48,7 @@ Test service-layer business logic with mocked or in-memory dependencies.
 | `session_service.py` | Session CRUD, target resolution, finalization logic, stale session cleanup, pagination | Real async SQLite or PostgreSQL via testcontainers; mock SAQ queue |
 | `babylon_service.py` | GUID resolution, workshop lookup, resource pool expansion, error handling for missing/partial K8s resources | Mock `babylon_client` functions to return fixture K8s API responses |
 | `babylon_client.py` | Kubeconfig parsing, client creation, K8s API request construction, error handling | Mock `httpx.AsyncClient`; use fixture kubeconfig files |
+| `workshop_service.py` | `derive_status()` lifecycle logic (all provision/lifespan/ResourceClaim combinations); `fetch_workshops_cached()`/`fetch_multiworkshops_cached()` cache hit/cold-start/refresh behavior; `matches_filters()`/`multiworkshop_matches_search()`; background refresh loop start/stop idempotency | Mock `babylon_client` for K8s responses; monkeypatch `time.monotonic()` for cache-TTL tests; reset `_ws_cache`/`_mws_cache` module dicts between tests |
 
 ### Layer 3: Route / Integration Tests (medium priority)
 
@@ -102,6 +60,7 @@ Test API endpoints end-to-end through FastAPI's `TestClient` (or `httpx.ASGITran
 | `routes/sessions.py` | Session creation (valid/invalid input), listing with pagination, detail fetch, clone, pin toggle, delete, SSE stream connection |
 | `routes/groups.py` | Group creation, member management (add/remove), run triggering, metadata sync, SSE stream |
 | `routes/check.py` | Deep-link query param parsing, redirect behavior, error handling for missing/invalid params |
+| `routes/workshops.py` | `GET /workshops` filtering (cluster, status, white-glove, time window) across mocked clusters; partial-cluster-failure handling (`asyncio.gather(..., return_exceptions=True)`); `POST /workshops/check-status` raw-SQL lookup against seeded `sessions` rows (bound-parameter correctness, matches by `source_workshop_guids`) |
 
 **Setup**: Use `httpx.AsyncClient` with `ASGITransport(app=app)` for async test support. Override FastAPI dependencies (`app.dependency_overrides`) to inject test DB sessions and mock queues.
 
@@ -136,11 +95,11 @@ ctx = {
 
 ### Dependencies to Add
 
-Add these to `pyproject.toml` under `[project.optional-dependencies]`:
+`pytest` is already listed under `dev` in `pyproject.toml` (alongside `ruff`) and `backend/tests/test_config.py` already uses it. Add a dedicated `test` extra for everything else, and move to `pytest-asyncio`'s stricter config once added:
 
 ```toml
 [project.optional-dependencies]
-dev = ["ruff"]
+dev = ["ruff", "pytest"]
 test = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
@@ -158,10 +117,11 @@ test = [
 
 ### pytest Configuration
 
-Add to `pyproject.toml`:
+`pyproject.toml` already has a minimal `[tool.pytest.ini_options]` (`pythonpath = ["."]`). Extend it:
 
 ```toml
 [tool.pytest.ini_options]
+pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
@@ -206,6 +166,8 @@ directory = "htmlcov"
 
 ### Directory Structure
 
+`backend/tests/test_config.py` already exists at the top level of `tests/` (not under `unit/`). Either move it into `tests/unit/test_config.py` as part of this restructure, or leave it in place and match its convention -- call this out explicitly in your output so it's a deliberate choice, not an oversight.
+
 ```
 backend/
 ├── tests/
@@ -215,21 +177,24 @@ backend/
 │   │   ├── __init__.py
 │   │   ├── test_utils.py
 │   │   ├── test_schemas.py
+│   │   ├── test_schemas_workshops.py
 │   │   ├── test_models.py
-│   │   ├── test_config.py
+│   │   ├── test_config.py       # already exists at tests/test_config.py -- relocate or match its convention
 │   │   └── test_serializers.py
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── test_check_service.py
 │   │   ├── test_session_service.py
 │   │   ├── test_babylon_service.py
-│   │   └── test_babylon_client.py
+│   │   ├── test_babylon_client.py
+│   │   └── test_workshop_service.py
 │   ├── routes/
 │   │   ├── __init__.py
 │   │   ├── test_health.py
 │   │   ├── test_sessions.py
 │   │   ├── test_groups.py
-│   │   └── test_check.py
+│   │   ├── test_check.py
+│   │   └── test_workshops.py
 │   ├── tasks/
 │   │   ├── __init__.py
 │   │   ├── test_orchestration.py
@@ -490,7 +455,7 @@ async def test_example(db_session):
 
 Follow this order when building the test suite:
 
-1. **Set up infrastructure**: Add test dependencies to `pyproject.toml`, create `tests/` directory structure, write `conftest.py` with core fixtures.
+1. **Extend the existing setup**: `pytest` + a minimal `pyproject.toml` config + `tests/test_config.py` already exist -- add the remaining test dependencies, build out the `tests/` subdirectory structure around what's there (don't recreate `test_config.py`'s coverage), and write `conftest.py` with core fixtures.
 
 2. **Unit tests first** (`utils.py`, `schemas.py`, `config.py`): These are fast to write, need no mocks, and establish the testing pattern. Aim for >= 90% coverage on `utils.py`.
 

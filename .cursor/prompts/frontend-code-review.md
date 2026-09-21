@@ -6,12 +6,7 @@ For each finding, cite the file, line(s), severity (critical / warning / suggest
 
 ## Backend Context (for understanding data flow)
 
-The frontend communicates with a FastAPI backend that uses:
-- **SAQ (Simple Async Queue)** with Redis for background job processing (health checks are enqueued, not run inline)
-- **Redis Pub/Sub** for real-time SSE event streaming (session progress events flow: SAQ worker → Redis Pub/Sub → SSE endpoint → EventSource in browser)
-- Routes return immediately after enqueuing work; the frontend must rely on SSE streams for progress updates
-
-**Not all pages use SSE.** The workshops dashboard is a read-only REST page (no streaming). Sections about SSE/streaming apply only to session and group pages.
+See [AGENTS.md](../../AGENTS.md) for the full streaming-first/SSE architecture and the workshops-dashboard-is-REST-only exception -- this review assumes that context. Short version: session/group pages rely on SSE (SAQ worker → Redis Pub/Sub → SSE endpoint → browser `EventSource`); the workshops dashboard (`routes/workshops/`) is REST-only (no streaming). Sections about SSE/streaming below apply only to session and group pages.
 
 ---
 
@@ -24,6 +19,7 @@ The frontend communicates with a FastAPI backend that uses:
 - **`$props()` typing**: Prefer inline type annotation `let { foo, bar }: Props = $props()` with a named interface/type for components with 3+ props.
 - **`$bindable()` two-way props**: `$bindable()` creates two-way bindings between parent and child. Verify that `$bindable` is only used when the child genuinely needs to write back to the parent (e.g. filter bar updating filter state). Read-only data flowing downward should use plain `$props()`, not `$bindable()`. Also verify that parent components use `bind:propName` on the child — passing a `$bindable` prop without `bind:` silently drops writes.
 - **Cleanup in `$effect`**: Every `$effect` that creates a subscription (EventSource, setInterval, addEventListener, ResizeObserver) must return a cleanup function. Verify cleanup runs before re-execution and on destroy.
+- **`.svelte.ts` runes-based factories**: `lib/checkStatuses.svelte.ts` exports `createCheckStatusManager()`, a factory that uses runes (`$state.raw`) inside a plain `.ts`-adjacent module (the `.svelte.ts` extension is what enables rune syntax outside `.svelte` files) and exposes the state via getters, not by returning the raw `$state` value directly (which would lose reactivity for callers that destructure it -- verify new `.svelte.ts` modules follow this getter pattern too). It manages one `EventSource` per in-flight item with its own retry/backoff, and exposes a `destroy()` that callers must invoke on cleanup (`+page.svelte`'s workshops route does this in an `$effect` teardown) -- verify every call site actually calls `destroy()`, not just this one.
 
 ## 2. SvelteKit 2 Data Loading & Routing
 
@@ -67,7 +63,7 @@ The rules below apply to streaming pages unless noted otherwise.
 - **Semantic HTML**: Flag `<div>` with `onclick` that should be `<button>`. Flag heading hierarchy gaps (h1 → h3 skipping h2).
 - **Color-only status indicators**: Verify status is communicated via text/icon, not color alone (colorblind users). StatusBadge has text labels — good. Check Sidebar `statusIcon()` uses Unicode symbols without labels.
 - **`<a>` with `onclick` + `preventDefault`**: Links that use `goto()` with `preventDefault` should either be plain `<a>` (letting SvelteKit handle navigation) or `<button>` elements if they don't navigate.
-- **SVG timeline accessibility**: The workshops timeline renders data as SVG bars. Verify it has a meaningful `aria-label` on the container, that individual bars have accessible names (tooltip text exposed to screen readers), and that the timeline is not the sole way to access the data (the table view serves as an accessible alternative).
+- **SVG timeline accessibility**: The workshops timeline renders data as SVG bars, and it is currently the *only* view of workshop data on the page -- there is no separate table/list fallback. Verify the container has a meaningful `aria-label` (it does: `"Workshop timeline chart showing N workshops"`), that every bar's `aria-label` (`barAriaLabel()`) conveys name/status/instance-and-user counts/flags (not just a color) -- note it does *not* currently include the lifespan start/end dates the bar's position represents -- and that this per-bar labeling is sufficient given there's no alternative non-visual representation of the same data. Flag this as a real gap if the labels aren't enough on their own.
 
 ## 6. PatternFly v6 Usage
 
