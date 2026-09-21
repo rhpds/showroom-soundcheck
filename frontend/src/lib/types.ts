@@ -200,6 +200,7 @@ export interface WorkshopDashboardItem {
 
 	status: WorkshopStatus;
 
+	created_at: string;
 	lifespan_start: string;
 	lifespan_end: string;
 	ready_by: string;

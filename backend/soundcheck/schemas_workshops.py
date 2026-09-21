@@ -25,6 +25,7 @@ class WorkshopDashboardItem(BaseModel):
 
     status: WorkshopStatus
 
+    created_at: str
     lifespan_start: str
     lifespan_end: str
     ready_by: str
