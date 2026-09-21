@@ -3,7 +3,7 @@
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { listWorkshops } from '$lib/api';
-	import type { WorkshopListResponse, WorkshopStatus } from '$lib/types';
+	import type { WorkshopDashboardItem, WorkshopListResponse, WorkshopStatus } from '$lib/types';
 	import { createCheckStatusManager } from '$lib/checkStatuses.svelte';
 	import {
 		getTimeRange,
@@ -98,19 +98,25 @@
 		return env !== null && selectedEnvironments.includes(env);
 	}
 
-	function matchesSize(usersTotal: number): boolean {
-		if (usersTotal < minSize) return false;
-		if (maxSize < WORKSHOP_SIZE_MAX && usersTotal > maxSize) return false;
+	// `users_total` only reflects users actually assigned to a provisioned
+	// environment — it's 0 for every "scheduled" workshop that hasn't started
+	// provisioning yet. Fall back to `provision_ordered` (the intended/ordered
+	// seat count, populated as soon as the workshop is ordered) so the size
+	// filter doesn't spuriously exclude every not-yet-started workshop.
+	function matchesSize(item: WorkshopDashboardItem): boolean {
+		const size = Math.max(item.users_total, item.provision_ordered);
+		if (size < minSize) return false;
+		if (maxSize < WORKSHOP_SIZE_MAX && size > maxSize) return false;
 		return true;
 	}
 
 	let filteredItems = $derived(
-		data.items.filter((w) => matchesEnvironment(w.name) && matchesSize(w.users_total))
+		data.items.filter((w) => matchesEnvironment(w.name) && matchesSize(w))
 	);
 
 	let filteredMultiWorkshops = $derived(
 		(data.multi_workshops ?? []).filter((mw) =>
-			mw.children.some((child) => matchesEnvironment(child.name) && matchesSize(child.users_total))
+			mw.children.some((child) => matchesEnvironment(child.name) && matchesSize(child))
 		)
 	);
 
@@ -127,9 +133,7 @@
 		buildWorkshopSummary([
 			...(multiAssetOnly ? [] : filteredItems),
 			...(data.multi_workshops ?? []).flatMap((mw) =>
-				mw.children.filter(
-					(child) => matchesEnvironment(child.name) && matchesSize(child.users_total)
-				)
+				mw.children.filter((child) => matchesEnvironment(child.name) && matchesSize(child))
 			)
 		])
 	);
