@@ -2,6 +2,8 @@
 
 Session-based health check tool for showroom environments. Resolves Babylon GUIDs, workshops, and resource pools to showroom URLs and runs async health checks with live-streamed results.
 
+> This README covers user-facing and developer setup docs. If you're an AI coding agent (or looking for conventions/architectural rules an agent should follow), see [AGENTS.md](AGENTS.md).
+
 ---
 
 ## Quick Start
@@ -66,6 +68,12 @@ Sessions support clone (re-run with same inputs), pin/unpin, and delete. Live re
 
 Stale sessions (stuck in `running` for >30 minutes) are automatically cleaned up on startup and periodically by the sweep cron task.
 
+### Workshops Dashboard
+
+At `/workshops`, view a real-time timeline of Workshop (and MultiWorkshop) custom resources across every configured Babylon cluster — independent of soundcheck's own sessions/groups. Filter by cluster, status, provision type, environment, white-glove flag, presence of provisioning failures, time window, and workshop size (seat count). Multi-workshop events group their child workshops, expandable/collapsible in the timeline.
+
+Trigger a soundcheck run directly from a workshop's row; its live status streams back via SSE without leaving the dashboard. Unlike session/group pages, the workshop list itself is fetched via plain REST (it reads live from the Kubernetes API rather than SAQ/DB state) and is served from a short-lived in-memory cache that's kept warm by a background refresh loop.
+
 ---
 
 ## Developer Guide
@@ -118,10 +126,13 @@ npm run dev
 | `ORCHESTRATION_CONCURRENCY` | `10` | Max concurrent orchestration tasks |
 | `VERIFY_SSL` | `true` | TLS verification for checks (compose defaults to `false`) |
 | `ALLOWED_URL_PATTERNS` | **required** | Comma-separated hostname globs for URL allowlist (e.g. `*.example.com,*.opentlc.com`) |
-| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins |
+| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins. A wildcard `*` is rejected at startup (unsafe combined with `allow_credentials=True`) |
 | `DEMO_TEAM_EMAILS` | _(empty)_ | Comma-separated emails treated as "Demo team" provisioners for the workshop "Provisioned by" filter (set in local `.env`; in OpenShift via `deploy/app-secret.yaml` — see `deploy/README.md`) |
 | `API_KEY` | _(empty)_ | If set, required via `X-API-Key` header for mutating requests |
 | `LOG_FORMAT` | `text` | Log output format: `text` or `json` |
+| `ENVIRONMENT` | `development` | Deployment environment name. In any value other than `development`, startup fails closed if neither `POSTGRES_PASSWORD` nor `DATABASE_URL` is set (instead of silently using default credentials) |
+| `ENABLE_DOCS` | `true` | Whether to expose `/docs`, `/redoc`, and `/openapi.json` |
+| `MAX_SSE_CONNECTIONS` | `200` | Max concurrent SSE connections (session/group streams); additional connections receive `503` |
 
 #### Babylon
 
@@ -142,19 +153,23 @@ backend/soundcheck/
 ├── database.py                 # Async SQLAlchemy session
 ├── models.py                   # SQLModel tables
 ├── schemas.py                  # Pydantic request/response models
+├── schemas_workshops.py        # Pydantic models for the workshops dashboard
 ├── utils.py                    # Input parsing, URL validation
 ├── worker.py                   # SAQ queue definitions
 ├── routes/
 │   ├── sessions.py             # Session CRUD + SSE streaming
 │   ├── groups.py               # Group CRUD + run management
-│   ├── health.py               # /api/ping, /api/health, /api/config/clusters
-│   ├── check.py                # Deep-link /api/check redirect
-│   └── _serializers.py         # Model → schema serialization helpers
+│   ├── workshops.py            # Workshop dashboard: list/filter Workshop CRDs, check-status lookup
+│   ├── health.py                # /api/ping, /api/health, /api/config/clusters
+│   ├── check.py                 # Deep-link /api/check redirect
+│   ├── _serializers.py          # Model → schema serialization helpers
+│   └── _sse.py                  # Shared SSE connection-limit guard (`MAX_SSE_CONNECTIONS`)
 ├── services/
 │   ├── check_service.py        # Two-tier health check logic
 │   ├── babylon_service.py      # GUID/workshop/pool → URL resolution
 │   ├── babylon_client.py       # K8s API client via kubeconfigs
-│   └── session_service.py      # Session/group orchestration
+│   ├── session_service.py      # Session/group orchestration
+│   └── workshop_service.py     # Workshop dashboard: K8s fetching, status derivation, in-memory caching
 └── tasks/
     ├── orchestration.py        # Session/group fan-out coordinator
     ├── checks.py               # Per-target health check task
@@ -167,11 +182,13 @@ frontend/src/                   # SvelteKit SPA + PatternFly 6
 │   ├── session/[id]/           # Session detail with live updates
 │   ├── groups/                 # Group list + create
 │   ├── group/[id]/             # Group management + run history
+│   ├── workshops/              # Workshops dashboard (cross-cluster Workshop CRD timeline)
 │   └── check/                  # Deep-link redirect
 └── lib/
     ├── api.ts                  # Typed API client
     ├── types.ts                # TypeScript types
-    ├── utils.ts                # Relative time formatting
+    ├── utils.ts                # Relative time formatting + workshop filter helpers
+    ├── checkStatuses.svelte.ts # Runes-based per-workshop check status tracking (SSE)
     ├── actions/                # Svelte use: actions (portal, focusTrap)
     └── components/             # Shared UI components
 ```

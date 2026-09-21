@@ -4,77 +4,14 @@ You are an expert frontend test engineer specializing in **Svelte 5**, **SvelteK
 
 ## Codebase Overview
 
-This is a **Svelte 5 / SvelteKit 2 single-page application** that provides a dashboard for monitoring health checks against "showroom" lab environments. It deploys as a static SPA behind a Node.js reverse proxy.
+This is a **Svelte 5 / SvelteKit 2 single-page application** that provides a dashboard for monitoring health checks against "showroom" lab environments. It deploys as a static SPA behind a Node.js reverse proxy. See [AGENTS.md](../../AGENTS.md) for the tech stack, architectural rules, and conventions -- this plan assumes that context. Full file tree: [README.md](../../README.md#architecture).
 
-### Tech Stack
+### Key Patterns to Be Aware Of (testing-specific)
 
-| Category | Technology |
-|----------|------------|
-| Language | TypeScript 5 (strict mode) |
-| Framework | Svelte 5 (runes: `$state`, `$derived`, `$effect`, `$props`) |
-| Meta-framework | SvelteKit 2 (`@sveltejs/kit`) |
-| Build tool | Vite 6 |
-| Adapter | `@sveltejs/adapter-static` (SPA with `fallback: 'index.html'`, SSR disabled) |
-| UI / CSS | PatternFly v6 (CSS-only, no component library) |
-| Fonts | Red Hat fonts (RedHatText, RedHatDisplay, RedHatMono) |
-| Data fetching | Custom `fetch`-based REST client (`$lib/api.ts`) |
-| Real-time | `EventSource` SSE streams for live session/group updates |
-| State management | Svelte 5 runes (local component state only, no global store) |
-| Linting | ESLint + `eslint-plugin-svelte` |
-| Formatting | Prettier + `prettier-plugin-svelte` |
-| Type checking | `svelte-check` |
-
-### Architecture
-
-```
-frontend/src/
-├── app.html                         # HTML shell, loads PatternFly CSS
-├── lib/
-│   ├── api.ts                       # REST client: fetchJson<T>(), all API functions, EventSource streams
-│   ├── types.ts                     # TypeScript interfaces + statusColor() helper
-│   ├── utils.ts                     # relativeTime() helper
-│   ├── actions/
-│   │   ├── focusTrap.ts             # Svelte action: keyboard focus trap for modals
-│   │   └── portal.ts               # Svelte action: portal DOM node to document.body
-│   └── components/
-│       ├── GroupRunHistory.svelte    # Group run history table
-│       ├── GroupSourceList.svelte    # Group source management UI
-│       ├── Modal.svelte             # Accessible modal dialog (uses focusTrap + portal)
-│       ├── SessionContent.svelte    # Session detail + live streaming (~928 lines, largest component)
-│       ├── SessionDrawer.svelte     # Session detail side drawer
-│       ├── Sidebar.svelte           # App navigation sidebar
-│       ├── Spinner.svelte           # Loading spinner
-│       ├── StatusBadge.svelte       # Color-coded status indicator
-│       ├── TableSkeleton.svelte     # Loading skeleton for tables
-│       └── TargetDetail.svelte      # Individual target check result detail
-└── routes/                          # SvelteKit file-based routing
-    ├── +layout.js                   # export const ssr = false
-    ├── +layout.svelte               # App shell: masthead, sidebar, PatternFly page layout
-    ├── +page.ts / +page.svelte      # Redirect / → /sessions
-    ├── +error.svelte                # Error page
-    ├── check/+page.svelte           # Query-param redirect → session
-    ├── session/[id]/+page.svelte    # Session detail (uses SessionContent)
-    ├── sessions/
-    │   ├── +page.ts                 # load: listSessions()
-    │   ├── +page.svelte             # Sessions list (paginated, searchable)
-    │   └── new/+page.svelte         # Create session form
-    ├── group/[id]/+page.svelte      # Group detail
-    ├── groups/
-    │   ├── +page.ts                 # load: listGroups()
-    │   ├── +page.svelte             # Groups list
-    │   └── new/+page.svelte         # Create group form
-    └── ...
-```
-
-### Key Patterns to Be Aware Of
-
-- **Svelte 5 runes everywhere**: Components use `$state`, `$state.raw`, `$derived`, `$derived.by`, `$effect`, and `$props` — **not** legacy `$:` reactive declarations or `svelte/store`.
 - **SSR disabled globally**: `+layout.js` exports `ssr = false`. All `load` functions run client-side.
-- **PatternFly CSS classes**: Components render PatternFly v6 class names (e.g. `pf-v6-c-page`, `pf-v6-c-button`, `pf-m-primary`) but there is no PatternFly component library — all markup is hand-written.
-- **Custom Svelte actions**: `focusTrap` and `portal` are Svelte actions used by `Modal.svelte` for accessibility and DOM portaling.
 - **API proxy**: In dev, Vite proxies `/api` to the backend. In production, a Node.js server handles the proxy. Tests must mock `/api` calls.
 - **EventSource SSE**: `sessionStream()` and `groupStream()` return browser `EventSource` instances for real-time updates.
-- **No global state**: All state lives in components via runes. Data flows from `load` functions → page components → child components via `$props`.
+- **Mostly no global state, with one exception**: Most state lives in components via runes, flowing from `load` functions → page components → child components via `$props`. `lib/checkStatuses.svelte.ts` is the exception -- a runes-based factory (`createCheckStatusManager()`) used by the workshops dashboard to track per-workshop check status via one `EventSource` per in-flight item; it exposes a `destroy()` that must be tested for proper cleanup.
 
 ---
 
@@ -91,6 +28,7 @@ Target pure functions and isolated logic with no DOM or component dependencies.
 | `lib/utils.ts` | `relativeTime()` — "just now", minutes, hours, days thresholds; edge cases (future dates, invalid strings, epoch) |
 | `lib/types.ts` | `statusColor()` — every `Status` variant maps to the correct `StatusColor`; exhaustiveness |
 | `lib/api.ts` | `fetchJson()` — success parsing, error extraction (`detail`, `message`, fallback), non-JSON error bodies; `listSessions()` / `listGroups()` — query string construction from `ListParams`; `removeGroupSource()` — URI encoding of path params |
+| `lib/checkStatuses.svelte.ts` | `checkStatusColor()` / `checkStatusLabel()` — exhaustiveness over `CheckSessionStatus`; `createCheckStatusManager()` — `load()` picks up in-flight checks without duplicate streams, `run()` starts a session and begins watching it, retry/backoff on SSE error (capped at `MAX_RETRIES`, exponential + jitter), `destroy()` closes all streams and clears all pending retry timers |
 
 **Mocking guidance**: Use `vi.fn()` / `vi.spyOn()` to mock `globalThis.fetch` for `api.ts` tests. For `utils.ts` and `types.ts`, no mocks needed — these are pure functions.
 
@@ -109,6 +47,12 @@ Test Svelte components in a jsdom/happy-dom environment using Svelte Testing Lib
 | `TargetDetail.svelte` | Renders target info (URL, status, response time); displays check results; handles null/missing fields |
 | `GroupSourceList.svelte` | Renders source list; add/remove source interactions |
 | `GroupRunHistory.svelte` | Renders run history table; status badges per run |
+| `GroupSection.svelte` | Renders group summary section on session/list views |
+| `RangeSlider.svelte` | Renders dual-handle range slider; drag/keyboard updates both bounds; respects min/max/step |
+| `WorkshopFilterBar.svelte` | Cluster/status/white-glove/time-window filters; emits filter-change events; URL param sync |
+| `WorkshopSummaryCards.svelte` | Renders per-status counts from a workshop list |
+| `WorkshopTimeline.svelte` | Renders SVG timeline bars from workshop lifespan data; resize behavior (mock `ResizeObserver`); multi-workshop group expand/collapse; per-bar `aria-label` content (there is no separate table/list view -- the timeline is the only rendering, so its accessibility markup carries the full weight) |
+| `TimelineTooltip.svelte` | Renders tooltip content on timeline bar hover/focus |
 
 **Mocking guidance**:
 - Mock `$lib/api` module (`vi.mock('$lib/api')`) to control API responses
@@ -130,6 +74,7 @@ Test full page components with mocked API layer.
 | `/group/[id]` | Loads group detail; run history display; source management; SSE updates |
 | `/check` | Query parameter parsing; redirect to correct session; error handling for invalid params |
 | `/` | Redirects to `/sessions` |
+| `/workshops` | Loads and renders workshop timeline; filter bar (cluster/status/white-glove/provision-type/environment/has-failures/time-window/size-range) updates results and URL params; multi-workshop group expand/collapse; per-workshop "run check" triggers `createCheckStatusManager().run()` and reflects SSE-driven status updates; the workshop *list* itself is fetched via plain REST (this page is intentionally REST-only for list data, per AGENTS.md) while per-check status uses SSE |
 
 ### Layer 4: Svelte Action Tests (low priority, high value)
 
@@ -325,6 +270,7 @@ frontend/
 │   │   ├── utils.test.ts              # relativeTime() tests
 │   │   ├── types.test.ts             # statusColor() tests
 │   │   ├── api.test.ts               # fetchJson(), query string construction
+│   │   ├── checkStatuses.test.ts     # createCheckStatusManager() tests
 │   │   └── actions.test.ts           # focusTrap, portal action tests
 │   ├── components/
 │   │   ├── StatusBadge.test.ts        # StatusBadge rendering tests
@@ -335,7 +281,11 @@ frontend/
 │   │   ├── SessionContent.test.ts    # Session detail + SSE streaming
 │   │   ├── TargetDetail.test.ts      # Target result display
 │   │   ├── GroupSourceList.test.ts   # Source CRUD interactions
-│   │   └── GroupRunHistory.test.ts   # Run history table
+│   │   ├── GroupRunHistory.test.ts   # Run history table
+│   │   ├── RangeSlider.test.ts       # Dual-handle range slider
+│   │   ├── WorkshopFilterBar.test.ts # Filter bar interactions
+│   │   ├── WorkshopSummaryCards.test.ts # Status count cards
+│   │   └── WorkshopTimeline.test.ts  # SVG timeline rendering + resize
 │   └── routes/
 │       ├── sessions.test.ts           # Sessions list page
 │       ├── sessions-new.test.ts       # Create session page
@@ -343,7 +293,8 @@ frontend/
 │       ├── groups.test.ts             # Groups list page
 │       ├── groups-new.test.ts         # Create group page
 │       ├── group-detail.test.ts       # Group detail page
-│       └── check.test.ts             # Check redirect page
+│       ├── check.test.ts             # Check redirect page
+│       └── workshops.test.ts         # Workshops dashboard page
 ├── e2e/
 │   ├── sessions.spec.ts              # Session lifecycle E2E
 │   ├── groups.spec.ts                # Group management E2E
