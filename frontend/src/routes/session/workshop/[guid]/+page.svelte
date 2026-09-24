@@ -17,7 +17,7 @@
 		(async () => {
 			try {
 				const sessionId = await getOrCreateWorkshopSession(guid, {
-					signal: controller.signal,
+					signal: controller.signal
 				});
 				if (controller.signal.aborted) return;
 				goto(sessionId ? `/session/${sessionId}` : '/');

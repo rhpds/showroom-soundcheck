@@ -61,9 +61,7 @@ async def find_latest_session_for_workshop_guid(
     row = (await db.execute(_LATEST_SESSION_FOR_WORKSHOP_QUERY, {"workshop_guid": guid})).first()
     if not row:
         return None
-    result = await db.execute(
-        select(CheckSession).where(CheckSession.session_id == row.session_id)
-    )
+    result = await db.execute(select(CheckSession).where(CheckSession.session_id == row.session_id))
     return result.scalars().first()
 
 
