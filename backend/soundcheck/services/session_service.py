@@ -8,7 +8,7 @@ import logging
 import uuid
 from datetime import timedelta
 
-from sqlalchemy import delete, func
+from sqlalchemy import delete, func, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import col, select
 
@@ -31,10 +31,38 @@ from .babylon_service import (
 
 logger = logging.getLogger(__name__)
 
+# Mirrors routes/workshops.py _CHECK_STATUS_QUERY — latest session containing a workshop GUID.
+_LATEST_SESSION_FOR_WORKSHOP_QUERY = text("""
+    SELECT
+        s.session_id,
+        s.status,
+        s.created_at
+    FROM sessions s,
+        json_array_elements_text(s.source_workshop_guids) AS elem
+    WHERE elem.value = :workshop_guid
+    ORDER BY s.created_at DESC
+    LIMIT 1
+""")
+
 
 # ---------------------------------------------------------------------------
 # Session persistence
 # ---------------------------------------------------------------------------
+
+
+async def find_latest_session_for_workshop_guid(
+    db: AsyncSession,
+    workshop_guid: str,
+) -> CheckSession | None:
+    """Return the newest session that includes this workshop GUID, if any."""
+    guid = (workshop_guid or "").strip()
+    if not guid:
+        return None
+    row = (await db.execute(_LATEST_SESSION_FOR_WORKSHOP_QUERY, {"workshop_guid": guid})).first()
+    if not row:
+        return None
+    result = await db.execute(select(CheckSession).where(CheckSession.session_id == row.session_id))
+    return result.scalars().first()
 
 
 async def create_session(

@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
+from sqlalchemy import text
 from sqlmodel import select
 
 from ..config import MAX_SSE_CONNECTIONS
@@ -84,6 +85,41 @@ async def list_sessions(
         page=page,
         per_page=per_page,
     )
+
+
+@router.get("/workshop/{workshop_guid}", response_model=CheckRedirectResponse)
+async def get_or_create_workshop_session(
+    workshop_guid: str,
+    request: Request,
+    db: DbSession,
+):
+    """Idempotent deep-link: reuse latest session for this workshop GUID, or create one.
+
+    Serializes concurrent callers with a Postgres advisory transaction lock so two
+    simultaneous clicks do not spawn duplicate sessions. Does not require cluster
+    in the URL — workshop resolution searches all configured clusters when empty.
+    """
+    guid = (workshop_guid or "").strip()
+    if not guid:
+        raise HTTPException(status_code=422, detail="workshop_guid is required")
+
+    # Serialize get-or-create for this GUID within the request transaction.
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:guid))"), {"guid": guid})
+
+    existing = await session_service.find_latest_session_for_workshop_guid(db, guid)
+    if existing:
+        return CheckRedirectResponse(session_id=existing.session_id)
+
+    sid = await session_service.create_session(
+        db,
+        name=f"Workshop {guid}",
+        urls=[],
+        guids=[],
+        babylon_cluster="",
+        workshop_guids=[guid],
+    )
+    await queue.enqueue("run_session_checks", session_id=sid, request_id=request.state.request_id, timeout=900)
+    return CheckRedirectResponse(session_id=sid)
 
 
 @router.get("/{session_id}", response_model=SessionDetail)

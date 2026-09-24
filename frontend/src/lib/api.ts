@@ -236,3 +236,15 @@ export async function checkRedirect(params: URLSearchParams, init?: RequestInit)
 	const resp = await fetchJson<{ session_id: string }>(`${BASE}/check?${params.toString()}`, init);
 	return resp.session_id;
 }
+
+/** Idempotent: reuse latest session for workshop GUID, or create+enqueue one. */
+export async function getOrCreateWorkshopSession(
+	workshopGuid: string,
+	init?: RequestInit
+): Promise<string> {
+	const resp = await fetchJson<{ session_id: string }>(
+		`${BASE}/sessions/workshop/${encodeURIComponent(workshopGuid)}`,
+		init
+	);
+	return resp.session_id;
+}

@@ -56,6 +56,20 @@ Create sessions via URL by navigating to `/check` with query parameters:
 
 At least one of `urls`, `guid`, `workshop`, or `pool` is required.
 
+### Idempotent workshop deep-link
+
+External tools (Admin Ops, Flow, provisioning) can point at a stable per-workshop URL:
+
+```
+/session/workshop/{workshop_guid}
+```
+
+- If a session already exists for that workshop GUID (any status), the user is redirected to it.
+- If none exists, Soundcheck creates one (same as “Run check”), enqueues checks, then redirects.
+- Concurrent clicks for the same GUID are serialized (Postgres advisory lock) so duplicate sessions are not spawned.
+- Users can still manually re-run via **Re-run / clone** on the session page.
+- The Workshops dashboard **Run check** button is unchanged — it always starts a fresh session.
+
 ### Groups
 
 Groups are named collections of sources (GUIDs, workshops, pools) that can be run repeatedly. Each run creates child sessions for every source. Manage groups at `/groups`.
@@ -157,7 +171,7 @@ backend/soundcheck/
 ├── utils.py                    # Input parsing, URL validation
 ├── worker.py                   # SAQ queue definitions
 ├── routes/
-│   ├── sessions.py             # Session CRUD + SSE streaming
+│   ├── sessions.py             # Session CRUD + SSE + GET /sessions/workshop/{guid} get-or-create
 │   ├── groups.py               # Group CRUD + run management
 │   ├── workshops.py            # Workshop dashboard: list/filter Workshop CRDs, check-status lookup
 │   ├── health.py                # /api/ping, /api/health, /api/config/clusters
@@ -168,7 +182,7 @@ backend/soundcheck/
 │   ├── check_service.py        # Two-tier health check logic
 │   ├── babylon_service.py      # GUID/workshop/pool → URL resolution
 │   ├── babylon_client.py       # K8s API client via kubeconfigs
-│   ├── session_service.py      # Session/group orchestration
+│   ├── session_service.py      # Session/group orchestration (+ find_latest_session_for_workshop_guid)
 │   └── workshop_service.py     # Workshop dashboard: K8s fetching, status derivation, in-memory caching
 └── tasks/
     ├── orchestration.py        # Session/group fan-out coordinator
@@ -180,6 +194,7 @@ frontend/src/                   # SvelteKit SPA + PatternFly 6
 │   ├── sessions/               # Session list
 │   ├── sessions/new/           # Create session form
 │   ├── session/[id]/           # Session detail with live updates
+│   ├── session/workshop/[guid]/ # Idempotent workshop deep-link (get-or-create)
 │   ├── groups/                 # Group list + create
 │   ├── group/[id]/             # Group management + run history
 │   ├── workshops/              # Workshops dashboard (cross-cluster Workshop CRD timeline)
