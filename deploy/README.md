@@ -82,6 +82,7 @@ Shared by the backend and both workers:
 | POSTGRES_PORT             | 5432    | PostgreSQL service port                      |
 | BABYLON_CLUSTERS          | (JSON)  | JSON array of kubeconfig paths               |
 | BABYLON_CATALOG_URLS      | (JSON)  | JSON map of cluster→catalog URL              |
+| CORS_ORIGINS              | (empty → localhost default in app) | Comma-separated browser origins allowed to call the API (no `*`) |
 
 ### Updating Image Tags
 
