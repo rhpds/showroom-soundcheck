@@ -110,7 +110,7 @@ async def get_or_create_workshop_session(
 
     existing = await session_service.find_latest_session_for_workshop_guid(db, workshop_guid)
     if existing:
-        return CheckRedirectResponse(session_id=existing.session_id)
+        return CheckRedirectResponse(session_id=existing)
 
     sid = await session_service.create_session(
         db,
