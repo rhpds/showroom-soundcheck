@@ -114,7 +114,7 @@ async def get_or_create_workshop_session(
 
     sid = await session_service.create_session(
         db,
-        name=f"Workshop {workshop_guid}",
+        name="",
         urls=[],
         guids=[],
         babylon_cluster="",
