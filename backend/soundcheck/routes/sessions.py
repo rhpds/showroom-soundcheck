@@ -3,8 +3,9 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlalchemy import text
 from sqlmodel import select
@@ -32,6 +33,11 @@ _sse_semaphore = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
 _sse_guard = sse_capacity_guard(_sse_semaphore)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+# Same charset/length as IdentifierStr in schemas.py — this value flows into a K8s
+# label selector and the source_workshop_guids JSON column, so it's validated here
+# too even though it arrives as a raw path segment rather than a request body field.
+_WORKSHOP_GUID_PATTERN = r"^[a-zA-Z0-9._-]+$"
 
 
 @router.post("", response_model=CheckRedirectResponse, status_code=201)
@@ -89,7 +95,7 @@ async def list_sessions(
 
 @router.get("/workshop/{workshop_guid}", response_model=CheckRedirectResponse)
 async def get_or_create_workshop_session(
-    workshop_guid: str,
+    workshop_guid: Annotated[str, Path(pattern=_WORKSHOP_GUID_PATTERN, max_length=255)],
     request: Request,
     db: DbSession,
 ):
@@ -99,24 +105,20 @@ async def get_or_create_workshop_session(
     simultaneous clicks do not spawn duplicate sessions. Does not require cluster
     in the URL — workshop resolution searches all configured clusters when empty.
     """
-    guid = (workshop_guid or "").strip()
-    if not guid:
-        raise HTTPException(status_code=422, detail="workshop_guid is required")
-
     # Serialize get-or-create for this GUID within the request transaction.
-    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:guid))"), {"guid": guid})
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:guid))"), {"guid": workshop_guid})
 
-    existing = await session_service.find_latest_session_for_workshop_guid(db, guid)
+    existing = await session_service.find_latest_session_for_workshop_guid(db, workshop_guid)
     if existing:
         return CheckRedirectResponse(session_id=existing.session_id)
 
     sid = await session_service.create_session(
         db,
-        name=f"Workshop {guid}",
+        name=f"Workshop {workshop_guid}",
         urls=[],
         guids=[],
         babylon_cluster="",
-        workshop_guids=[guid],
+        workshop_guids=[workshop_guid],
     )
     await queue.enqueue("run_session_checks", session_id=sid, request_id=request.state.request_id, timeout=900)
     return CheckRedirectResponse(session_id=sid)
