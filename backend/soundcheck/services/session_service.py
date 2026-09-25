@@ -107,6 +107,35 @@ async def create_session(
     return sid
 
 
+async def get_or_create_session_for_workshop_guid(
+    db: AsyncSession,
+    workshop_guid: str,
+) -> tuple[str, bool]:
+    """Idempotently resolve a session_id for a workshop GUID deep-link.
+
+    Takes a Postgres advisory transaction lock first so concurrent callers for
+    the same GUID serialize instead of racing to create duplicate sessions —
+    the lock auto-releases when this request's transaction commits/rolls back.
+    Returns (session_id, created); created is True only when a new session was
+    made here, so the caller knows whether to enqueue checks for it.
+    """
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:guid))"), {"guid": workshop_guid})
+
+    existing = await find_latest_session_for_workshop_guid(db, workshop_guid)
+    if existing:
+        return existing, False
+
+    sid = await create_session(
+        db,
+        name="",
+        urls=[],
+        guids=[],
+        babylon_cluster="",
+        workshop_guids=[workshop_guid],
+    )
+    return sid, True
+
+
 async def fetch_session_data(db: AsyncSession, sid: str) -> dict:
     """Load session, targets, and results from DB."""
     session_q = select(CheckSession).where(CheckSession.session_id == sid)
