@@ -33,10 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Mirrors routes/workshops.py _CHECK_STATUS_QUERY — latest session containing a workshop GUID.
 _LATEST_SESSION_FOR_WORKSHOP_QUERY = text("""
-    SELECT
-        s.session_id,
-        s.status,
-        s.created_at
+    SELECT s.session_id
     FROM sessions s,
         json_array_elements_text(s.source_workshop_guids) AS elem
     WHERE elem.value = :workshop_guid
@@ -53,16 +50,13 @@ _LATEST_SESSION_FOR_WORKSHOP_QUERY = text("""
 async def find_latest_session_for_workshop_guid(
     db: AsyncSession,
     workshop_guid: str,
-) -> CheckSession | None:
-    """Return the newest session that includes this workshop GUID, if any."""
+) -> str | None:
+    """Return the session_id of the newest session that includes this workshop GUID, if any."""
     guid = (workshop_guid or "").strip()
     if not guid:
         return None
     row = (await db.execute(_LATEST_SESSION_FOR_WORKSHOP_QUERY, {"workshop_guid": guid})).first()
-    if not row:
-        return None
-    result = await db.execute(select(CheckSession).where(CheckSession.session_id == row.session_id))
-    return result.scalars().first()
+    return row.session_id if row else None
 
 
 async def create_session(
@@ -111,6 +105,35 @@ async def create_session(
 
     await db.commit()
     return sid
+
+
+async def get_or_create_session_for_workshop_guid(
+    db: AsyncSession,
+    workshop_guid: str,
+) -> tuple[str, bool]:
+    """Idempotently resolve a session_id for a workshop GUID deep-link.
+
+    Takes a Postgres advisory transaction lock first so concurrent callers for
+    the same GUID serialize instead of racing to create duplicate sessions —
+    the lock auto-releases when this request's transaction commits/rolls back.
+    Returns (session_id, created); created is True only when a new session was
+    made here, so the caller knows whether to enqueue checks for it.
+    """
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:guid))"), {"guid": workshop_guid})
+
+    existing = await find_latest_session_for_workshop_guid(db, workshop_guid)
+    if existing:
+        return existing, False
+
+    sid = await create_session(
+        db,
+        name="",
+        urls=[],
+        guids=[],
+        babylon_cluster="",
+        workshop_guids=[workshop_guid],
+    )
+    return sid, True
 
 
 async def fetch_session_data(db: AsyncSession, sid: str) -> dict:
