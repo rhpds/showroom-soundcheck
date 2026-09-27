@@ -18,3 +18,6 @@ data:
   BABYLON_CLUSTERS: '["/secrets/east.kubeconfig","/secrets/west.kubeconfig"]'
   BABYLON_CATALOG_URLS: '{"east": "https://catalog.demo.redhat.com", "west": "https://babylon-catalog.apps.ocp-us-west-2.infra.open.redhat.com"}'
   ENABLE_DOCS: "true"
+  # Browser callers (Admin Ops / catalog). Flow QA2 is server-side — no CORS needed.
+  # Wildcard * is rejected by the app. Add Labagator origin if it hosts catalog embeds.
+  CORS_ORIGINS: "https://catalog.demo.redhat.com,https://babylon-catalog.apps.ocp-us-west-2.infra.open.redhat.com"
