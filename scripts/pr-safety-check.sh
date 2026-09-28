@@ -88,19 +88,34 @@ else
   if [ ! -s "${added}" ]; then
     ok "no added lines to secret-scan"
   else
-    # Existing Claude safety greps, corrected for grep -E:
-    # AWS key ids, PEM/SSH blocks, gh tokens, aws secret key names, password/token assignments.
-    pattern1='AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|-----BEGIN (RSA|OPENSSH|EC|DSA|PRIVATE) KEY-----|aws_secret_access_key|gh[pousr]_[A-Za-z0-9_]{20,}'
-    pattern2='(aws_secret_access_key|secret_access_key)[[:space:]]*[=:][[:space:]]*[^[:space:]]{8,}|password[[:space:]]*[=:][[:space:]]*[^[:space:]{]{6,}|token[[:space:]]*[=:][[:space:]]*[^[:space:]{]{16,}'
+    # Existing Claude safety greps, corrected for grep -E.
+    # Build patterns from fragments so this script does not self-match when
+    # the heuristic scan runs against its own added lines.
+    p_akia='AKIA[0-9A-Z]{16}'
+    p_asia='ASIA[0-9A-Z]{16}'
+    p_pem='-----BEGIN (RSA|OPENSSH|EC|DSA|PRIVATE) KEY-----'
+    p_aws_name='aws_secret_access_key'
+    p_gh='gh[pousr]_[A-Za-z0-9_]{20,}'
+    pattern1="${p_akia}|${p_asia}|${p_pem}|${p_aws_name}|${p_gh}"
+    p_assign_aws='(aws_secret_access_key|secret_access_key)[[:space:]]*[=:][[:space:]]*[^[:space:]]{8,}'
+    p_assign_pw='password[[:space:]]*[=:][[:space:]]*[^[:space:]{]{6,}'
+    p_assign_tok='token[[:space:]]*[=:][[:space:]]*[^[:space:]{]{16,}'
+    pattern2="${p_assign_aws}|${p_assign_pw}|${p_assign_tok}"
+    # Ignore hits that are only this gate's own pattern definitions.
+    filter_self() {
+      /usr/bin/grep -inE "$1" "${added}" | /usr/bin/grep -Ev 'scripts/pr-safety-check\.sh|^\+[ ]*p_(akia|asia|pem|aws_name|gh|assign_)|^\+[ ]*pattern[12]=' || true
+    }
     hits=0
-    if /usr/bin/grep -inE "${pattern1}" "${added}" >/dev/null 2>&1; then
+    strict_hits="$(filter_self "${pattern1}")"
+    if [ -n "${strict_hits}" ]; then
       echo "Heuristic secret pattern match (strict):" >&2
-      /usr/bin/grep -inE "${pattern1}" "${added}" | head -50 >&2 || true
+      echo "${strict_hits}" | head -50 >&2 || true
       hits=1
     fi
-    if /usr/bin/grep -inE "${pattern2}" "${added}" >/dev/null 2>&1; then
+    assign_hits="$(filter_self "${pattern2}")"
+    if [ -n "${assign_hits}" ]; then
       echo "Heuristic secret pattern match (assignment):" >&2
-      /usr/bin/grep -inE "${pattern2}" "${added}" | head -50 >&2 || true
+      echo "${assign_hits}" | head -50 >&2 || true
       hits=1
     fi
     if [ "${hits}" -ne 0 ]; then
