@@ -23,6 +23,7 @@ Full, current file trees live in README.md's Architecture section — don't dupl
 ```bash
 podman compose up -d          # or: docker compose up -d — full local stack
 make lint / make format / make check     # ruff + eslint + svelte-check
+make pr-safety                           # rh-pre-commit + heuristic secret scan (required before PRs)
 cd backend && python -m pytest           # backend tests
 cd frontend && npm run check             # svelte-check + type check
 ```
@@ -52,3 +53,10 @@ cd frontend && npm run check             # svelte-check + type check
 - `ALLOWED_URL_PATTERNS` (hostname allowlist, required env var) is soundcheck's SSRF guard for outbound health-check requests — don't add code paths that fetch arbitrary user-supplied URLs without going through it.
 - `CORS_ORIGINS` containing `*` is rejected at startup by a validator in `config.py` (unsafe combined with `allow_credentials=True`) — don't work around this.
 - In any `ENVIRONMENT` other than `development`, startup fails closed (`RuntimeError`) if neither `POSTGRES_PASSWORD` nor `DATABASE_URL` is set — don't reintroduce a silent default-credentials fallback for non-dev environments.
+
+### Before opening a PR (Cursor + Claude)
+
+1. Run `make pr-safety` (or `./scripts/pr-safety-check.sh`). This runs **rh-pre-commit** via `.pre-commit-config.yaml` plus the existing heuristic secret greps (AWS keys, PEM/SSH blocks, `gh*_` tokens, password/token assignments).
+2. Do **not** run `gh pr create` if that fails. Cursor's `.cursor/hooks/gate-pr-create.sh` also blocks `gh pr create` until it passes.
+3. First-time rh-pre-commit auth: if the hook asks for a pattern-server token, run the **exact** cached Python path it prints with `-m rh_gitleaks login` (never system Python). Keep `~/.config/rh-gitleaks` private.
+4. Keep using `/review-security` and Bugbot when the user asks — those complement, and do not replace, rh-pre-commit.

@@ -1,0 +1,17 @@
+---
+description: Before opening PRs, run rh-pre-commit + existing secret scans and security review
+alwaysApply: true
+---
+
+# PR safety (rh-pre-commit + secret scan)
+
+Before creating a pull request (`gh pr create`, opening a PR in the UI, or pushing a branch specifically so a PR can be opened):
+
+1. Run `./scripts/pr-safety-check.sh` from the repo root (or `make pr-safety`). This runs:
+   - **rh-pre-commit** via the `pre-commit` framework (`.pre-commit-config.yaml`)
+   - The **extra heuristic secret greps** already used in Claude workflows (AWS keys, PEM/SSH blocks, `gh*_` tokens, password/token assignments)
+2. Do **not** open a PR if the script fails. Fix or redact findings first.
+3. If this is the first machine run of rh-pre-commit and it asks for pattern-server auth, tell the user to run the **exact** cached Python path printed by the hook with `-m rh_gitleaks login` (never system Python). Token stays in `~/.config/rh-gitleaks` (private).
+4. Keep existing Cursor safety extras: when the user asks for a security pass before merge, run `/review-security` (and Bugbot when they ask). Do not treat those as a substitute for rh-pre-commit.
+
+Git hooks (`pre-commit` / `pre-push`) are also installed locally; do not bypass with `--no-verify` unless the user explicitly requests it.

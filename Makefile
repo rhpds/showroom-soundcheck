@@ -1,4 +1,7 @@
-.PHONY: lint lint-backend lint-frontend format format-backend format-frontend check
+.PHONY: lint lint-backend lint-frontend format format-backend format-frontend check pr-safety
+
+pr-safety:
+	./scripts/pr-safety-check.sh
 
 lint: lint-backend lint-frontend
 

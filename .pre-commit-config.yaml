@@ -1,0 +1,26 @@
+# Red Hat Infosec secret scanning + baseline hygiene.
+# Docs: https://source.redhat.com/departments/it/it-information-security/leaktk/leaktk_components/rh_pre_commit
+#
+# First-time auth (VPN/corp network): after `pre-commit run` fails with a
+# missing pattern-server token, run the *exact* cached Python path it prints:
+#   <cache-venv>/bin/python3 -m rh_gitleaks login
+# Do not use system Python. Token lives in ~/.config/rh-gitleaks (private).
+
+repos:
+  - repo: https://gitlab.cee.redhat.com/infosec-public/developer-workbench/tools.git
+    rev: rh-pre-commit-2.3.2
+    hooks:
+      # If you have not run this hook on your system before, it may prompt you to
+      # log in for patterns, and you will need to try again.
+      - id: rh-pre-commit
+      # Optional commit-msg attestation:
+      # - id: rh-pre-commit.commit-msg
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace

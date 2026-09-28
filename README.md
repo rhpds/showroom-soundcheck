@@ -251,6 +251,7 @@ Five tables: `sessions`, `session_targets`, `check_results`, `session_groups`, `
 
 ```bash
 make lint       # ruff + eslint + svelte-check
+make pr-safety  # rh-pre-commit + heuristic secret scan (run before opening PRs)
 make format     # ruff format + prettier
 make check      # lint + format-check
 ```
