@@ -102,8 +102,9 @@ else
     p_assign_tok='token[[:space:]]*[=:][[:space:]]*[^[:space:]{]{16,}'
     pattern2="${p_assign_aws}|${p_assign_pw}|${p_assign_tok}"
     # Ignore hits that are only this gate's own pattern definitions.
+    # Note: grep -n prefixes "N:", so anchors must allow that before the "+".
     filter_self() {
-      /usr/bin/grep -inE "$1" "${added}" | /usr/bin/grep -Ev 'scripts/pr-safety-check\.sh|^\+[ ]*p_(akia|asia|pem|aws_name|gh|assign_)|^\+[ ]*pattern[12]=' || true
+      /usr/bin/grep -inE "$1" "${added}" | /usr/bin/grep -Ev 'scripts/pr-safety-check\.sh|^[0-9]+:\+[ ]*p_(akia|asia|pem|aws_name|gh|assign_)|^[0-9]+:\+[ ]*pattern[12]=' || true
     }
     hits=0
     strict_hits="$(filter_self "${pattern1}")"
