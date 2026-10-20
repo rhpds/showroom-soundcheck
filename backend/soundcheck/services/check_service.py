@@ -10,13 +10,18 @@ Tier 2: legacy Antora showroom fallback (probe root + /content/ paths when
 """
 
 import asyncio
+import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 import httpx
 import yaml
+
+from ..utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,37 @@ MAX_CONFIG_SIZE = 64 * 1024  # 64 KiB
 PROBE_RETRIES = 2
 CONFIG_RETRIES = 3
 RETRY_DELAY = 1.0
+
+# ---------------------------------------------------------------------------
+# QA-automation healthcheck probe (runtime-automation sidecar)
+#
+# Independent of the tier1/tier2 readiness logic above: a showroom may
+# optionally expose a runtime-automation sidecar (zerotouch-automation) that
+# advertises available qa-automation/ playbooks via GET {base_url}/api/config
+# (a {module: [stages]} dict; the "qa" module lists stages like
+# "healthcheck"/"e2e") and runs them via SSE at GET {base_url}/stream/qa/{stage}.
+# Showrooms that don't implement this are common and expected -- absence is
+# never treated as a failure.
+#
+# Path note: nginx fronts the sidecar's /api/* routes under a /runner/ prefix
+# (the same path nookbag's own frontend fetches from -- see nookbag's
+# README.md/view-switcher.tsx), confirmed against a live showroom where plain
+# /api/config 404'd but /runner/api/config returned the real module config.
+# /stream/{module}/{stage} is mounted unprefixed at the root (matches the
+# rhdp-publishing-house docs' curl examples and was independently confirmed
+# live). Try the /runner/ prefix first, falling back to the unprefixed path
+# for any deployment that doesn't put nginx in front of it that way -- same
+# "try a couple of plausible prefixes" approach as NOOKBAG_BASES below.
+# ---------------------------------------------------------------------------
+
+QA_CONFIG_PATHS = ("/runner/api/config", "/api/config")
+QA_HEALTHCHECK_STAGE = "healthcheck"
+QA_CONFIG_FETCH_TIMEOUT = 5
+QA_HEALTHCHECK_TIMEOUT = 90
+MAX_QA_LOG_SIZE = 256 * 1024  # 256 KiB; tail is kept since the pass/fail marker is last
+QA_DONE_SENTINEL = "__DONE__"
+QA_SUCCESS_MARKER = "✓ Completed successfully!"
+QA_FAILURE_RE = re.compile(r"✗ Failed \(exit code \d+\)")
 
 DEFAULT_POOL_LIMITS = httpx.Limits(
     max_connections=100,
@@ -107,6 +143,19 @@ class TargetCheckResult:
     detail: dict[str, Any] | None = None
     no_config: bool = False
     is_degraded: bool = False
+
+
+@dataclass
+class QaHealthcheckResult:
+    """Outcome of probing/running a showroom's qa-automation healthcheck."""
+
+    available: bool = False
+    status: str | None = None  # "passed" | "failed" | "timeout" | "error" | "unknown"
+    log: str = ""
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    duration_ms: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -648,6 +697,182 @@ async def _run_tier2(
 
 
 # ---------------------------------------------------------------------------
+# QA-automation healthcheck probe
+# ---------------------------------------------------------------------------
+
+
+async def _fetch_qa_config(client: httpx.AsyncClient, base_url: str) -> list[str]:
+    """GET the runtime-automation config and return the "qa" module's stage list.
+
+    Tries each of QA_CONFIG_PATHS in turn (see the module-level comment above
+    for why). Never raises: any non-200 response, transport error, or
+    malformed body is treated as "no qa-automation available" (an empty
+    list), since a missing runtime-automation sidecar or qa-automation/
+    directory is expected and not an error condition.
+    """
+    for path in QA_CONFIG_PATHS:
+        try:
+            resp = await client.get(f"{base_url}{path}", timeout=QA_CONFIG_FETCH_TIMEOUT)
+            if resp.status_code == 404:
+                continue
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
+        except (httpx.HTTPError, ValueError):
+            continue
+
+        if not isinstance(data, dict):
+            return []
+        qa_stages = data.get("qa")
+        if not isinstance(qa_stages, list):
+            return []
+        return [s for s in qa_stages if isinstance(s, str)]
+
+    return []
+
+
+def _cap_qa_log_lines(lines: list[str]) -> list[str]:
+    """Trim collected log lines to MAX_QA_LOG_SIZE, keeping the tail.
+
+    The pass/fail marker the runner appends is always the last line(s), so
+    truncation drops from the front and prefixes a note about what happened.
+    """
+    total = sum(len(line) + 1 for line in lines)
+    if total <= MAX_QA_LOG_SIZE:
+        return lines
+    kept = list(lines)
+    while kept and total > MAX_QA_LOG_SIZE:
+        removed = kept.pop(0)
+        total -= len(removed) + 1
+    return ["... (log truncated) ...", *kept]
+
+
+async def _consume_qa_stream(client: httpx.AsyncClient, url: str) -> tuple[list[str], str | None]:
+    """Consume the qa-automation SSE stream, returning (lines, error_message).
+
+    error_message is set (and lines empty) only for a non-200 response; any
+    other error propagates to the caller as an exception to be handled there
+    (so wall-clock timeout via asyncio.wait_for works correctly).
+    """
+    async with client.stream("GET", url, timeout=httpx.Timeout(None, connect=10.0)) as resp:
+        if resp.status_code != 200:
+            return [], f"HTTP {resp.status_code} from qa healthcheck stream"
+
+        lines: list[str] = []
+        async for raw_line in resp.aiter_lines():
+            if not raw_line.startswith("data: "):
+                continue
+            payload = raw_line[len("data: ") :]
+            if payload == QA_DONE_SENTINEL:
+                break
+            try:
+                line = json.loads(payload)
+            except (ValueError, TypeError):
+                line = payload
+            lines.append(str(line))
+        return _cap_qa_log_lines(lines), None
+
+
+async def _run_qa_healthcheck_stream(
+    client: httpx.AsyncClient,
+    base_url: str,
+    timeout: int,
+) -> QaHealthcheckResult:
+    """Run the qa-automation healthcheck playbook via its SSE stream.
+
+    Enforces a wall-clock timeout via asyncio.wait_for -- httpx's own timeout
+    config measures time *between* bytes received, which would never fire for
+    a steadily-streaming ansible-playbook run that simply takes too long.
+    """
+    start = time.monotonic()
+    result = QaHealthcheckResult(available=True, started_at=utc_now())
+    url = f"{base_url}/stream/qa/{QA_HEALTHCHECK_STAGE}"
+    lines: list[str] = []
+
+    try:
+        lines, err = await asyncio.wait_for(_consume_qa_stream(client, url), timeout=timeout)
+        if err:
+            result.status = "error"
+            result.error_message = err
+    except (TimeoutError, httpx.TimeoutException):
+        result.status = "timeout"
+        result.error_message = f"QA healthcheck timed out after {timeout}s"
+    except httpx.HTTPError as exc:
+        result.status = "error"
+        result.error_message = str(exc)[:300]
+    except Exception as exc:  # deliberate catch-all -- never let a probe bug swallow the real check result
+        logger.exception("Unexpected error running qa healthcheck stream for %s", base_url)
+        result.status = "error"
+        result.error_message = f"Unexpected error: {exc}"[:300]
+
+    result.log = "\n".join(lines)
+    result.completed_at = utc_now()
+    result.duration_ms = int((time.monotonic() - start) * 1000)
+
+    if result.status is None:
+        tail = "\n".join(lines[-5:])
+        if QA_SUCCESS_MARKER in tail:
+            result.status = "passed"
+        elif QA_FAILURE_RE.search(tail):
+            result.status = "failed"
+        else:
+            result.status = "unknown"
+
+    return result
+
+
+async def check_qa_healthcheck(
+    client: httpx.AsyncClient,
+    base_url: str,
+    timeout: int = QA_HEALTHCHECK_TIMEOUT,
+) -> QaHealthcheckResult:
+    """Probe for and, if available, run a showroom's qa-automation healthcheck.
+
+    Returns ``available=False`` (never an error) when the runtime-automation
+    sidecar is unreachable or doesn't advertise a "healthcheck" stage.
+    """
+    try:
+        stages = await _fetch_qa_config(client, base_url)
+    except Exception:  # deliberate catch-all -- defense-in-depth; _fetch_qa_config shouldn't raise
+        logger.exception("Unexpected error fetching qa-automation config for %s", base_url)
+        return QaHealthcheckResult(available=False)
+
+    if QA_HEALTHCHECK_STAGE not in stages:
+        return QaHealthcheckResult(available=False)
+
+    return await _run_qa_healthcheck_stream(client, base_url, timeout)
+
+
+def _apply_qa_healthcheck(result: TargetCheckResult, qa: QaHealthcheckResult) -> None:
+    """Merge an independent qa-automation healthcheck probe into a tier result.
+
+    A showroom that doesn't implement qa-automation/healthcheck.yml
+    (``available=False``) never affects ``result`` -- that's not a failure.
+    A present but failing/timed-out/erroring healthcheck is treated as a hard
+    failure, the same weight as a failing active tab or content probe.
+    """
+    if not qa.available:
+        return
+
+    detail = result.detail if result.detail is not None else {}
+    detail["qa_healthcheck"] = {
+        "available": True,
+        "status": qa.status,
+        "error_message": qa.error_message,
+        "log": qa.log,
+        "started_at": qa.started_at.isoformat() if qa.started_at else None,
+        "completed_at": qa.completed_at.isoformat() if qa.completed_at else None,
+        "duration_ms": qa.duration_ms,
+    }
+    result.detail = detail
+
+    if qa.status != "passed":
+        result.is_healthy = False
+        extra = f"QA healthcheck {qa.status}: {qa.error_message or 'see log'}"
+        result.error_message = f"{result.error_message}; {extra}" if result.error_message else extra
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -671,12 +896,16 @@ async def check_single_target(
     timeout: int = DEFAULT_TIMEOUT,
     verify_ssl: bool = True,
     client: httpx.AsyncClient | None = None,
+    qa_healthcheck_timeout: int = QA_HEALTHCHECK_TIMEOUT,
 ) -> TargetCheckResult:
     """Run readiness check against a single showroom URL.
 
     Strategy:
       Tier 1 first (local nookbag-style config + tab probing), then
-      Tier 2 (legacy Antora fallback) if no config is found.
+      Tier 2 (legacy Antora fallback) if no config is found. Independently
+      (and concurrently, since it can take much longer than the tier1/tier2
+      probes), also probes for and runs the showroom's optional qa-automation
+      healthcheck playbook -- see check_qa_healthcheck.
 
     If client is provided, it will be reused (caller manages lifecycle).
     Otherwise a new client is created and closed per-call.
@@ -693,6 +922,9 @@ async def check_single_target(
     if owns_client:
         client = create_client(timeout=timeout, verify_ssl=verify_ssl)
 
+    base_url = url.rstrip("/")
+    qa_task = asyncio.create_task(check_qa_healthcheck(client, base_url, timeout=qa_healthcheck_timeout))
+
     try:
         result = await _run_tier1(client, url)
         if result.no_config:
@@ -700,8 +932,25 @@ async def check_single_target(
                 "Tier 1: no config for %s, falling back to Tier 2 (legacy)",
                 url,
             )
-            return await _run_tier2(client, url)
+            result = await _run_tier2(client, url)
+
+        qa_result = await qa_task
+        _apply_qa_healthcheck(result, qa_result)
         return result
     finally:
+        # cancel() is a no-op (returns False) if qa_task already completed --
+        # either way, always await it: cancel() only *schedules* CancelledError
+        # for the next event-loop tick, it doesn't wait for the task to finish
+        # unwinding. Without this await, the following client.aclose() could
+        # race with qa_task's still-in-progress client.stream() teardown, and
+        # any unexpected (non-cancellation) exception from qa_task would go
+        # unretrieved.
+        qa_task.cancel()
+        try:
+            await qa_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Unexpected error from qa_task during cleanup for %s", url)
         if owns_client:
             await client.aclose()

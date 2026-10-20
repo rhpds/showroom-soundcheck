@@ -10,7 +10,7 @@ import logging
 from sqlalchemy import delete
 from sqlmodel import select
 
-from ..config import VERIFY_SSL
+from ..config import QA_HEALTHCHECK_TIMEOUT, VERIFY_SSL
 from ..models import CheckResult, SessionTarget
 from ..services.check_service import TargetCheckResult, check_single_target, create_client
 from ..services.session_service import _try_finalize_group_run, _try_finalize_session
@@ -37,7 +37,7 @@ async def check_target(
 
     async with create_client(verify_ssl=VERIFY_SSL) as client:
         try:
-            result = await check_single_target(url, client=client)
+            result = await check_single_target(url, client=client, qa_healthcheck_timeout=QA_HEALTHCHECK_TIMEOUT)
         except Exception as e:
             result = TargetCheckResult(
                 url=url,

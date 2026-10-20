@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     db_max_overflow: int = 20
     db_pool_recycle: int = 3600
     max_sse_connections: int = 200
+    qa_healthcheck_timeout: int = 90
 
     _POSITIVE_INT_DEFAULTS: ClassVar[dict[str, int]] = {
         "check_concurrency": 20,
@@ -83,6 +84,7 @@ class Settings(BaseSettings):
         "db_max_overflow": 20,
         "db_pool_recycle": 3600,
         "max_sse_connections": 200,
+        "qa_healthcheck_timeout": 90,
     }
 
     @field_validator(
@@ -92,6 +94,7 @@ class Settings(BaseSettings):
         "db_max_overflow",
         "db_pool_recycle",
         "max_sse_connections",
+        "qa_healthcheck_timeout",
         mode="before",
     )
     @classmethod
@@ -230,6 +233,7 @@ API_KEY = settings.api_key
 REDIS_URL = settings.redis_url
 ENABLE_DOCS = settings.enable_docs
 MAX_SSE_CONNECTIONS = settings.max_sse_connections
+QA_HEALTHCHECK_TIMEOUT = settings.qa_healthcheck_timeout
 DEMO_TEAM_EMAILS = settings.demo_team_emails
 ENVIRONMENT = settings.environment
 

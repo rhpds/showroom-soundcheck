@@ -147,6 +147,7 @@ npm run dev
 | `ENVIRONMENT` | `development` | Deployment environment name. In any value other than `development`, startup fails closed if neither `POSTGRES_PASSWORD` nor `DATABASE_URL` is set (instead of silently using default credentials) |
 | `ENABLE_DOCS` | `true` | Whether to expose `/docs`, `/redoc`, and `/openapi.json` |
 | `MAX_SSE_CONNECTIONS` | `200` | Max concurrent SSE connections (session/group streams); additional connections receive `503` |
+| `QA_HEALTHCHECK_TIMEOUT` | `90` | Max seconds to wait for a showroom's qa-automation healthcheck stream to finish (see [QA Automation Healthcheck](#qa-automation-healthcheck) below) |
 
 #### Babylon
 
@@ -242,6 +243,15 @@ tabs:
     url: https://vpn-only.internal/debug
     initial_state: skip
 ```
+
+### QA Automation Healthcheck
+
+Independently of the two-tier readiness check above, soundcheck also probes each target for an optional [qa-automation healthcheck](https://rhpds.github.io/rhdp-publishing-house/user/qa-automation/) exposed by the showroom's runtime-automation sidecar ([zerotouch-automation](https://github.com/rhpds/zerotouch-automation)):
+
+1. `GET {showroom}/runner/api/config` is fetched (falling back to `GET {showroom}/api/config` for deployments without the `/runner/` nginx prefix); if the response's `"qa"` key lists a `"healthcheck"` stage, it's available.
+2. If available, `GET {showroom}/stream/qa/healthcheck` is run (an SSE stream of the `qa-automation/healthcheck.yml` ansible-playbook run) and its full output is captured.
+
+A showroom that doesn't implement this (no runtime-automation sidecar, or no `qa-automation/healthcheck.yml`) is **not a failure** — it's simply omitted from the check result. When it *is* available, a failing/timed-out/erroring run is treated as a hard failure, the same weight as a failing active tab or content probe. The captured log is viewable via a "View Log" button on the target detail panel in the UI.
 
 ### Database
 
