@@ -2,7 +2,13 @@
 	import { onDestroy } from 'svelte';
 	import StatusBadge from './StatusBadge.svelte';
 	import Modal from './Modal.svelte';
-	import type { TargetPublic, CheckResultPublic, TabDetail, ContentPageDetail } from '$lib/types';
+	import type {
+		TargetPublic,
+		CheckResultPublic,
+		TabDetail,
+		ContentPageDetail,
+		QaHealthcheckDetail
+	} from '$lib/types';
 
 	let {
 		target,
@@ -57,6 +63,35 @@
 			: []
 	);
 	let isLegacy = $derived(!!(detail && 'legacy' in detail && detail.legacy));
+	let qaHealthcheck = $derived<QaHealthcheckDetail | null>(
+		detail &&
+			!('legacy' in detail && detail.legacy) &&
+			'qa_healthcheck' in detail &&
+			detail.qa_healthcheck
+			? detail.qa_healthcheck
+			: null
+	);
+	let showQaLog = $state(false);
+
+	const QA_STATUS_LABELS: Record<string, string> = {
+		passed: 'Passed',
+		failed: 'Failed',
+		timeout: 'Timed out',
+		error: 'Error',
+		unknown: 'Unknown'
+	};
+
+	function qaStatusLabelClass(status: string | undefined): string {
+		if (status === 'passed') return 'pf-m-green';
+		if (status === 'failed' || status === 'timeout' || status === 'error') return 'pf-m-red';
+		return '';
+	}
+
+	function formatQaDuration(ms: number | undefined): string {
+		if (!ms) return '';
+		if (ms < 1000) return `${ms}ms`;
+		return `${(ms / 1000).toFixed(1)}s`;
+	}
 
 	onDestroy(() => {
 		if (copyTimeout) clearTimeout(copyTimeout);
@@ -357,8 +392,89 @@
 							{/each}
 						</ul>
 					{/if}
+
+					{#if qaHealthcheck?.available}
+						<h4 class="td__section-title">QA Healthcheck</h4>
+						<ul class="td__list" role="list">
+							<li class="td__list-item" role="listitem">
+								<div class="td__list-row">
+									<span
+										class="td__status-icon"
+										class:td__status-icon--ok={qaHealthcheck.status === 'passed'}
+										class:td__status-icon--fail={qaHealthcheck.status !== 'passed'}
+									>
+										{#if qaHealthcheck.status === 'passed'}
+											<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
+												><path
+													d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm3.36 4.65a.5.5 0 0 0-.72-.02L7.2 8.94 5.35 7.17a.5.5 0 1 0-.7.71l2.2 2.12a.5.5 0 0 0 .7-.01l3.8-3.63a.5.5 0 0 0 .01-.71Z"
+												/></svg
+											>
+										{:else}
+											<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
+												><path
+													d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm2.35 4.65a.5.5 0 0 0-.7 0L8 7.29 6.35 5.65a.5.5 0 1 0-.7.7L7.29 8 5.65 9.65a.5.5 0 1 0 .7.7L8 8.71l1.65 1.64a.5.5 0 0 0 .7-.7L8.71 8l1.64-1.65a.5.5 0 0 0 0-.7Z"
+												/></svg
+											>
+										{/if}
+									</span>
+									<span class="td__list-name">healthcheck.yml</span>
+									<div class="td__list-badges">
+										{#if qaHealthcheck.status}
+											<span
+												class="pf-v6-c-label pf-m-compact {qaStatusLabelClass(
+													qaHealthcheck.status
+												)}"
+											>
+												<span class="pf-v6-c-label__content"
+													><span class="pf-v6-c-label__text"
+														>{QA_STATUS_LABELS[qaHealthcheck.status] ?? qaHealthcheck.status}</span
+													></span
+												>
+											</span>
+										{/if}
+										{#if qaHealthcheck.duration_ms}
+											<span class="pf-v6-c-label pf-m-compact">
+												<span class="pf-v6-c-label__content"
+													><span class="pf-v6-c-label__text"
+														>{formatQaDuration(qaHealthcheck.duration_ms)}</span
+													></span
+												>
+											</span>
+										{/if}
+										{#if qaHealthcheck.log}
+											<button
+												class="pf-v6-c-button pf-m-link pf-m-inline pf-m-sm"
+												onclick={() => (showQaLog = true)}
+											>
+												View Log
+											</button>
+										{/if}
+									</div>
+								</div>
+								{#if qaHealthcheck.error_message}
+									<div class="td__list-error">{qaHealthcheck.error_message}</div>
+								{/if}
+							</li>
+						</ul>
+					{/if}
 				</div>
 			{/if}
+		</div>
+	</Modal>
+{/if}
+
+{#if showQaLog && qaHealthcheck}
+	<Modal title="QA Healthcheck Log" onClose={() => (showQaLog = false)}>
+		<div class="qa-log">
+			<div class="qa-log__toolbar">
+				<button
+					class="pf-v6-c-button pf-m-secondary pf-m-sm"
+					onclick={() => copyToClipboard(qaHealthcheck?.log ?? '', 'qa-log')}
+				>
+					{copiedField === 'qa-log' ? 'Copied' : 'Copy'}
+				</button>
+			</div>
+			<pre class="qa-log__content">{qaHealthcheck.log}</pre>
 		</div>
 	</Modal>
 {/if}
@@ -603,5 +719,25 @@
 		padding-left: 24px;
 		font-size: var(--pf-t--global--font--size--xs, 0.75rem);
 		color: var(--pf-t--global--color--status--danger--default, #c9190b);
+	}
+
+	.qa-log__toolbar {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: 8px;
+	}
+
+	.qa-log__content {
+		max-height: 60vh;
+		overflow: auto;
+		margin: 0;
+		padding: 12px;
+		background: var(--pf-t--global--background--color--secondary--default, #f0f0f0);
+		border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+		border-radius: var(--pf-t--global--border--radius--small, 3px);
+		font-family: var(--pf-t--global--font--family--mono, monospace);
+		font-size: var(--pf-t--global--font--size--xs, 0.75rem);
+		white-space: pre-wrap;
+		word-break: break-word;
 	}
 </style>

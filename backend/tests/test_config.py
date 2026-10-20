@@ -13,6 +13,7 @@ _ENV_VARS = (
     "DB_MAX_OVERFLOW",
     "DB_POOL_RECYCLE",
     "MAX_SSE_CONNECTIONS",
+    "QA_HEALTHCHECK_TIMEOUT",
     "VERIFY_SSL",
     "LOG_FORMAT",
     "CORS_ORIGINS",
@@ -50,6 +51,7 @@ class TestDefaults:
         assert s.db_max_overflow == 20
         assert s.db_pool_recycle == 3600
         assert s.max_sse_connections == 200
+        assert s.qa_healthcheck_timeout == 90
         assert s.verify_ssl is True
         assert s.log_format == "text"
         assert s.cors_origins == ["http://localhost:5173"]
@@ -80,6 +82,14 @@ class TestPositiveIntFallback:
     def test_valid_value_passed_through(self, monkeypatch: pytest.MonkeyPatch) -> None:
         s = make_settings(monkeypatch, MAX_SSE_CONNECTIONS="7")
         assert s.max_sse_connections == 7
+
+    def test_qa_healthcheck_timeout_valid_value_passed_through(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        s = make_settings(monkeypatch, QA_HEALTHCHECK_TIMEOUT="45")
+        assert s.qa_healthcheck_timeout == 45
+
+    def test_qa_healthcheck_timeout_falls_back_to_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        s = make_settings(monkeypatch, QA_HEALTHCHECK_TIMEOUT="banana")
+        assert s.qa_healthcheck_timeout == 90
 
 
 class TestCorsOrigins:

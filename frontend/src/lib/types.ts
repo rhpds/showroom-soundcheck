@@ -60,9 +60,26 @@ export interface ContentPageDetail {
 	url?: string;
 }
 
+export type QaHealthcheckStatus = 'passed' | 'failed' | 'timeout' | 'error' | 'unknown';
+
+export interface QaHealthcheckDetail {
+	available: boolean;
+	status?: QaHealthcheckStatus;
+	error_message?: string;
+	log?: string;
+	started_at?: string;
+	completed_at?: string;
+	duration_ms?: number;
+}
+
 type CheckDetail =
 	| { legacy: true }
-	| { legacy?: false; tabs?: TabDetail[]; content_pages?: ContentPageDetail[] };
+	| {
+			legacy?: false;
+			tabs?: TabDetail[];
+			content_pages?: ContentPageDetail[];
+			qa_healthcheck?: QaHealthcheckDetail;
+	  };
 
 export interface TargetPublic {
 	id: number;
