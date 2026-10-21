@@ -244,6 +244,14 @@ tabs:
     initial_state: skip
 ```
 
+**`/placeholder` tabs are always skipped, regardless of `initial_state`.** Nookbag has a special-case tab path — `url: /placeholder` — that renders a local stub panel without the URL needing to resolve against a real backend (see [showroom-template's `ui-config.yml`](https://github.com/rhpds/showroom-template/blob/main/ui-config.yml) for the canonical example). Soundcheck auto-detects this path and never probes it or counts it toward health, even if `initial_state` is left at its `active` default:
+
+```yaml
+tabs:
+  - name: ">_ terminal"
+    url: /placeholder
+```
+
 ### QA Automation Healthcheck
 
 Independently of the two-tier readiness check above, soundcheck also probes each target for an optional [qa-automation healthcheck](https://rhpds.github.io/rhdp-publishing-house/user/qa-automation/) exposed by the showroom's runtime-automation sidecar ([zerotouch-automation](https://github.com/rhpds/zerotouch-automation)):

@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 import yaml
@@ -109,6 +110,7 @@ class TabProbeResult:
     external: bool = False
     error: str | None = None
     initial_state: str = "active"
+    is_placeholder: bool = False
 
 
 @dataclass
@@ -185,6 +187,19 @@ def _is_proxied_path(path: str | None) -> bool:
     return bool(path) and path != "/"
 
 
+def _is_placeholder_tab_url(url: str | None) -> bool:
+    """True when a tab points at nookbag's special `/placeholder` stub path.
+
+    Nookbag renders a local placeholder panel for this path without the
+    underlying URL needing to resolve -- see showroom-template's
+    ui-config.yml. Treat it like initial_state=skip regardless of whatever
+    initial_state is configured (or defaulted) for the tab.
+    """
+    if not url:
+        return False
+    return urlsplit(url).path.rstrip("/") == "/placeholder"
+
+
 def _is_external_url(url: str | None, base_url: str) -> bool:
     """True when url points to a third-party site, not the showroom's own services."""
     if not url:
@@ -196,11 +211,11 @@ def _is_external_url(url: str | None, base_url: str) -> bool:
     return url.startswith("http://") or url.startswith("https://")
 
 
-def _resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, str]]:
-    """Return (label, url, initial_state) triples for a tab config entry."""
+def _resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, str, bool]]:
+    """Return (label, url, initial_state, is_placeholder) tuples for a tab config entry."""
     t = _apply_tab_defaults(tab)
     state = _normalise_initial_state(t.get("initial_state"))
-    results: list[tuple[str, str | None, str]] = []
+    results: list[tuple[str, str | None, str, bool]] = []
 
     url: str | None = None
     if t.get("url"):
@@ -210,7 +225,7 @@ def _resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, s
     elif t.get("port"):
         proto = "https" if t["port"] in ("443", "8443") else "http"
         url = f"{proto}://localhost:{t['port']}{t.get('path', '')}"
-    results.append((t.get("name", "unnamed"), url, state))
+    results.append((t.get("name", "unnamed"), url, state, _is_placeholder_tab_url(url)))
 
     sec_url: str | None = None
     if t.get("secondary_url"):
@@ -223,7 +238,7 @@ def _resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, s
         sec_url = f"{proto}://localhost:{port}{t['secondary_path']}"
     if sec_url:
         label = f"{t.get('name', 'unnamed')} ({t.get('secondary_name', 'secondary')})"
-        results.append((label, sec_url, state))
+        results.append((label, sec_url, state, _is_placeholder_tab_url(sec_url)))
 
     return results
 
@@ -403,18 +418,20 @@ async def _fetch_config(
 
 async def _probe_tabs(
     client: httpx.AsyncClient,
-    entries: list[tuple[str, str | None, str]],
+    entries: list[tuple[str, str | None, str, bool]],
     base_url: str,
 ) -> list[TabProbeResult]:
-    """Probe all tab URLs concurrently.  Tabs with initial_state='skip' are
-    recorded without probing."""
+    """Probe all tab URLs concurrently.  Tabs with initial_state='skip', and tabs
+    pointing at nookbag's special `/placeholder` stub path, are recorded without
+    probing."""
 
-    async def _probe_one(label: str, tab_url: str | None, initial_state: str) -> TabProbeResult:
-        if initial_state == "skip":
+    async def _probe_one(label: str, tab_url: str | None, initial_state: str, is_placeholder: bool) -> TabProbeResult:
+        if initial_state == "skip" or is_placeholder:
             return TabProbeResult(
                 name=label,
                 url=tab_url,
-                initial_state="skip",
+                initial_state=initial_state,
+                is_placeholder=is_placeholder,
             )
         if not tab_url:
             return TabProbeResult(
@@ -435,7 +452,7 @@ async def _probe_tabs(
             initial_state=initial_state,
         )
 
-    return list(await asyncio.gather(*[_probe_one(label, url, state) for label, url, state in entries]))
+    return list(await asyncio.gather(*[_probe_one(label, url, state, is_ph) for label, url, state, is_ph in entries]))
 
 
 async def _run_tier1(
@@ -528,14 +545,14 @@ async def _run_tier1(
         )
 
     tabs_config = config.get("tabs", []) or []
-    entries: list[tuple[str, str | None, str]] = []
+    entries: list[tuple[str, str | None, str, bool]] = []
     for tab in tabs_config:
         entries.extend(_resolve_tab_urls(tab, base_url))
 
     tier2.tabs = await _probe_tabs(client, entries, base_url)
 
     all_content_reachable = bool(tier2.content_probes) and all(c.reachable for c in tier2.content_probes)
-    active_tabs = [t for t in tier2.tabs if t.initial_state == "active"]
+    active_tabs = [t for t in tier2.tabs if t.initial_state == "active" and not t.is_placeholder]
     all_tabs_ok = len(active_tabs) == 0 or all(
         t.reachable and (not t.iframe_blocked or t.external) for t in active_tabs
     )
@@ -604,6 +621,7 @@ def _tier2_to_dict(t: Tier2Detail) -> dict[str, Any]:
                 "external": tab.external,
                 "error": tab.error,
                 "initial_state": tab.initial_state,
+                "is_placeholder": tab.is_placeholder,
             }
             for tab in t.tabs
         ],

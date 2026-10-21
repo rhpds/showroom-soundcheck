@@ -51,6 +51,7 @@ export interface TabDetail {
 	external?: boolean;
 	error?: string;
 	initial_state?: TabInitialState;
+	is_placeholder?: boolean;
 }
 
 export interface ContentPageDetail {
