@@ -275,6 +275,16 @@
 						</ul>
 					{/if}
 
+					{#snippet skipIcon(title: string)}
+						<span class="td__status-icon td__status-icon--skip" {title}>
+							<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
+								><path
+									d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm0 1.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM5 8a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8Z"
+								/></svg
+							>
+						</span>
+					{/snippet}
+
 					{#if tabs.length > 0}
 						<h4 class="td__section-title">Endpoints / Tabs</h4>
 						<ul class="td__list" role="list">
@@ -282,18 +292,15 @@
 								<li
 									class="td__list-item"
 									class:td__list-item--muted={tab.initial_state === 'deferred' ||
-										tab.initial_state === 'skip'}
+										tab.initial_state === 'skip' ||
+										tab.is_placeholder}
 									role="listitem"
 								>
 									<div class="td__list-row">
-										{#if tab.initial_state === 'skip'}
-											<span class="td__status-icon td__status-icon--skip" title="skipped">
-												<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
-													><path
-														d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm0 1.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM5 8a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8Z"
-													/></svg
-												>
-											</span>
+										{#if tab.is_placeholder}
+											{@render skipIcon('nookbag placeholder (not probed)')}
+										{:else if tab.initial_state === 'skip'}
+											{@render skipIcon('skipped')}
 										{:else if tab.initial_state === 'deferred' && !tab.reachable}
 											<span class="td__status-icon td__status-icon--deferred" title="deferred">
 												<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
@@ -325,7 +332,13 @@
 										{/if}
 										<span class="td__list-name">{tab.name}</span>
 										<div class="td__list-badges">
-											{#if tab.initial_state === 'skip'}
+											{#if tab.is_placeholder}
+												<span class="pf-v6-c-label pf-m-compact">
+													<span class="pf-v6-c-label__content"
+														><span class="pf-v6-c-label__text">placeholder</span></span
+													>
+												</span>
+											{:else if tab.initial_state === 'skip'}
 												<span class="pf-v6-c-label pf-m-compact">
 													<span class="pf-v6-c-label__content"
 														><span class="pf-v6-c-label__text">skip</span></span
@@ -381,7 +394,7 @@
 									{#if tab.url}
 										<div class="td__list-sub">{tab.url}</div>
 									{/if}
-									{#if tab.error && tab.initial_state !== 'skip'}
+									{#if tab.error && tab.initial_state !== 'skip' && !tab.is_placeholder}
 										<div
 											class={tab.initial_state === 'deferred' ? 'td__list-sub' : 'td__list-error'}
 										>
