@@ -28,6 +28,8 @@ from ..services.babylon_service import (
     RC_GROUP,
     RC_PLURAL,
     RC_VERSION,
+    SELFPACEDLAB_ID_LABEL,
+    SPL_PLURAL,
     WORKSHOP_ID_LABEL,
     WS_PLURAL,
 )
@@ -239,6 +241,150 @@ def extract_workshop_item(
     )
 
 
+def _derive_selfpacedlab_status(
+    lifespan_start: str,
+    lifespan_end: str,
+    pool_assigned: int,
+    pool_provisioning: int,
+    pool_ready: int,
+) -> WorkshopStatus:
+    """Derive SelfPacedLab lifecycle status from lifespan and pool counts.
+
+    SelfPacedLab works like a ResourcePool: a minimum number of candidate
+    ResourceClaims are kept pre-provisioned, and whenever the available count
+    drops below that minimum (e.g. one gets assigned), more are provisioned
+    to replenish it. This means ``poolCount.provisioning`` can legitimately
+    stay above 0 indefinitely on a perfectly healthy, already-running lab —
+    it's ongoing background replenishment, not an initial one-time ramp-up
+    like a Workshop's ``provisionCount``. That's why ``assigned``/``ready``
+    are checked *before* ``provisioning`` below: once the user has (or had)
+    a usable instance, the lab is "running" regardless of how much pool
+    churn is happening behind it. There is no explicit failure signal in
+    poolCount, so failures are not detected here.
+
+    This also means a point-in-time check can observe a lab transiently as
+    "provisioning" if it catches the pool between assignments — rerunning
+    the check (a fresh Soundcheck session) naturally picks up whichever
+    instance has since become ready/assigned, matching how this tool already
+    treats every check as a point-in-time snapshot rather than something to
+    poll/retry internally.
+    """
+    now = datetime.now(UTC)
+
+    if lifespan_end:
+        try:
+            end_dt = datetime.fromisoformat(lifespan_end.replace("Z", "+00:00"))
+            if end_dt < now:
+                return "completed"
+        except (ValueError, TypeError):
+            pass
+
+    if lifespan_start:
+        try:
+            start_dt = datetime.fromisoformat(lifespan_start.replace("Z", "+00:00"))
+            if start_dt > now:
+                return "scheduled"
+        except (ValueError, TypeError):
+            pass
+
+    if pool_assigned > 0 or pool_ready > 0:
+        return "running"
+    if pool_provisioning > 0:
+        return "provisioning"
+
+    return "unknown"
+
+
+def extract_selfpacedlab_item(spl_def: dict[str, Any], cluster: str) -> WorkshopDashboardItem:
+    """Transform a raw SelfPacedLab CRD into a dashboard item.
+
+    Reuses the Workshop dashboard schema (see ``WorkshopDashboardItem.kind``)
+    — SelfPacedLab's fields map cleanly onto it, except for status derivation
+    (pool-based ``status.poolCount``, not ``provisionCount``/``userCount`` —
+    see :func:`_derive_selfpacedlab_status`) and ``workshop_url`` (the CRD's
+    ``status.selfPacedLabURL`` is a relative catalog path, not an absolute
+    URL like a Workshop's ``status.workshopURL``).
+
+    Unlike :func:`extract_workshop_item`, no owning-ResourceClaim/state
+    enrichment is needed — status comes directly from ``poolCount``.
+    """
+    meta = spl_def.get("metadata", {})
+    spec = spl_def.get("spec", {})
+    status = spl_def.get("status", {})
+    labels = meta.get("labels", {})
+    annotations = meta.get("annotations", {})
+
+    lifespan = spec.get("lifespan", {})
+    pool_count = status.get("poolCount", {})
+    pool_assigned = pool_count.get("assigned", 0)
+    pool_provisioning = pool_count.get("provisioning", 0)
+    pool_ready = pool_count.get("ready", 0)
+
+    # SelfPacedLab has no actionSchedule fallback like Workshop — fall back
+    # straight to creationTimestamp if spec.lifespan.start is unset.
+    lifespan_start = lifespan.get("start", "") or meta.get("creationTimestamp", "")
+    lifespan_end = lifespan.get("end", "")
+
+    derived_status = _derive_selfpacedlab_status(
+        lifespan_start,
+        lifespan_end,
+        pool_assigned,
+        pool_provisioning,
+        pool_ready,
+    )
+
+    spl_name = meta.get("name", "")
+    spl_namespace = meta.get("namespace", "")
+    base_url = get_catalog_url(cluster)
+    spl_url = status.get("selfPacedLabURL", "")
+    # selfPacedLabURL is already a relative catalog path (e.g.
+    # "/selfpacedlab/8pcuf6"), so it doubles as both the "visit" URL and the
+    # catalog link, unlike Workshop's separate /workshops/{ns}/{name} pattern.
+    workshop_url = f"{base_url}{spl_url}" if base_url and spl_url else ""
+
+    # Best-effort mapping onto Workshop-shaped provision/user counts, used
+    # only for display/filter counts below — NOT for status derivation
+    # (handled above via poolCount directly). There's no failure signal in
+    # poolCount, so the dashboard's "has failures" filter won't detect
+    # SelfPacedLab failures in this first pass.
+    provision_ordered = pool_provisioning + pool_ready + pool_assigned
+    provision_active = pool_ready + pool_assigned
+
+    return WorkshopDashboardItem(
+        kind="SelfPacedLab",
+        name=spl_name,
+        namespace=spl_namespace,
+        display_name=spec.get("displayName", "") or spl_name,
+        cluster=cluster,
+        catalog_item=labels.get(CATALOG_ITEM_LABEL, ""),
+        requester=annotations.get(f"{DEMO_DOMAIN}/requester", ""),
+        ordered_by=annotations.get(f"{DEMO_DOMAIN}/orderedBy", ""),
+        workshop_id=labels.get(SELFPACEDLAB_ID_LABEL, ""),
+        workshop_url=workshop_url,
+        catalog_url=workshop_url,
+        status=derived_status,
+        created_at=meta.get("creationTimestamp", ""),
+        lifespan_start=lifespan_start,
+        lifespan_end=lifespan_end,
+        ready_by=lifespan.get("readyBy", ""),
+        action_start="",
+        action_stop="",
+        provision_ordered=provision_ordered,
+        provision_active=provision_active,
+        provision_failed=0,
+        provision_retries=0,
+        users_assigned=1 if pool_assigned else 0,
+        users_available=1 if pool_ready else 0,
+        users_total=1,
+        white_glove=labels.get(WHITE_GLOVE_LABEL, "false").lower() == "true",
+        demo_team_provisioned=(annotations.get(f"{DEMO_DOMAIN}/orderedBy", "").strip().lower() in DEMO_TEAM_EMAILS),
+        locked=labels.get(LOCK_ENABLED_LABEL, "false").lower() == "true",
+        disable_auto_stop=True,
+        open_registration=spec.get("openRegistration", False),
+        access_password_set=bool(spec.get("accessPassword")),
+    )
+
+
 def _get_owner_rc(ws_def: dict[str, Any]) -> tuple[str, str]:
     """Extract the owning ResourceClaim (namespace, name) from a Workshop."""
     meta = ws_def.get("metadata", {})
@@ -409,6 +555,35 @@ async def fetch_multiworkshops_from_cluster(
     return items, []
 
 
+async def fetch_selfpacedlabs_from_cluster(
+    cluster: str,
+) -> tuple[list[WorkshopDashboardItem], list[str]]:
+    """Fetch all SelfPacedLab CRDs from a single cluster.
+
+    Simpler than :func:`fetch_workshops_from_cluster` — no owning-
+    ResourceClaim/state enrichment step is needed, since status is derived
+    directly from ``status.poolCount`` (see :func:`_derive_selfpacedlab_status`).
+    """
+    try:
+        result = await babylon_client.k8s_list_cluster_wide(
+            cluster,
+            BABYLON_GROUP,
+            BABYLON_VERSION,
+            SPL_PLURAL,
+        )
+    except Exception as e:
+        msg = f"Failed to fetch selfpacedlabs from cluster '{cluster}': {e}"
+        logger.warning(msg)
+        return [], [msg]
+
+    selfpacedlabs = result.get("items", [])
+    if not selfpacedlabs:
+        return [], []
+
+    items = [extract_selfpacedlab_item(spl, cluster) for spl in selfpacedlabs]
+    return items, []
+
+
 # ---------------------------------------------------------------------------
 # Caching layer — background refresh keeps the cache always warm
 # ---------------------------------------------------------------------------
@@ -418,6 +593,7 @@ _REFRESH_INTERVAL = 55  # seconds — run slightly under 60s so cache never goes
 
 _ws_cache: dict[str, tuple[float, str, list[WorkshopDashboardItem], list[str]]] = {}
 _mws_cache: dict[str, tuple[float, str, list[dict[str, Any]], list[str]]] = {}
+_spl_cache: dict[str, tuple[float, str, list[WorkshopDashboardItem], list[str]]] = {}
 
 _refresh_task: asyncio.Task[None] | None = None
 
@@ -464,6 +640,26 @@ async def fetch_multiworkshops_cached(
         return items, errors, wall_ts
 
 
+async def fetch_selfpacedlabs_cached(
+    cluster: str,
+) -> tuple[list[WorkshopDashboardItem], list[str], str]:
+    """Return cached selfpacedlab data, always served from in-memory cache.
+
+    See :func:`fetch_workshops_cached` for cold-start behaviour.
+    """
+    cached = _spl_cache.get(cluster)
+    if cached:
+        return cached[2], cached[3], cached[1]
+    async with _CLUSTER_FETCH_SEM:
+        cached = _spl_cache.get(cluster)
+        if cached:
+            return cached[2], cached[3], cached[1]
+        items, errors = await fetch_selfpacedlabs_from_cluster(cluster)
+        wall_ts = datetime.now(UTC).isoformat()
+        _spl_cache[cluster] = (time.monotonic(), wall_ts, items, errors)
+        return items, errors, wall_ts
+
+
 # ---------------------------------------------------------------------------
 # Background refresh
 # ---------------------------------------------------------------------------
@@ -489,6 +685,16 @@ async def _refresh_cluster_mws(cluster: str) -> None:
             logger.exception("Background refresh failed for multiworkshops on '%s'", cluster)
 
 
+async def _refresh_cluster_spl(cluster: str) -> None:
+    async with _CLUSTER_FETCH_SEM:
+        try:
+            items, errors = await fetch_selfpacedlabs_from_cluster(cluster)
+            wall_ts = datetime.now(UTC).isoformat()
+            _spl_cache[cluster] = (time.monotonic(), wall_ts, items, errors)
+        except Exception:
+            logger.exception("Background refresh failed for selfpacedlabs on '%s'", cluster)
+
+
 async def _refresh_all_clusters() -> None:
     clusters = babylon_client.get_configured_clusters()
     if not clusters:
@@ -497,6 +703,7 @@ async def _refresh_all_clusters() -> None:
     for cluster in clusters:
         tasks.append(asyncio.create_task(_refresh_cluster_ws(cluster)))
         tasks.append(asyncio.create_task(_refresh_cluster_mws(cluster)))
+        tasks.append(asyncio.create_task(_refresh_cluster_spl(cluster)))
     await asyncio.gather(*tasks, return_exceptions=True)
 
 

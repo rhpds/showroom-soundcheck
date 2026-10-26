@@ -43,7 +43,7 @@
 	}
 
 	function sourceTypeLabel(type: string): string {
-		if (type === 'workshop_guid') return 'Workshop';
+		if (type === 'workshop_guid') return 'Workshop/SPL';
 		if (type === 'rc_guid') return 'ResourceClaim';
 		if (type === 'pool') return 'Pool';
 		return type;
@@ -527,7 +527,7 @@
 					<label class="pf-v6-c-form__label" for="add-type">Type</label>
 					<span class="pf-v6-c-form-control">
 						<select id="add-type" bind:value={addType}>
-							<option value="workshop_guid">Workshop GUID</option>
+							<option value="workshop_guid">Workshop / SelfPacedLab GUID</option>
 							<option value="rc_guid">ResourceClaim GUID</option>
 							<option value="pool">ResourcePool</option>
 						</select>

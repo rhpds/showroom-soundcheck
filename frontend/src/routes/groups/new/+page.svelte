@@ -118,11 +118,14 @@
 					</div>
 
 					<div class="pf-v6-c-form__group">
-						<label class="pf-v6-c-form__label" for="g-ws-guids">Workshop GUIDs</label>
+						<label class="pf-v6-c-form__label" for="g-ws-guids">Workshop / SelfPacedLab GUIDs</label
+						>
 						<span class="pf-v6-c-form-control">
 							<textarea id="g-ws-guids" bind:value={groupForm.workshop_guids} rows="2"></textarea>
 						</span>
-						<span class="pf-v6-c-form__helper-text">One per line</span>
+						<span class="pf-v6-c-form__helper-text"
+							>One per line — accepts either a Workshop or SelfPacedLab GUID</span
+						>
 					</div>
 
 					<div class="pf-v6-c-form__group">

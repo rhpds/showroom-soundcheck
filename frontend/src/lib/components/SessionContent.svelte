@@ -383,6 +383,8 @@
 							if (!base || !name) return '';
 							if (data.session.resource_kind === 'Workshop')
 								return `${base}/workshops/${ns}/${name}`;
+							if (data.session.resource_kind === 'SelfPacedLab')
+								return `${base}/selfpacedlabs/${ns}/${name}`;
 							if (data.session.resource_kind === 'ResourcePool')
 								return `${base}/admin/resourcepools/${name}/details`;
 							return `${base}/services/${ns}/${name}`;

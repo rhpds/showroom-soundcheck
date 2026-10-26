@@ -156,10 +156,12 @@
 					</button>
 				{/if}
 				{#if target.workshop_guid}
-					<span class="td__guid-badge td__guid-badge--blue">Workshop: {target.workshop_guid}</span>
+					<span class="td__guid-badge td__guid-badge--blue"
+						>Workshop/SPL: {target.workshop_guid}</span
+					>
 					<button
 						class="td__copy"
-						aria-label="Copy Workshop GUID"
+						aria-label="Copy Workshop or SelfPacedLab GUID"
 						onclick={() => copyToClipboard(target?.workshop_guid ?? '', 'workshop')}
 					>
 						{#if copiedField === 'workshop'}<svg

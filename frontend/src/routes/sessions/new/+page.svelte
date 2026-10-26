@@ -142,7 +142,7 @@
 					</div>
 
 					<div class="pf-v6-c-form__group">
-						<label class="pf-v6-c-form__label" for="ws-guids">Workshop GUID</label>
+						<label class="pf-v6-c-form__label" for="ws-guids">Workshop / SelfPacedLab GUID</label>
 						<span class="pf-v6-c-form-control">
 							<input
 								type="text"
@@ -151,6 +151,9 @@
 								placeholder="e.g. 4b8cfg"
 							/>
 						</span>
+						<span class="pf-v6-c-form__helper-text"
+							>Accepts either a Workshop or SelfPacedLab GUID</span
+						>
 					</div>
 
 					<div class="pf-v6-c-form__group">

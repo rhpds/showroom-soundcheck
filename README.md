@@ -30,7 +30,7 @@ From the UI at `/sessions/new`, provide one of:
 
 - **URLs** — direct showroom URLs to check
 - **GUID** — Babylon ResourceClaim provision GUID
-- **Workshop GUID** — Babylon workshop GUID
+- **Workshop / SelfPacedLab GUID** — Babylon workshop GUID or SelfPacedLab GUID (resolved the same way — see below)
 - **Resource Pool** — Babylon resource pool name
 
 ### Deep-Link Creation
@@ -49,7 +49,7 @@ Create sessions via URL by navigating to `/check` with query parameters:
 |------------|-------------|
 | `urls`     | Comma-separated showroom URLs |
 | `guid`     | Babylon ResourceClaim provision GUID |
-| `workshop` | Babylon workshop GUID |
+| `workshop` | Babylon workshop GUID *or* SelfPacedLab GUID — resolution tries Workshop first, then falls back to SelfPacedLab |
 | `pool`     | Babylon resource pool name |
 | `name`     | Optional session label |
 | `cluster`  | Babylon cluster name (searches all if omitted) |
@@ -58,13 +58,13 @@ At least one of `urls`, `guid`, `workshop`, or `pool` is required.
 
 ### Idempotent workshop deep-link
 
-External tools (Admin Ops, Flow, provisioning) can point at a stable per-workshop URL:
+External tools (Admin Ops, Flow, provisioning) can point at a stable per-workshop URL (this also works for a SelfPacedLab GUID):
 
 ```
 /session/workshop/{workshop_guid}
 ```
 
-- If a session already exists for that workshop GUID (any status), the user is redirected to it.
+- If a session already exists for that workshop/SelfPacedLab GUID (any status), the user is redirected to it.
 - If none exists, Soundcheck creates one (same as “Run check”), enqueues checks, then redirects.
 - Concurrent clicks for the same GUID are serialized (Postgres advisory lock) so duplicate sessions are not spawned.
 - Users can still manually re-run via **Re-run / clone** on the session page.
@@ -84,7 +84,7 @@ Stale sessions (stuck in `running` for >30 minutes) are automatically cleaned up
 
 ### Workshops Dashboard
 
-At `/workshops`, view a real-time timeline of Workshop (and MultiWorkshop) custom resources across every configured Babylon cluster — independent of soundcheck's own sessions/groups. Filter by cluster, status, provision type, environment, white-glove flag, presence of provisioning failures, time window, and workshop size (seat count). Multi-workshop events group their child workshops, expandable/collapsible in the timeline.
+At `/workshops`, view a real-time timeline of Workshop, SelfPacedLab, and MultiWorkshop custom resources across every configured Babylon cluster — independent of soundcheck's own sessions/groups. Filter by cluster, status, provision type, environment, white-glove flag, presence of provisioning failures, time window, and workshop size (seat count). Multi-workshop events group their child workshops/selfpacedlabs, expandable/collapsible in the timeline.
 
 Trigger a soundcheck run directly from a workshop's row; its live status streams back via SSE without leaving the dashboard. Unlike session/group pages, the workshop list itself is fetched via plain REST (it reads live from the Kubernetes API rather than SAQ/DB state) and is served from a short-lived in-memory cache that's kept warm by a background refresh loop.
 

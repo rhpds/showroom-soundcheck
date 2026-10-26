@@ -20,7 +20,7 @@ from .babylon_service import (
     ResolvedEntry,
     extract_resource_claim_metadata,
     extract_resource_pool_metadata,
-    extract_workshop_metadata,
+    extract_workshop_or_selfpacedlab_metadata,
     lookup_rc_by_guid,
     lookup_resource_pool,
     lookup_workshop_by_guid,
@@ -327,11 +327,11 @@ async def _populate_workshop_metadata(
         ws_def, resolved_cluster = await lookup_workshop_by_guid(ws_guid, cluster=cluster, ctx=ctx)
         if not ws_def:
             return
-        meta = extract_workshop_metadata(ws_def)
+        meta = extract_workshop_or_selfpacedlab_metadata(ws_def)
         cs_result = await db.execute(select(CheckSession).where(CheckSession.session_id == sid))
         cs = cs_result.scalars().first()
         if cs:
-            cs.resource_kind = "Workshop"
+            cs.resource_kind = meta.get("kind", "Workshop")
             cs.resource_name = meta.get("name", "")
             cs.resource_namespace = meta.get("namespace", "")
             cs.resource_display_name = meta.get("display_name", "")
@@ -681,6 +681,8 @@ def _build_catalog_url(cluster: str, meta: dict) -> str:
         return f"{base}/workshops/{namespace}/{name}"
     if kind == "ResourcePool":
         return f"{base}/admin/resourcepools/{name}/details"
+    if kind == "SelfPacedLab":
+        return f"{base}/selfpacedlabs/{namespace}/{name}"
     return f"{base}/services/{namespace}/{name}"
 
 
@@ -703,7 +705,7 @@ async def _lookup_source_metadata(
         elif source_type == "workshop_guid":
             ws_def, resolved = await lookup_workshop_by_guid(source_value, cluster=cluster, ctx=ctx)
             if ws_def:
-                meta = extract_workshop_metadata(ws_def)
+                meta = extract_workshop_or_selfpacedlab_metadata(ws_def)
                 meta["cluster"] = resolved or cluster
                 meta["catalog_url"] = _build_catalog_url(resolved or cluster, meta)
                 return meta

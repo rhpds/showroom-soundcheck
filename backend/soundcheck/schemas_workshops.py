@@ -10,7 +10,15 @@ WorkshopStatus = Literal[
 
 
 class WorkshopDashboardItem(BaseModel):
-    """Single workshop entry for the dashboard."""
+    """Single workshop entry for the dashboard.
+
+    ``kind`` distinguishes the underlying CRD this item was extracted from —
+    reused as-is for SelfPacedLab (see ``extract_selfpacedlab_item``) rather
+    than introducing a parallel schema, since the two map cleanly onto the
+    same dashboard fields.
+    """
+
+    kind: Literal["Workshop", "SelfPacedLab"] = "Workshop"
 
     name: str
     namespace: str
