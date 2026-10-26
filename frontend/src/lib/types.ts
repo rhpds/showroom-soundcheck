@@ -205,6 +205,8 @@ export type WorkshopStatus =
 	| 'unknown';
 
 export interface WorkshopDashboardItem {
+	kind: 'Workshop' | 'SelfPacedLab';
+
 	name: string;
 	namespace: string;
 	display_name: string;

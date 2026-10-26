@@ -74,6 +74,7 @@
 	{:else}
 		{@const ws = row.item}
 		<strong class="tooltip-name">{ws.display_name}</strong>
+		{#if ws.kind === 'SelfPacedLab'}<span class="tooltip-spl">SelfPacedLab</span>{/if}
 		{#if ws.requester}
 			<span
 				>User: {ws.requester}{#if ws.ordered_by && ws.ordered_by !== ws.requester}
@@ -143,6 +144,10 @@
 	.tooltip-failed {
 		color: #f4a460;
 		font-weight: 600;
+	}
+
+	.tooltip-spl {
+		color: #7ecbc0;
 	}
 
 	.tooltip-wg {

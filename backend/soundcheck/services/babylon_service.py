@@ -27,6 +27,7 @@ BABYLON_GROUP = "babylon.gpte.redhat.com"
 BABYLON_VERSION = "v1"
 WS_PLURAL = "workshops"
 MWS_PLURAL = "multiworkshops"
+SPL_PLURAL = "selfpacedlabs"
 
 LAB_UI_URL_KEYS = (
     "showroom_primary_view_url",
@@ -67,6 +68,7 @@ class ResolutionContext:
     def __init__(self) -> None:
         self._rc_cache: dict[str, dict] = {}
         self._ws_cache: dict[str, dict] = {}
+        self._spl_cache: dict[str, dict] = {}
 
     async def get_rc_list(self, cluster: str) -> dict:
         if cluster not in self._rc_cache:
@@ -89,6 +91,18 @@ class ResolutionContext:
                 label_selector=label_selector,
             )
         return self._ws_cache[key]
+
+    async def get_spl_list(self, cluster: str, label_selector: str = "") -> dict:
+        key = f"{cluster}|{label_selector}"
+        if key not in self._spl_cache:
+            self._spl_cache[key] = await babylon_client.k8s_list_cluster_wide(
+                cluster,
+                BABYLON_GROUP,
+                BABYLON_VERSION,
+                SPL_PLURAL,
+                label_selector=label_selector,
+            )
+        return self._spl_cache[key]
 
 
 def _extract_showroom_urls(rc_def: dict[str, Any]) -> list[ResolvedEntry]:
@@ -277,6 +291,7 @@ async def _search_cluster_for_rc_guid(
 
 
 WORKSHOP_ID_LABEL = f"{BABYLON_GROUP}/workshop-id"
+SELFPACEDLAB_ID_LABEL = f"{BABYLON_GROUP}/selfpacedlab-id"
 
 
 def _resolution_error_entry(guid: str, errors: list[str]) -> ResolvedEntry:
@@ -288,7 +303,61 @@ def _resolution_error_entry(guid: str, errors: list[str]) -> ResolvedEntry:
     }
 
 
-async def _search_cluster_for_workshop_guid(
+async def _resolve_rc_map(
+    cluster: str,
+    rc_map: dict[str, Any],
+    namespace: str,
+) -> tuple[list[ResolvedEntry], list[str]]:
+    """Fetch each ResourceClaim named in *rc_map* and extract showroom URLs.
+
+    Shared by Workshop and SelfPacedLab GUID resolution — both expose an
+    identically-shaped ``status.resourceClaims`` map of ``{rc_name: {uid}}``.
+    """
+    urls: list[ResolvedEntry] = []
+    errors: list[str] = []
+
+    rc_tasks = [
+        babylon_client.k8s_get_resource(
+            cluster,
+            RC_GROUP,
+            RC_VERSION,
+            RC_PLURAL,
+            namespace,
+            rc_name,
+        )
+        for rc_name in rc_map
+    ]
+    rc_results = await asyncio.gather(*rc_tasks, return_exceptions=True)
+
+    for rc_name, rc_result in zip(rc_map, rc_results, strict=True):
+        if isinstance(rc_result, Exception):
+            msg = f"Cluster '{cluster}' failed to fetch RC '{namespace}/{rc_name}': {rc_result}"
+            logger.warning(msg)
+            errors.append(msg)
+            continue
+        rc_guid = _extract_rc_guid(rc_result)
+        found = _extract_showroom_urls(rc_result)
+        if found:
+            for entry in found:
+                entry["rc_guid"] = rc_guid
+            urls.extend(found)
+        else:
+            provision_status = _get_rc_provision_status(rc_result)
+            urls.append(
+                {
+                    "url": "",
+                    "label": rc_name,
+                    "rc_name": rc_name,
+                    "rc_namespace": namespace,
+                    "rc_guid": rc_guid,
+                    "provision_status": provision_status,
+                }
+            )
+
+    return urls, errors
+
+
+async def _search_workshops_for_guid(
     cluster: str,
     guid: str,
     ctx: ResolutionContext | None = None,
@@ -332,47 +401,9 @@ async def _search_cluster_for_workshop_guid(
                 guid,
                 len(rc_map),
             )
-
-            rc_tasks = [
-                babylon_client.k8s_get_resource(
-                    cluster,
-                    RC_GROUP,
-                    RC_VERSION,
-                    RC_PLURAL,
-                    ws_ns,
-                    rc_name,
-                )
-                for rc_name in rc_map
-            ]
-            rc_results = await asyncio.gather(*rc_tasks, return_exceptions=True)
-
-            for rc_name, rc_result in zip(rc_map, rc_results, strict=True):
-                if isinstance(rc_result, Exception):
-                    msg = (
-                        f"Cluster '{cluster}' failed to fetch RC '{ws_ns}/{rc_name}' "
-                        f"for workshop '{ws_name}': {rc_result}"
-                    )
-                    logger.warning(msg)
-                    errors.append(msg)
-                    continue
-                rc_guid = _extract_rc_guid(rc_result)
-                found = _extract_showroom_urls(rc_result)
-                if found:
-                    for entry in found:
-                        entry["rc_guid"] = rc_guid
-                    urls.extend(found)
-                else:
-                    provision_status = _get_rc_provision_status(rc_result)
-                    urls.append(
-                        {
-                            "url": "",
-                            "label": rc_name,
-                            "rc_name": rc_name,
-                            "rc_namespace": ws_ns,
-                            "rc_guid": rc_guid,
-                            "provision_status": provision_status,
-                        }
-                    )
+            rc_urls, rc_errors = await _resolve_rc_map(cluster, rc_map, ws_ns)
+            urls.extend(rc_urls)
+            errors.extend(rc_errors)
 
     except Exception as e:
         msg = f"Cluster '{cluster}' Workshop lookup failed for GUID '{guid}': {e}"
@@ -381,6 +412,88 @@ async def _search_cluster_for_workshop_guid(
     if urls:
         return urls, []
     return [], errors
+
+
+async def _search_cluster_for_selfpacedlab_guid(
+    cluster: str,
+    guid: str,
+    ctx: ResolutionContext | None = None,
+) -> tuple[list[ResolvedEntry], list[str]]:
+    """Search a cluster for SelfPacedLabs whose selfpacedlab-id label matches the GUID.
+
+    SelfPacedLab's ``status.resourceClaims`` map is identically shaped to a
+    Workshop's (``{rc_name: {uid}}``), so resolution reuses :func:`_resolve_rc_map`.
+    Because SelfPacedLab works like a ResourcePool (a replenished pool of
+    pre-provisioned candidates, see :func:`extract_selfpacedlab_metadata`),
+    this map may list several ResourceClaims that aren't ready/assigned yet
+    alongside the one that is — ``_resolve_rc_map`` already tolerates that by
+    returning a placeholder (no URL, ``provision_status`` only) for any
+    candidate with nothing extractable yet. A point-in-time check may catch
+    none of them ready; rerunning (a fresh session) picks up whichever
+    candidate has become available since.
+    """
+    urls: list[ResolvedEntry] = []
+    errors: list[str] = []
+    try:
+        if ctx:
+            result = await ctx.get_spl_list(
+                cluster,
+                label_selector=f"{SELFPACEDLAB_ID_LABEL}={guid}",
+            )
+        else:
+            result = await babylon_client.k8s_list_cluster_wide(
+                cluster,
+                BABYLON_GROUP,
+                BABYLON_VERSION,
+                SPL_PLURAL,
+                label_selector=f"{SELFPACEDLAB_ID_LABEL}={guid}",
+            )
+        selfpacedlabs = result.get("items", [])
+        if not selfpacedlabs:
+            return [], []
+
+        for spl in selfpacedlabs:
+            spl_name = spl.get("metadata", {}).get("name", "unknown")
+            spl_ns = spl.get("metadata", {}).get("namespace", "")
+            rc_map = spl.get("status", {}).get("resourceClaims", {})
+            if not rc_map or not spl_ns:
+                continue
+
+            logger.info(
+                "SelfPacedLab '%s/%s' matched GUID '%s' with %d ResourceClaim(s)",
+                spl_ns,
+                spl_name,
+                guid,
+                len(rc_map),
+            )
+            rc_urls, rc_errors = await _resolve_rc_map(cluster, rc_map, spl_ns)
+            urls.extend(rc_urls)
+            errors.extend(rc_errors)
+
+    except Exception as e:
+        msg = f"Cluster '{cluster}' SelfPacedLab lookup failed for GUID '{guid}': {e}"
+        logger.warning(msg)
+        return [], [msg]
+    if urls:
+        return urls, []
+    return [], errors
+
+
+async def _search_cluster_for_workshop_guid(
+    cluster: str,
+    guid: str,
+    ctx: ResolutionContext | None = None,
+) -> tuple[list[ResolvedEntry], list[str]]:
+    """Search a cluster for a Workshop matching the GUID, falling back to a
+    SelfPacedLab (selfpacedlab-id label) if no Workshop matches.
+    """
+    ws_urls, ws_errors = await _search_workshops_for_guid(cluster, guid, ctx)
+    if ws_urls:
+        return ws_urls, []
+    spl_urls, spl_errors = await _search_cluster_for_selfpacedlab_guid(cluster, guid, ctx)
+    if spl_urls:
+        return spl_urls, []
+    return [], ws_errors + spl_errors
 
 
 async def _search_cluster_for_guid(
@@ -758,15 +871,73 @@ def extract_resource_claim_metadata(rc_def: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in result.items() if v != "" and v != 0 and v is not None}
 
 
+def extract_selfpacedlab_metadata(spl_def: dict[str, Any]) -> dict[str, Any]:
+    """Extract display-worthy metadata from a SelfPacedLab CRD.
+
+    Mirrors :func:`extract_workshop_metadata`, but SelfPacedLab has no
+    ``provisionCount``/``userCount`` — it works like a ResourcePool instead,
+    keeping a minimum number of candidate ResourceClaims pre-provisioned and
+    topping them back up whenever the available count drops below that
+    minimum, reported via ``status.poolCount`` (assigned/provisioning/ready).
+    """
+    meta = spl_def.get("metadata", {})
+    spec = spl_def.get("spec", {})
+    status = spl_def.get("status", {})
+    annotations = meta.get("annotations", {})
+    labels = meta.get("labels", {})
+
+    pool_count = status.get("poolCount", {})
+    lifespan = spec.get("lifespan", {})
+
+    result: dict[str, Any] = {
+        "kind": "SelfPacedLab",
+        "name": meta.get("name", ""),
+        "namespace": meta.get("namespace", ""),
+        "uid": meta.get("uid", ""),
+        "display_name": spec.get("displayName", ""),
+        "created_at": meta.get("creationTimestamp", ""),
+        "workshop_id": labels.get(SELFPACEDLAB_ID_LABEL, ""),
+        "workshop_url": status.get("selfPacedLabURL", ""),
+        "catalog_item": labels.get(f"{BABYLON_GROUP}/catalogItemName", ""),
+        "purpose": annotations.get("demo.redhat.com/purpose", ""),
+        "requester": annotations.get("demo.redhat.com/requester", ""),
+        "ordered_by": annotations.get("demo.redhat.com/orderedBy", ""),
+        "lifespan_start": lifespan.get("start", ""),
+        "lifespan_end": lifespan.get("end", ""),
+        "pool_assigned": pool_count.get("assigned", 0),
+        "pool_provisioning": pool_count.get("provisioning", 0),
+        "pool_ready": pool_count.get("ready", 0),
+        "open_registration": spec.get("openRegistration", False),
+    }
+    return {k: v for k, v in result.items() if v != "" and v != 0 and v is not False}
+
+
+def extract_workshop_or_selfpacedlab_metadata(resource_def: dict[str, Any]) -> dict[str, Any]:
+    """Dispatch to the right metadata extractor for a resource returned by
+    :func:`lookup_workshop_by_guid`.
+
+    That lookup transparently falls back from Workshop to SelfPacedLab, so
+    callers need a kind-agnostic way to extract metadata. SelfPacedLab is
+    distinguished by its pool-based ``status.poolCount`` (Workshops never
+    have this field).
+    """
+    if "poolCount" in resource_def.get("status", {}):
+        return extract_selfpacedlab_metadata(resource_def)
+    return extract_workshop_metadata(resource_def)
+
+
 async def lookup_workshop_by_guid(
     guid: str,
     cluster: str = "",
     ctx: ResolutionContext | None = None,
 ) -> tuple[dict[str, Any] | None, str]:
-    """Find the Workshop CRD matching a workshop-id label.
+    """Find the Workshop CRD matching a workshop-id label, falling back to a
+    SelfPacedLab (selfpacedlab-id label) if no Workshop matches.
 
-    Returns ``(workshop_def, resolved_cluster)`` — the cluster name that
+    Returns ``(resource_def, resolved_cluster)`` — the cluster name that
     actually contained the match (useful when *cluster* is empty / auto).
+    Use :func:`extract_workshop_or_selfpacedlab_metadata` to extract display
+    metadata from the result, since it may be either kind.
     """
     clusters = [cluster] if cluster else babylon_client.get_configured_clusters()
     for c in clusters:
@@ -786,6 +957,37 @@ async def lookup_workshop_by_guid(
                 return items[0], c
         except Exception as e:
             logger.warning("Failed to look up Workshop GUID '%s' on cluster '%s': %s", guid, c, e)
+    return await lookup_selfpacedlab_by_guid(guid, cluster=cluster, ctx=ctx)
+
+
+async def lookup_selfpacedlab_by_guid(
+    guid: str,
+    cluster: str = "",
+    ctx: ResolutionContext | None = None,
+) -> tuple[dict[str, Any] | None, str]:
+    """Find the SelfPacedLab CRD matching a selfpacedlab-id label.
+
+    Returns ``(selfpacedlab_def, resolved_cluster)`` — the cluster name that
+    actually contained the match (useful when *cluster* is empty / auto).
+    """
+    clusters = [cluster] if cluster else babylon_client.get_configured_clusters()
+    for c in clusters:
+        try:
+            if ctx:
+                result = await ctx.get_spl_list(c, label_selector=f"{SELFPACEDLAB_ID_LABEL}={guid}")
+            else:
+                result = await babylon_client.k8s_list_cluster_wide(
+                    c,
+                    BABYLON_GROUP,
+                    BABYLON_VERSION,
+                    SPL_PLURAL,
+                    label_selector=f"{SELFPACEDLAB_ID_LABEL}={guid}",
+                )
+            items = result.get("items", [])
+            if items:
+                return items[0], c
+        except Exception as e:
+            logger.warning("Failed to look up SelfPacedLab GUID '%s' on cluster '%s': %s", guid, c, e)
     return None, ""
 
 
