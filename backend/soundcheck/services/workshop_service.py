@@ -303,7 +303,10 @@ def extract_selfpacedlab_item(spl_def: dict[str, Any], cluster: str) -> Workshop
     (pool-based ``status.poolCount``, not ``provisionCount``/``userCount`` —
     see :func:`_derive_selfpacedlab_status`) and ``workshop_url`` (the CRD's
     ``status.selfPacedLabURL`` is a relative catalog path, not an absolute
-    URL like a Workshop's ``status.workshopURL``).
+    URL like a Workshop's ``status.workshopURL``). ``catalog_url`` is built
+    separately as ``/selfpacedlabs/{namespace}/{name}`` (plural, unlike the
+    singular ``/selfpacedlab/{guid}`` GUID path), mirroring Workshop's
+    ``/workshops/{namespace}/{name}`` stable link.
 
     Unlike :func:`extract_workshop_item`, no owning-ResourceClaim/state
     enrichment is needed — status comes directly from ``poolCount``.
@@ -337,10 +340,15 @@ def extract_selfpacedlab_item(spl_def: dict[str, Any], cluster: str) -> Workshop
     spl_namespace = meta.get("namespace", "")
     base_url = get_catalog_url(cluster)
     spl_url = status.get("selfPacedLabURL", "")
-    # selfPacedLabURL is already a relative catalog path (e.g.
-    # "/selfpacedlab/8pcuf6"), so it doubles as both the "visit" URL and the
-    # catalog link, unlike Workshop's separate /workshops/{ns}/{name} pattern.
+    # selfPacedLabURL (e.g. "/selfpacedlab/8pcuf6") is a GUID-based catalog
+    # path, kept here only as the "visit" URL (workshop_url). The dashboard's
+    # stable per-item link is catalog_url, mirroring Workshop's
+    # /workshops/{ns}/{name} pattern: /selfpacedlabs/{ns}/{name} (plural,
+    # unlike the GUID path above which is singular).
     workshop_url = f"{base_url}{spl_url}" if base_url and spl_url else ""
+    catalog_url = (
+        f"{base_url}/selfpacedlabs/{spl_namespace}/{spl_name}" if base_url and spl_namespace and spl_name else ""
+    )
 
     # Best-effort mapping onto Workshop-shaped provision/user counts, used
     # only for display/filter counts below — NOT for status derivation
@@ -361,7 +369,7 @@ def extract_selfpacedlab_item(spl_def: dict[str, Any], cluster: str) -> Workshop
         ordered_by=annotations.get(f"{DEMO_DOMAIN}/orderedBy", ""),
         workshop_id=labels.get(SELFPACEDLAB_ID_LABEL, ""),
         workshop_url=workshop_url,
-        catalog_url=workshop_url,
+        catalog_url=catalog_url,
         status=derived_status,
         created_at=meta.get("creationTimestamp", ""),
         lifespan_start=lifespan_start,
