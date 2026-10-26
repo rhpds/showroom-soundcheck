@@ -354,6 +354,7 @@
 		}
 		const i = tRow.item;
 		let label = `${i.display_name}: ${workshopStatusLabel(i.status)}, ${i.provision_active}/${i.provision_ordered} instances`;
+		if (i.kind === 'SelfPacedLab') label += ', SelfPacedLab';
 		if (i.users_total > 0) label += `, ${i.users_assigned}/${i.users_total} users`;
 		if (i.provision_failed > 0) label += `, ${i.provision_failed} failed`;
 		if (i.white_glove) label += ', white-glove';
@@ -611,6 +612,9 @@
 								</div>
 								<div class="tl-label-line2 tl-label-line2--child">
 									<span class="tl-child-indent"></span>
+									{#if child.kind === 'SelfPacedLab'}
+										<span class="tl-flag tl-flag--spl" title="SelfPacedLab">SPL</span>
+									{/if}
 									{#if child.white_glove}
 										<span class="tl-flag tl-flag--wg" title="White-glove">WG</span>
 									{/if}
@@ -854,6 +858,9 @@
 									{/if}
 								</div>
 								<div class="tl-label-line2">
+									{#if tItem.item.kind === 'SelfPacedLab'}
+										<span class="tl-flag tl-flag--spl" title="SelfPacedLab">SPL</span>
+									{/if}
 									{#if tItem.item.white_glove}
 										<span class="tl-flag tl-flag--wg" title="White-glove">WG</span>
 									{/if}
@@ -1177,6 +1184,12 @@
 		text-transform: uppercase;
 		line-height: 1;
 		white-space: nowrap;
+	}
+
+	.tl-flag--spl {
+		background: var(--sc-teal-bg);
+		color: var(--sc-teal-text);
+		border: 1px solid var(--sc-teal-border);
 	}
 
 	.tl-flag--wg {
