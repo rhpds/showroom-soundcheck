@@ -129,6 +129,11 @@ class GroupCreate(BaseModel):
     """POST /api/groups request body."""
 
     name: str = Field(max_length=255)
+    stable_name: str = Field(
+        default="",
+        max_length=255,
+        description="If set, return an existing group with this name instead of creating a new one.",
+    )
     guids: list[IdentifierStr] = Field(default=[], max_length=100)
     workshop_guids: list[IdentifierStr] = Field(default=[], max_length=100)
     resource_pools: list[IdentifierStr] = Field(default=[], max_length=100)

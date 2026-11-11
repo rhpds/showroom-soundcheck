@@ -53,6 +53,17 @@ async def create_group(body: GroupCreate, db: DbSession):
     if not body.guids and not body.workshop_guids and not body.resource_pools:
         raise HTTPException(status_code=422, detail="Add at least one GUID, workshop GUID, or resource pool")
 
+    if body.stable_name.strip():
+        result = await db.execute(
+            select(SessionGroup)
+            .where(SessionGroup.name == body.stable_name.strip())
+            .order_by(col(SessionGroup.created_at).desc())
+            .limit(1)
+        )
+        existing = result.scalars().first()
+        if existing:
+            return group_to_public(existing)
+
     gid = str(uuid.uuid4())
     grp = SessionGroup(
         group_id=gid,
@@ -184,7 +195,9 @@ async def stream_group(group_id: str, request: Request) -> AsyncIterator[ServerS
 
         elapsed = 0
         last_yield = time.monotonic()
+        last_keepalive = time.monotonic()
         pending_refresh = False
+        KEEPALIVE_INTERVAL = 25.0
 
         while elapsed < MAX_WAIT_SECONDS:
             if await request.is_disconnected():
@@ -200,6 +213,9 @@ async def stream_group(group_id: str, request: Request) -> AsyncIterator[ServerS
                 pass
             else:
                 elapsed += 1
+                if time.monotonic() - last_keepalive >= KEEPALIVE_INTERVAL:
+                    yield ServerSentEvent(comment="keepalive")
+                    last_keepalive = time.monotonic()
                 continue
 
             pending_refresh = False
