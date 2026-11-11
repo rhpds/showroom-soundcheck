@@ -151,7 +151,9 @@
 								rows="2"
 							></textarea>
 						</span>
-						<span class="pf-v6-c-form__helper-text">One per line · accepts Workshop or SelfPacedLab GUIDs</span>
+						<span class="pf-v6-c-form__helper-text"
+							>One per line · accepts Workshop or SelfPacedLab GUIDs</span
+						>
 					</div>
 
 					<div class="pf-v6-c-form__group">
