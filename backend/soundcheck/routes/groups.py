@@ -53,17 +53,6 @@ async def create_group(body: GroupCreate, db: DbSession):
     if not body.guids and not body.workshop_guids and not body.resource_pools:
         raise HTTPException(status_code=422, detail="Add at least one GUID, workshop GUID, or resource pool")
 
-    if body.stable_name.strip():
-        result = await db.execute(
-            select(SessionGroup)
-            .where(SessionGroup.name == body.stable_name.strip())
-            .order_by(col(SessionGroup.created_at).desc())
-            .limit(1)
-        )
-        existing = result.scalars().first()
-        if existing:
-            return group_to_public(existing)
-
     gid = str(uuid.uuid4())
     grp = SessionGroup(
         group_id=gid,
