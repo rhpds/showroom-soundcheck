@@ -26,12 +26,14 @@ class SessionGroup(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     group_id: str = Field(unique=True, index=True)
     name: str = ""
-    # Caller-supplied idempotency key for POST /api/groups. Distinct from `name`:
-    # `name` is a mutable display label that collides freely between users, while
-    # this is immutable once set and unique, so external API consumers can re-POST
-    # and get the same group back. NULL (not "") when unused, because a UNIQUE
-    # constraint permits many NULLs but only one empty string.
-    stable_name: str | None = Field(default=None, unique=True, index=True)
+    # SHA-256 of the group's normalised (name, sources, cluster) tuple -- see
+    # session_service.compute_content_hash. Lets POST /api/groups return an
+    # existing group instead of a duplicate when the submitted definition is
+    # identical. Not unique: pre-existing duplicate groups stay legal, and two
+    # distinct groups can coincide after add_source/remove_source edits. Any
+    # route that mutates name/sources/babylon_cluster must call
+    # session_service.refresh_content_hash afterwards or this goes stale.
+    content_hash: str | None = Field(default=None, index=True)
     babylon_cluster: str = ""
     source_guids: list = Field(default=[], sa_type=sa.JSON)
     source_workshop_guids: list = Field(default=[], sa_type=sa.JSON)

@@ -40,3 +40,4 @@ deploy/*-secret.yaml
 
 # Playwright MCP logs
 .playwright-mcp/
+backend/showroom_soundcheck.egg-info/

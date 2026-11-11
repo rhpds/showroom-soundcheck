@@ -157,7 +157,6 @@ export interface GroupPublic {
 	id: number;
 	group_id: string;
 	name: string;
-	stable_name: string | null;
 	babylon_cluster: string;
 	source_guids: string[];
 	source_workshop_guids: string[];

@@ -43,52 +43,21 @@ _sse_semaphore = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
 _sse_guard = sse_capacity_guard(_sse_semaphore)
 
 
-def _reject_source_mismatch(body: GroupCreate, grp: SessionGroup, cluster: str) -> None:
-    """409 if a stable_name reuse asks for different sources than the stored group.
-
-    Reuse returns the stored group untouched, so silently ignoring a differing
-    request body would hand the caller a group that does not contain the GUIDs
-    they just sent. Sources are compared as sets: order is not meaningful, and
-    requiring callers to preserve it would make retries fail arbitrarily.
-    """
-    mismatches = []
-    if set(body.guids) != set(grp.get_guids()):
-        mismatches.append("guids")
-    if set(body.workshop_guids) != set(grp.get_workshop_guids()):
-        mismatches.append("workshop_guids")
-    if set(body.resource_pools) != set(grp.get_resource_pools()):
-        mismatches.append("resource_pools")
-    if cluster != grp.babylon_cluster:
-        mismatches.append("babylon_cluster")
-
-    if mismatches:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"stable_name '{grp.stable_name}' already exists with different "
-                f"{', '.join(mismatches)}. Use a new stable_name, or edit the existing "
-                f"group via its /groups/{grp.group_id} endpoints."
-            ),
-        )
-
-
 @router.post(
     "",
     response_model=GroupPublic,
     status_code=201,
     responses={
-        200: {"model": GroupPublic, "description": "Existing group returned for a reused stable_name"},
-        409: {"description": "stable_name already exists with different sources"},
+        200: {"model": GroupPublic, "description": "Existing group returned: name/sources/cluster matched"},
     },
 )
 async def create_group(body: GroupCreate, response: Response, db: DbSession):
     """Create a new check group.
 
-    With `stable_name` set the call is idempotent: the first request creates the
-    group and returns 201, and later requests with the same key return the same
-    group with 200. Reuse never mutates the stored group, so a request whose
-    sources differ from the stored ones is rejected rather than silently
-    returning a group that does not hold the sources the caller asked for.
+    By default this is idempotent on content: a request whose name, sources and
+    babylon_cluster exactly match an existing group returns that group (200)
+    instead of creating a duplicate (201). Set force_create=true to always
+    create a new group regardless of existing matches.
     """
     if not body.name.strip():
         raise HTTPException(status_code=422, detail="Group name is required")
@@ -97,21 +66,7 @@ async def create_group(body: GroupCreate, response: Response, db: DbSession):
 
     cluster = body.babylon_cluster.strip() if body.babylon_cluster.strip() != "(auto)" else ""
 
-    if body.stable_name:
-        grp, created = await session_service.get_or_create_group_by_stable_name(
-            db,
-            stable_name=body.stable_name,
-            name=body.name.strip(),
-            guids=body.guids,
-            workshop_guids=body.workshop_guids,
-            resource_pools=body.resource_pools,
-            babylon_cluster=cluster,
-        )
-        if not created:
-            _reject_source_mismatch(body, grp, cluster)
-            response.status_code = 200
-            return group_to_public(grp)
-    else:
+    if body.force_create:
         grp = await session_service.create_group(
             db,
             name=body.name.strip(),
@@ -120,6 +75,20 @@ async def create_group(body: GroupCreate, response: Response, db: DbSession):
             resource_pools=body.resource_pools,
             babylon_cluster=cluster,
         )
+        created = True
+    else:
+        grp, created = await session_service.get_or_create_group(
+            db,
+            name=body.name.strip(),
+            guids=body.guids,
+            workshop_guids=body.workshop_guids,
+            resource_pools=body.resource_pools,
+            babylon_cluster=cluster,
+        )
+
+    if not created:
+        response.status_code = 200
+        return group_to_public(grp)
 
     await queue.enqueue("sync_metadata", group_id=grp.group_id)
 
@@ -311,6 +280,7 @@ async def rename_group(group_id: str, body: GroupRename, db: DbSession):
         raise HTTPException(status_code=404, detail="Group not found")
 
     grp.name = body.name.strip()
+    session_service.refresh_content_hash(grp)
     db.add(grp)
     await db.commit()
     return NameResponse(name=grp.name)
@@ -345,6 +315,7 @@ async def add_source(group_id: str, body: SourceRequest, db: DbSession):
     else:
         raise HTTPException(status_code=422, detail=f"Invalid source_type: {body.source_type}")
 
+    session_service.refresh_content_hash(grp)
     db.add(grp)
     await db.commit()
 
@@ -378,6 +349,7 @@ async def remove_source(
     meta_map.pop(meta_key, None)
     grp.member_metadata = meta_map
 
+    session_service.refresh_content_hash(grp)
     db.add(grp)
     await db.commit()
     return StatusResponse(status="removed")
