@@ -38,6 +38,7 @@ cd frontend && npm run check             # svelte-check + type check
 
 ## Conventions
 
+- **Idempotent get-or-create takes an advisory lock.** Both `get_or_create_session_for_workshop_guid` and `get_or_create_group_by_stable_name` in `session_service.py` run `SELECT pg_advisory_xact_lock(hashtext(:key))` *before* the lookup, so concurrent callers using the same key serialize instead of all missing the SELECT and all inserting; the lock releases with the request's transaction. Both return `(obj, created)` so the route knows whether to enqueue follow-up work and whether to answer 201 or 200. A caller-supplied idempotency key (e.g. `SessionGroup.stable_name`) gets its own immutable, `UNIQUE` column and is stored `NULL` when unused — never reuse a mutable display name such as `name` as the key, and never default such a column to `""`, since `UNIQUE` permits many NULLs but only one empty string.
 - Env vars are parsed **only** in `backend/soundcheck/config.py` (a `pydantic-settings` `Settings` model); every other module imports the resulting constant. Don't read `os.environ` elsewhere.
 - FastAPI's `get_db()` rolls back on exception but does **not** auto-commit — routes must explicitly commit after writes.
 - Frontend uses Svelte 5 runes exclusively (`$state`, `$derived`, `$effect`, `$props`) — no legacy `$:` reactive statements or `svelte/store`. `$app/state` (not `$app/stores`) is the SvelteKit import to use.
