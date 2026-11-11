@@ -144,14 +144,16 @@
 					<div class="pf-v6-c-form__group">
 						<label class="pf-v6-c-form__label" for="ws-guids">Workshop / SelfPacedLab GUID</label>
 						<span class="pf-v6-c-form-control">
-							<textarea
+							<input
+								type="text"
 								id="ws-guids"
 								bind:value={checkForm.workshop_guids}
 								placeholder="e.g. 4b8cfg"
-								rows="2"
-							></textarea>
+							/>
 						</span>
-						<span class="pf-v6-c-form__helper-text">One per line · accepts Workshop or SelfPacedLab GUIDs</span>
+						<span class="pf-v6-c-form__helper-text"
+							>Accepts either a Workshop or SelfPacedLab GUID</span
+						>
 					</div>
 
 					<div class="pf-v6-c-form__group">

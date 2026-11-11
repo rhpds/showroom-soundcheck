@@ -192,6 +192,9 @@ def parse_check_params(
     if len(guids) > 1:
         raise InputValidationError("Only one ResourceClaim GUID per session is supported")
 
+    if len(workshop_guids) > 1:
+        raise InputValidationError("Only one Workshop GUID per session is supported")
+
     if len(resource_pools) > 1:
         raise InputValidationError("Only one ResourcePool name per session is supported")
 
