@@ -195,9 +195,7 @@ async def stream_group(group_id: str, request: Request) -> AsyncIterator[ServerS
 
         elapsed = 0
         last_yield = time.monotonic()
-        last_keepalive = time.monotonic()
         pending_refresh = False
-        KEEPALIVE_INTERVAL = 25.0
 
         while elapsed < MAX_WAIT_SECONDS:
             if await request.is_disconnected():
@@ -213,9 +211,6 @@ async def stream_group(group_id: str, request: Request) -> AsyncIterator[ServerS
                 pass
             else:
                 elapsed += 1
-                if time.monotonic() - last_keepalive >= KEEPALIVE_INTERVAL:
-                    yield ServerSentEvent(comment="keepalive")
-                    last_keepalive = time.monotonic()
                 continue
 
             pending_refresh = False

@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import time
 from collections.abc import AsyncIterator
 from typing import Annotated
 
@@ -236,8 +235,6 @@ async def stream_session(session_id: str, request: Request) -> AsyncIterator[Ser
             return
 
         elapsed = 0
-        last_keepalive = time.monotonic()
-        KEEPALIVE_INTERVAL = 25.0
         while elapsed < MAX_WAIT_SECONDS:
             if await request.is_disconnected():
                 return
@@ -317,9 +314,6 @@ async def stream_session(session_id: str, request: Request) -> AsyncIterator[Ser
                     )
             else:
                 elapsed += 1
-                if time.monotonic() - last_keepalive >= KEEPALIVE_INTERVAL:
-                    yield ServerSentEvent(comment="keepalive")
-                    last_keepalive = time.monotonic()
     finally:
         await pubsub.unsubscribe(f"session:{session_id}")
         await pubsub.close()

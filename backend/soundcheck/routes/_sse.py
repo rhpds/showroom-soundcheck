@@ -1,4 +1,14 @@
-"""Shared SSE helpers."""
+"""Shared SSE helpers.
+
+Keepalives are handled by FastAPI itself: any route declaring
+`response_class=EventSourceResponse` is wrapped by the routing layer's
+keepalive inserter, which emits a `: ping` comment whenever the generator
+has been idle for `fastapi.sse._PING_INTERVAL` (15s). Don't hand-roll a
+per-route heartbeat timer on top of it -- that just adds a second, slower
+ping alongside the framework's. If 15s ever proves too slow for a proxy or
+load balancer in front of us, override that single interval centrally and
+record the timeout being targeted.
+"""
 
 import asyncio
 from collections.abc import AsyncIterator
