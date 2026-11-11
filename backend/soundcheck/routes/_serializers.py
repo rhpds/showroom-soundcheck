@@ -119,6 +119,7 @@ def group_to_public(g: SessionGroup) -> GroupPublic:
         id=g.id,
         group_id=g.group_id,
         name=g.name,
+        stable_name=g.stable_name,
         babylon_cluster=g.babylon_cluster,
         source_guids=g.get_guids(),
         source_workshop_guids=g.get_workshop_guids(),

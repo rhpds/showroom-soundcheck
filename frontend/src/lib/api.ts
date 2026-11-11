@@ -93,6 +93,12 @@ export async function getGroup(groupId: string, init?: RequestInit): Promise<Gro
 
 export async function createGroup(body: {
 	name: string;
+	/**
+	 * Optional idempotency key. Re-POSTing with the same stable_name returns the
+	 * existing group instead of creating a duplicate, and 409s if the sources
+	 * differ from the stored ones.
+	 */
+	stable_name?: string;
 	guids?: string[];
 	workshop_guids?: string[];
 	resource_pools?: string[];

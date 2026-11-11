@@ -129,6 +129,14 @@ class GroupCreate(BaseModel):
     """POST /api/groups request body."""
 
     name: str = Field(max_length=255)
+    stable_name: IdentifierStr | None = Field(
+        default=None,
+        description=(
+            "Optional idempotency key for external API consumers. Re-POSTing with the same "
+            "stable_name returns the existing group (200) instead of creating a duplicate (201). "
+            "Immutable once set, and never matched against the display name."
+        ),
+    )
     guids: list[IdentifierStr] = Field(default=[], max_length=100)
     workshop_guids: list[IdentifierStr] = Field(default=[], max_length=100)
     resource_pools: list[IdentifierStr] = Field(default=[], max_length=100)
@@ -141,6 +149,7 @@ class GroupPublic(BaseModel):
     id: int
     group_id: str
     name: str
+    stable_name: str | None = None
     babylon_cluster: str
     source_guids: list[str]
     source_workshop_guids: list[str]

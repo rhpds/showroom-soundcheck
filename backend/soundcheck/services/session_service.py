@@ -230,6 +230,88 @@ async def load_groups_paginated(
     return list(result.scalars().all()), total
 
 
+async def create_group(
+    db: AsyncSession,
+    *,
+    name: str,
+    guids: list[str],
+    workshop_guids: list[str],
+    resource_pools: list[str],
+    babylon_cluster: str = "",
+    stable_name: str | None = None,
+) -> SessionGroup:
+    """Create a pending group. Returns the persisted SessionGroup."""
+    grp = SessionGroup(
+        group_id=str(uuid.uuid4()),
+        name=name,
+        stable_name=stable_name or None,
+        babylon_cluster=babylon_cluster,
+        source_guids=guids,
+        source_workshop_guids=workshop_guids,
+        source_resource_pools=resource_pools,
+        status="pending",
+        created_at=utc_now(),
+    )
+    db.add(grp)
+    await db.commit()
+    await db.refresh(grp)
+    return grp
+
+
+async def find_group_by_stable_name(db: AsyncSession, stable_name: str) -> SessionGroup | None:
+    """Return the group carrying this stable_name, if any.
+
+    stable_name is unique, so there is at most one match and no ordering is
+    needed to pick between duplicates.
+    """
+    key = (stable_name or "").strip()
+    if not key:
+        return None
+    result = await db.execute(select(SessionGroup).where(SessionGroup.stable_name == key))
+    return result.scalars().first()
+
+
+async def get_or_create_group_by_stable_name(
+    db: AsyncSession,
+    *,
+    stable_name: str,
+    name: str,
+    guids: list[str],
+    workshop_guids: list[str],
+    resource_pools: list[str],
+    babylon_cluster: str = "",
+) -> tuple[SessionGroup, bool]:
+    """Idempotently resolve a group for a caller-supplied stable_name.
+
+    Mirrors get_or_create_session_for_workshop_guid: takes a Postgres advisory
+    transaction lock first so concurrent callers using the same stable_name
+    serialize instead of racing to create duplicates. The lock auto-releases
+    when this request's transaction commits or rolls back.
+
+    Returns (group, created); created is True only when a new group was made
+    here, so the caller knows whether to enqueue sync_metadata and which status
+    code to return. The unique constraint on stable_name is the real guarantee —
+    the lock just turns a constraint violation into a clean reuse.
+    """
+    key = stable_name.strip()
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": key})
+
+    existing = await find_group_by_stable_name(db, key)
+    if existing:
+        return existing, False
+
+    grp = await create_group(
+        db,
+        name=name,
+        guids=guids,
+        workshop_guids=workshop_guids,
+        resource_pools=resource_pools,
+        babylon_cluster=babylon_cluster,
+        stable_name=key,
+    )
+    return grp, True
+
+
 # ---------------------------------------------------------------------------
 # GUID / target resolution
 # ---------------------------------------------------------------------------
