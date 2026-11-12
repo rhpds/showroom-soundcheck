@@ -355,8 +355,9 @@
 											{/if}
 											{#if tab.status_code}
 												<span
-													class="pf-v6-c-label pf-m-compact {tab.status_code >= 200 &&
-													tab.status_code < 400
+													class="pf-v6-c-label pf-m-compact {(tab.status_code >= 200 &&
+														tab.status_code < 400) ||
+													tab.status_accepted
 														? 'pf-m-green'
 														: tab.initial_state === 'deferred'
 															? ''
@@ -364,6 +365,13 @@
 												>
 													<span class="pf-v6-c-label__content"
 														><span class="pf-v6-c-label__text">{tab.status_code}</span></span
+													>
+												</span>
+											{/if}
+											{#if tab.status_accepted}
+												<span class="pf-v6-c-label pf-m-compact pf-m-blue">
+													<span class="pf-v6-c-label__content"
+														><span class="pf-v6-c-label__text">auth expected</span></span
 													>
 												</span>
 											{/if}
