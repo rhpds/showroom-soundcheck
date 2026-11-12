@@ -115,7 +115,7 @@ def result_to_public(r: CheckResult) -> CheckResultPublic:
 # ---------------------------------------------------------------------------
 
 
-def group_to_public(g: SessionGroup) -> GroupPublic:
+def group_to_public(g: SessionGroup, *, metadata_syncing: bool = False) -> GroupPublic:
     return GroupPublic(
         id=g.id,
         group_id=g.group_id,
@@ -128,6 +128,7 @@ def group_to_public(g: SessionGroup) -> GroupPublic:
         status=g.status,
         pinned=g.pinned,
         created_at=g.created_at,
+        metadata_syncing=metadata_syncing,
     )
 
 

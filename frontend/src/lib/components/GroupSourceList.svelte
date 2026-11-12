@@ -110,9 +110,11 @@
 
 	let sources = $derived(getSources());
 
-	let metadataSyncing = $derived(
-		sources.length > 0 && sources.some((s) => Object.keys(s.meta).length === 0)
-	);
+	// Authoritative server flag (Redis-backed, set by the route before it
+	// enqueues sync_metadata and cleared when the task finishes) rather than
+	// inferring "syncing" from empty metadata -- that heuristic missed a
+	// re-sync of sources that already had metadata from a previous sync.
+	let metadataSyncing = $derived(group.metadata_syncing);
 
 	interface SourcesSummary {
 		byType: { label: string; count: number }[];

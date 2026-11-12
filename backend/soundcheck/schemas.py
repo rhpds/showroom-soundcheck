@@ -162,6 +162,11 @@ class GroupPublic(BaseModel):
     status: str
     pinned: bool
     created_at: datetime
+    # True while a sync-metadata job is in flight for this group (Redis-backed,
+    # not persisted -- see tasks/events.py mark/clear_metadata_syncing). Lets
+    # the SSE stream stay open and the frontend show a live syncing state
+    # instead of needing a page refresh to see the synced result.
+    metadata_syncing: bool = False
 
 
 class GroupRunPublic(BaseModel):

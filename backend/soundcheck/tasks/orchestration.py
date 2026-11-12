@@ -22,7 +22,7 @@ from ..services.session_service import (
 )
 from ..utils import utc_now
 from . import TaskContext
-from .events import publish_group_event, publish_session_event
+from .events import clear_metadata_syncing, publish_group_event, publish_session_event
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,13 @@ async def run_single_source(
 
 async def sync_metadata(ctx: TaskContext, *, group_id: str) -> None:
     """Refresh K8s metadata for all group sources."""
-    await sync_source_metadata(ctx["session_factory"], group_id)
+    try:
+        await sync_source_metadata(ctx["session_factory"], group_id)
+    finally:
+        # Always clear, even on failure, so the group doesn't get stuck
+        # showing "syncing" forever (the Redis key also self-expires as a
+        # backstop -- see _METADATA_SYNC_TTL_SECONDS).
+        await clear_metadata_syncing(ctx["redis"], group_id)
 
 
 async def sweep_stale_sessions(ctx: TaskContext) -> None:

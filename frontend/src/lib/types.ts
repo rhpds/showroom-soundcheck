@@ -170,6 +170,8 @@ export interface GroupPublic {
 	status: Status;
 	pinned: boolean;
 	created_at: string;
+	/** True while a sync-metadata job is in flight for this group (see backend GroupPublic.metadata_syncing). */
+	metadata_syncing: boolean;
 }
 
 export interface GroupRunPublic {
