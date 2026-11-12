@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field
 
 IdentifierStr = Annotated[str, Field(max_length=255, pattern=r"^[a-zA-Z0-9._-]+$")]
 
+# The kinds babylon_service's extract_*_metadata functions can produce for a
+# session's resolved resource; "" means metadata hasn't been resolved yet.
+ResourceKind = Literal["", "Workshop", "SelfPacedLab", "ResourceClaim", "ResourcePool"]
+
 T = TypeVar("T")
 
 
@@ -55,7 +59,7 @@ class SessionPublic(BaseModel):
     completed_at: datetime | None
     resource_name: str
     resource_namespace: str
-    resource_kind: str
+    resource_kind: ResourceKind
     resource_display_name: str
     resource_metadata: dict[str, Any]
     catalog_base_url: str = ""
@@ -117,7 +121,7 @@ class SessionListItem(BaseModel):
     created_at: datetime
     completed_at: datetime | None
     resource_display_name: str = ""
-    resource_kind: str = ""
+    resource_kind: ResourceKind = ""
     source_id: str = ""
 
 

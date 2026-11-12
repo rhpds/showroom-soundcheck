@@ -26,6 +26,10 @@ export const STATUS_SORT_ORDER: Record<Status, number> = {
 
 type ProvisionStatus = 'provisioning' | 'ready' | 'destroying' | 'provision-failed' | 'unhealthy';
 
+// Kinds babylon_service's extract_*_metadata functions can produce for a
+// session's resolved resource; '' means metadata hasn't been resolved yet.
+export type ResourceKind = '' | 'Workshop' | 'SelfPacedLab' | 'ResourceClaim' | 'ResourcePool';
+
 export interface SessionListItem {
 	id: number;
 	session_id: string;
@@ -37,7 +41,7 @@ export interface SessionListItem {
 	created_at: string;
 	completed_at: string | null;
 	resource_display_name: string;
-	resource_kind: string;
+	resource_kind: ResourceKind;
 	source_id: string;
 }
 
@@ -132,7 +136,7 @@ interface SessionPublic {
 	completed_at: string | null;
 	resource_name: string;
 	resource_namespace: string;
-	resource_kind: string;
+	resource_kind: ResourceKind;
 	resource_display_name: string;
 	resource_metadata: Record<string, unknown>;
 	catalog_base_url: string;
