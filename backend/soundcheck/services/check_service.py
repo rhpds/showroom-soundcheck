@@ -71,6 +71,15 @@ DEFAULT_POOL_LIMITS = httpx.Limits(
     keepalive_expiry=30,
 )
 
+# Some external targets (notably docs.redhat.com, fronted by an Akamai WAF)
+# block requests whose User-Agent is a generic HTTP client or browser string
+# (httpx's default "python-httpx/x.y.z", a bare "Mozilla/5.0", or no header
+# at all all get a 403 "Access Denied" page from the edge), but allow a
+# curl-style UA through -- confirmed live and reproducible across repeated
+# requests. Use a curl-style UA, tagged with our project name so it's
+# identifiable in server logs, rather than impersonating a specific browser.
+DEFAULT_USER_AGENT = "curl/8.5.0 (showroom-soundcheck)"
+
 CONFIG_FILES = ["ui-config.yml", "zero-touch-config.yml"]
 
 TAB_TYPE_DEFAULTS: dict[str, dict[str, str]] = {
@@ -966,6 +975,7 @@ def create_client(
         verify=verify_ssl,
         timeout=httpx.Timeout(timeout, connect=10.0),
         limits=limits or DEFAULT_POOL_LIMITS,
+        headers={"User-Agent": DEFAULT_USER_AGENT},
     )
 
 
