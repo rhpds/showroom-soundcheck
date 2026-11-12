@@ -252,6 +252,19 @@ tabs:
     url: /placeholder
 ```
 
+#### Tab `accepted_status_codes`
+
+Some tabs sit behind an SSO/oauth-proxy that returns a non-2xx status (commonly `401` or `403`) for its login page. That response is proof the endpoint is live and routed — the user can still log in — so it should not be treated as a failure. Tabs in `ui-config.yml` support an optional `accepted_status_codes` field: a list of additional HTTP status codes that count as a successful probe for that tab, in addition to the normal 2xx/3xx range.
+
+```yaml
+tabs:
+  - name: Grafana
+    url: 'https://grafana-route-wksp-user1.apps.cluster-ztkng.dyn.redhatworkshops.io'
+    accepted_status_codes: [403]
+```
+
+The target detail panel marks a tab probed this way with an "auth expected" badge alongside its status code, so it's visible this wasn't an ordinary 2xx success. `accepted_status_codes` applies to both the tab's primary and secondary URL (e.g. for a `double-terminal` tab) since it's declared once per tab.
+
 ### QA Automation Healthcheck
 
 Independently of the two-tier readiness check above, soundcheck also probes each target for an optional [qa-automation healthcheck](https://rhpds.github.io/rhdp-publishing-house/user/qa-automation/) exposed by the showroom's runtime-automation sidecar ([zerotouch-automation](https://github.com/rhpds/zerotouch-automation)):

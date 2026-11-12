@@ -71,6 +71,15 @@ DEFAULT_POOL_LIMITS = httpx.Limits(
     keepalive_expiry=30,
 )
 
+# Some external targets (notably docs.redhat.com, fronted by an Akamai WAF)
+# block requests whose User-Agent is a generic HTTP client or browser string
+# (httpx's default "python-httpx/x.y.z", a bare "Mozilla/5.0", or no header
+# at all all get a 403 "Access Denied" page from the edge), but allow a
+# curl-style UA through -- confirmed live and reproducible across repeated
+# requests. Use a curl-style UA, tagged with our project name so it's
+# identifiable in server logs, rather than impersonating a specific browser.
+DEFAULT_USER_AGENT = "curl/8.5.0 (showroom-soundcheck)"
+
 CONFIG_FILES = ["ui-config.yml", "zero-touch-config.yml"]
 
 TAB_TYPE_DEFAULTS: dict[str, dict[str, str]] = {
@@ -100,6 +109,25 @@ def _normalise_initial_state(raw: Any) -> str:
     return val if val in VALID_INITIAL_STATES else "active"
 
 
+def _normalise_accepted_status_codes(raw: Any) -> frozenset[int]:
+    """Parse a tab's optional `accepted_status_codes` list into a frozenset of
+    valid HTTP status codes (100-599). Non-list input, or individual entries
+    that aren't coercible to an in-range int, are silently dropped -- this is
+    a best-effort allowlist, not a strict schema, matching how tab config in
+    general is read (see `_apply_tab_defaults`, `_normalise_initial_state`)."""
+    if not isinstance(raw, list):
+        return frozenset()
+    codes: set[int] = set()
+    for item in raw:
+        try:
+            code = int(item)
+        except (TypeError, ValueError):
+            continue
+        if 100 <= code <= 599:
+            codes.add(code)
+    return frozenset(codes)
+
+
 @dataclass
 class TabProbeResult:
     name: str
@@ -111,6 +139,7 @@ class TabProbeResult:
     error: str | None = None
     initial_state: str = "active"
     is_placeholder: bool = False
+    status_accepted: bool = False
 
 
 @dataclass
@@ -211,11 +240,15 @@ def _is_external_url(url: str | None, base_url: str) -> bool:
     return url.startswith("http://") or url.startswith("https://")
 
 
-def _resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, str, bool]]:
-    """Return (label, url, initial_state, is_placeholder) tuples for a tab config entry."""
+def _resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, str, bool, frozenset[int]]]:
+    """Return (label, url, initial_state, is_placeholder, accepted_status_codes) tuples
+    for a tab config entry. `accepted_status_codes` applies identically to both the
+    primary and secondary URL of a tab (e.g. double-terminal), since ui-config.yml's
+    `accepted_status_codes` field is declared once per tab, not per URL."""
     t = _apply_tab_defaults(tab)
     state = _normalise_initial_state(t.get("initial_state"))
-    results: list[tuple[str, str | None, str, bool]] = []
+    accepted_codes = _normalise_accepted_status_codes(t.get("accepted_status_codes"))
+    results: list[tuple[str, str | None, str, bool, frozenset[int]]] = []
 
     url: str | None = None
     if t.get("url"):
@@ -225,7 +258,7 @@ def _resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, s
     elif t.get("port"):
         proto = "https" if t["port"] in ("443", "8443") else "http"
         url = f"{proto}://localhost:{t['port']}{t.get('path', '')}"
-    results.append((t.get("name", "unnamed"), url, state, _is_placeholder_tab_url(url)))
+    results.append((t.get("name", "unnamed"), url, state, _is_placeholder_tab_url(url), accepted_codes))
 
     sec_url: str | None = None
     if t.get("secondary_url"):
@@ -238,7 +271,7 @@ def _resolve_tab_urls(tab: dict, base_url: str) -> list[tuple[str, str | None, s
         sec_url = f"{proto}://localhost:{port}{t['secondary_path']}"
     if sec_url:
         label = f"{t.get('name', 'unnamed')} ({t.get('secondary_name', 'secondary')})"
-        results.append((label, sec_url, state, _is_placeholder_tab_url(sec_url)))
+        results.append((label, sec_url, state, _is_placeholder_tab_url(sec_url), accepted_codes))
 
     return results
 
@@ -262,8 +295,23 @@ def _check_iframe_headers(headers: httpx.Headers) -> bool:
     return False
 
 
-async def _probe_url(client: httpx.AsyncClient, url: str, retries: int = PROBE_RETRIES) -> dict:
-    """Probe a URL with HEAD, falling back to GET. Retries on transient 5xx."""
+async def _probe_url(
+    client: httpx.AsyncClient,
+    url: str,
+    retries: int = PROBE_RETRIES,
+    accepted_status_codes: frozenset[int] = frozenset(),
+) -> dict:
+    """Probe a URL with HEAD, falling back to GET. Retries on transient 5xx.
+
+    `accepted_status_codes` is an allowlist of additional status codes (set
+    per-tab via ui-config.yml's `accepted_status_codes`) to treat as a
+    successful probe even though they're outside the normal 2xx-3xx range --
+    e.g. a 403 from an SSO/oauth-proxy login page, which proves the endpoint
+    is live and routed even though the user isn't authenticated yet. This
+    check is made first, before both the HEAD-definitive-4xx-fail branch and
+    the 5xx-retry branch, so an accepted code short-circuits immediately on
+    HEAD (no wasted follow-up GET) and is never retried away as if transient.
+    """
     last_error: str | None = None
     last_status: int | None = None
     for attempt in range(retries + 1):
@@ -272,11 +320,20 @@ async def _probe_url(client: httpx.AsyncClient, url: str, retries: int = PROBE_R
                 resp = await client.request(method, url, timeout=PROBE_TIMEOUT)
                 if resp.status_code == 405 and method == "HEAD":
                     continue
+                if resp.status_code in accepted_status_codes:
+                    result: dict = {
+                        "reachable": True,
+                        "status_code": resp.status_code,
+                        "status_accepted": True,
+                    }
+                    if _check_iframe_headers(resp.headers):
+                        result["iframe_blocked"] = True
+                    return result
                 if not (200 <= resp.status_code < 400) and method == "HEAD":
                     last_error = f"HTTP {resp.status_code}"
                     continue
                 if 200 <= resp.status_code < 400:
-                    result: dict = {
+                    result = {
                         "reachable": True,
                         "status_code": resp.status_code,
                     }
@@ -418,14 +475,20 @@ async def _fetch_config(
 
 async def _probe_tabs(
     client: httpx.AsyncClient,
-    entries: list[tuple[str, str | None, str, bool]],
+    entries: list[tuple[str, str | None, str, bool, frozenset[int]]],
     base_url: str,
 ) -> list[TabProbeResult]:
     """Probe all tab URLs concurrently.  Tabs with initial_state='skip', and tabs
     pointing at nookbag's special `/placeholder` stub path, are recorded without
     probing."""
 
-    async def _probe_one(label: str, tab_url: str | None, initial_state: str, is_placeholder: bool) -> TabProbeResult:
+    async def _probe_one(
+        label: str,
+        tab_url: str | None,
+        initial_state: str,
+        is_placeholder: bool,
+        accepted_codes: frozenset[int],
+    ) -> TabProbeResult:
         if initial_state == "skip" or is_placeholder:
             return TabProbeResult(
                 name=label,
@@ -440,7 +503,7 @@ async def _probe_tabs(
                 error="no url configured",
                 initial_state=initial_state,
             )
-        probe = await _probe_url(client, tab_url)
+        probe = await _probe_url(client, tab_url, accepted_status_codes=accepted_codes)
         return TabProbeResult(
             name=label,
             url=tab_url,
@@ -450,9 +513,14 @@ async def _probe_tabs(
             external=_is_external_url(tab_url, base_url),
             error=probe.get("error"),
             initial_state=initial_state,
+            status_accepted=probe.get("status_accepted", False),
         )
 
-    return list(await asyncio.gather(*[_probe_one(label, url, state, is_ph) for label, url, state, is_ph in entries]))
+    return list(
+        await asyncio.gather(
+            *[_probe_one(label, url, state, is_ph, codes) for label, url, state, is_ph, codes in entries]
+        )
+    )
 
 
 async def _run_tier1(
@@ -545,7 +613,7 @@ async def _run_tier1(
         )
 
     tabs_config = config.get("tabs", []) or []
-    entries: list[tuple[str, str | None, str, bool]] = []
+    entries: list[tuple[str, str | None, str, bool, frozenset[int]]] = []
     for tab in tabs_config:
         entries.extend(_resolve_tab_urls(tab, base_url))
 
@@ -622,6 +690,7 @@ def _tier2_to_dict(t: Tier2Detail) -> dict[str, Any]:
                 "error": tab.error,
                 "initial_state": tab.initial_state,
                 "is_placeholder": tab.is_placeholder,
+                "status_accepted": tab.status_accepted,
             }
             for tab in t.tabs
         ],
@@ -906,6 +975,7 @@ def create_client(
         verify=verify_ssl,
         timeout=httpx.Timeout(timeout, connect=10.0),
         limits=limits or DEFAULT_POOL_LIMITS,
+        headers={"User-Agent": DEFAULT_USER_AGENT},
     )
 
 
