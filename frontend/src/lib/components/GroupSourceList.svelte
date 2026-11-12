@@ -51,7 +51,8 @@
 	}
 
 	function sourceTypeLabel(type: string, meta: Record<string, unknown> = {}): string {
-		if (type === 'workshop_guid') return resolvedKind(meta) === 'SelfPacedLab' ? 'SelfPacedLab' : 'Workshop';
+		if (type === 'workshop_guid')
+			return resolvedKind(meta) === 'SelfPacedLab' ? 'SelfPacedLab' : 'Workshop';
 		if (type === 'rc_guid') return 'ResourceClaim';
 		if (type === 'pool') return 'Pool';
 		return type;
