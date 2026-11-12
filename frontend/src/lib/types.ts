@@ -37,6 +37,7 @@ export interface SessionListItem {
 	created_at: string;
 	completed_at: string | null;
 	resource_display_name: string;
+	resource_kind: string;
 	source_id: string;
 }
 

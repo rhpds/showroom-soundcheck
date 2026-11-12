@@ -117,6 +117,7 @@ class SessionListItem(BaseModel):
     created_at: datetime
     completed_at: datetime | None
     resource_display_name: str = ""
+    resource_kind: str = ""
     source_id: str = ""
 
 

@@ -65,6 +65,7 @@ def session_to_list_item(cs: CheckSession) -> SessionListItem:
         created_at=cs.created_at,
         completed_at=cs.completed_at,
         resource_display_name=cs.resource_display_name,
+        resource_kind=cs.resource_kind,
         source_id=_first_source_id(cs),
     )
 
