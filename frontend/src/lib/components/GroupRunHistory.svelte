@@ -2,6 +2,7 @@
 	import StatusBadge from './StatusBadge.svelte';
 	import GroupSection from './GroupSection.svelte';
 	import type { GroupRunPublic, SessionListItem, TargetPublic } from '$lib/types';
+	import { WORKSHOP_SESSION_PREFIX } from '$lib/utils';
 
 	let {
 		runs,
@@ -25,15 +26,16 @@
 	}
 
 	// Sessions for a workshop_guid source are always named "Workshop: <guid>" at
-	// creation time (see tasks/orchestration.py), before metadata resolution knows
-	// whether the GUID is a Workshop or a SelfPacedLab -- that name is also the key
-	// GroupSourceList uses to match a session back to its source, so it can't change.
-	// Once resolved, resource_kind carries the real kind; swap the displayed prefix
-	// to match, consistent with the label the session detail page shows.
+	// creation time (see tasks/orchestration.py and $lib/utils's sourceSessionName),
+	// before metadata resolution knows whether the GUID is a Workshop or a
+	// SelfPacedLab -- that name is also the key GroupSourceList uses to match a
+	// session back to its source, so it can't change. Once resolved, resource_kind
+	// carries the real kind; swap the displayed prefix to match, consistent with
+	// the label the session detail page shows.
 	function sessionDisplayName(cs: SessionListItem): string {
 		const base = cs.name || cs.display_label;
-		if (cs.resource_kind === 'SelfPacedLab' && base.startsWith('Workshop: ')) {
-			return `SelfPacedLab: ${base.slice('Workshop: '.length)}`;
+		if (cs.resource_kind === 'SelfPacedLab' && base.startsWith(WORKSHOP_SESSION_PREFIX)) {
+			return `SelfPacedLab: ${base.slice(WORKSHOP_SESSION_PREFIX.length)}`;
 		}
 		return base;
 	}

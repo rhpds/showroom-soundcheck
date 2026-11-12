@@ -2,6 +2,7 @@
 	import StatusBadge from './StatusBadge.svelte';
 	import Modal from './Modal.svelte';
 	import type { GroupPublic, GroupRunPublic, SessionListItem, Status } from '$lib/types';
+	import { sourceSessionName } from '$lib/utils';
 
 	let {
 		group,
@@ -64,13 +65,6 @@
 		if (type === 'rc_guid') return 'pf-m-purple';
 		if (type === 'pool') return 'pf-m-orange';
 		return '';
-	}
-
-	function sourceSessionName(type: string, value: string): string {
-		if (type === 'rc_guid') return `RC: ${value}`;
-		if (type === 'workshop_guid') return `Workshop: ${value}`;
-		if (type === 'pool') return `Pool: ${value}`;
-		return value;
 	}
 
 	function getLastStatusForSource(type: string, value: string): Status | null {
