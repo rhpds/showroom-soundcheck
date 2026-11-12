@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field
 
 IdentifierStr = Annotated[str, Field(max_length=255, pattern=r"^[a-zA-Z0-9._-]+$")]
 
+# The kinds babylon_service's extract_*_metadata functions can produce for a
+# session's resolved resource; "" means metadata hasn't been resolved yet.
+ResourceKind = Literal["", "Workshop", "SelfPacedLab", "ResourceClaim", "ResourcePool"]
+
 T = TypeVar("T")
 
 
@@ -55,7 +59,7 @@ class SessionPublic(BaseModel):
     completed_at: datetime | None
     resource_name: str
     resource_namespace: str
-    resource_kind: str
+    resource_kind: ResourceKind
     resource_display_name: str
     resource_metadata: dict[str, Any]
     catalog_base_url: str = ""
@@ -117,6 +121,7 @@ class SessionListItem(BaseModel):
     created_at: datetime
     completed_at: datetime | None
     resource_display_name: str = ""
+    resource_kind: ResourceKind = ""
     source_id: str = ""
 
 
@@ -129,15 +134,18 @@ class GroupCreate(BaseModel):
     """POST /api/groups request body."""
 
     name: str = Field(max_length=255)
-    stable_name: str = Field(
-        default="",
-        max_length=255,
-        description="If set, return an existing group with this name instead of creating a new one.",
-    )
     guids: list[IdentifierStr] = Field(default=[], max_length=100)
     workshop_guids: list[IdentifierStr] = Field(default=[], max_length=100)
     resource_pools: list[IdentifierStr] = Field(default=[], max_length=100)
     babylon_cluster: str = Field(default="", max_length=255)
+    force_create: bool = Field(
+        default=False,
+        description=(
+            "By default, a request whose name, guids, workshop_guids, resource_pools and "
+            "babylon_cluster exactly match an existing group returns that group (200) instead "
+            "of creating a duplicate. Set force_create to true to always create a new group."
+        ),
+    )
 
 
 class GroupPublic(BaseModel):
@@ -154,6 +162,11 @@ class GroupPublic(BaseModel):
     status: str
     pinned: bool
     created_at: datetime
+    # True while a sync-metadata job is in flight for this group (Redis-backed,
+    # not persisted -- see tasks/events.py mark/clear_metadata_syncing). Lets
+    # the SSE stream stay open and the frontend show a live syncing state
+    # instead of needing a page refresh to see the synced result.
+    metadata_syncing: bool = False
 
 
 class GroupRunPublic(BaseModel):

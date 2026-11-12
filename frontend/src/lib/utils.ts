@@ -1,3 +1,17 @@
+// Sessions created from a group source are named "<Prefix>: <value>" at
+// creation time (see tasks/orchestration.py's create_session calls), before
+// metadata resolution has run. GroupSourceList matches a session back to its
+// source by this name, so keep it in one place rather than hardcoding the
+// prefix in every component that builds or parses it.
+export const WORKSHOP_SESSION_PREFIX = 'Workshop: ';
+
+export function sourceSessionName(type: string, value: string): string {
+	if (type === 'rc_guid') return `RC: ${value}`;
+	if (type === 'workshop_guid') return `${WORKSHOP_SESSION_PREFIX}${value}`;
+	if (type === 'pool') return `Pool: ${value}`;
+	return value;
+}
+
 export function relativeTime(dateStr: string): string {
 	const diff = Date.now() - new Date(dateStr).getTime();
 	const mins = Math.floor(diff / 60000);

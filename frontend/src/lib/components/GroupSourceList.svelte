@@ -2,6 +2,7 @@
 	import StatusBadge from './StatusBadge.svelte';
 	import Modal from './Modal.svelte';
 	import type { GroupPublic, GroupRunPublic, SessionListItem, Status } from '$lib/types';
+	import { sourceSessionName } from '$lib/utils';
 
 	let {
 		group,
@@ -42,25 +43,28 @@
 		lastStatus: Status | null;
 	}
 
-	function sourceTypeLabel(type: string): string {
-		if (type === 'workshop_guid') return 'Workshop/SPL';
+	// `workshop_guid` sources resolve to either a Workshop or a SelfPacedLab CRD
+	// (see babylon_service.lookup_workshop_by_guid's fallback) -- the synced
+	// source_metadata's `kind` field (set by extract_workshop_or_selfpacedlab_metadata)
+	// tells us which, matching the label the session page derives from resource_kind.
+	function resolvedKind(meta: Record<string, unknown>): string {
+		return typeof meta.kind === 'string' ? meta.kind : '';
+	}
+
+	function sourceTypeLabel(type: string, meta: Record<string, unknown> = {}): string {
+		if (type === 'workshop_guid')
+			return resolvedKind(meta) === 'SelfPacedLab' ? 'SelfPacedLab' : 'Workshop';
 		if (type === 'rc_guid') return 'ResourceClaim';
 		if (type === 'pool') return 'Pool';
 		return type;
 	}
 
-	function sourceTypeColor(type: string): string {
-		if (type === 'workshop_guid') return 'pf-m-blue';
+	function sourceTypeColor(type: string, meta: Record<string, unknown> = {}): string {
+		if (type === 'workshop_guid')
+			return resolvedKind(meta) === 'SelfPacedLab' ? 'pf-m-purple' : 'pf-m-blue';
 		if (type === 'rc_guid') return 'pf-m-purple';
 		if (type === 'pool') return 'pf-m-orange';
 		return '';
-	}
-
-	function sourceSessionName(type: string, value: string): string {
-		if (type === 'rc_guid') return `RC: ${value}`;
-		if (type === 'workshop_guid') return `Workshop: ${value}`;
-		if (type === 'pool') return `Pool: ${value}`;
-		return value;
 	}
 
 	function getLastStatusForSource(type: string, value: string): Status | null {
@@ -106,9 +110,11 @@
 
 	let sources = $derived(getSources());
 
-	let metadataSyncing = $derived(
-		sources.length > 0 && sources.some((s) => Object.keys(s.meta).length === 0)
-	);
+	// Authoritative server flag (Redis-backed, set by the route before it
+	// enqueues sync_metadata and cleared when the task finishes) rather than
+	// inferring "syncing" from empty metadata -- that heuristic missed a
+	// re-sync of sources that already had metadata from a previous sync.
+	let metadataSyncing = $derived(group.metadata_syncing);
 
 	interface SourcesSummary {
 		byType: { label: string; count: number }[];
@@ -119,7 +125,7 @@
 		const typeCounts = new Map<string, number>();
 		const statusCounts = new Map<string, number>();
 		for (const m of sources) {
-			const tl = sourceTypeLabel(m.type);
+			const tl = sourceTypeLabel(m.type, m.meta);
 			typeCounts.set(tl, (typeCounts.get(tl) || 0) + 1);
 
 			let s = 'unknown';
@@ -210,7 +216,7 @@
 						<span
 							class="source-type-badge {entry.label === 'Workshop'
 								? 'pf-m-blue'
-								: entry.label === 'ResourceClaim'
+								: entry.label === 'ResourceClaim' || entry.label === 'SelfPacedLab'
 									? 'pf-m-purple'
 									: entry.label === 'Pool'
 										? 'pf-m-orange'
@@ -401,7 +407,7 @@
 							role="listitem"
 						>
 							<div class="source-list__main">
-								<span class="source-type-badge {sourceTypeColor(source.type)}">
+								<span class="source-type-badge {sourceTypeColor(source.type, source.meta)}">
 									{#if source.type === 'workshop_guid'}
 										<svg
 											viewBox="0 0 16 16"
@@ -436,7 +442,7 @@
 											/></svg
 										>
 									{/if}
-									<span>{sourceTypeLabel(source.type)}</span>
+									<span>{sourceTypeLabel(source.type, source.meta)}</span>
 								</span>
 								{#if source.meta.not_found}
 									<span class="source-list__missing-icon" title="Not found">
@@ -555,7 +561,14 @@
 {#if confirmRemove}
 	<Modal title="Remove Source" size="sm" onClose={() => (confirmRemove = null)}>
 		<p class="pf-v6-u-mb-md">
-			Remove <strong>{sourceTypeLabel(confirmRemove.type)}: {confirmRemove.value}</strong> from this group?
+			Remove
+			<strong
+				>{sourceTypeLabel(
+					confirmRemove.type,
+					sources.find((s) => s.type === confirmRemove?.type && s.value === confirmRemove?.value)
+						?.meta
+				)}: {confirmRemove.value}</strong
+			> from this group?
 		</p>
 		<div class="pf-v6-u-display-flex pf-v6-u-justify-content-flex-end pf-v6-u-gap-sm">
 			<button class="pf-v6-c-button pf-m-link" type="button" onclick={() => (confirmRemove = null)}

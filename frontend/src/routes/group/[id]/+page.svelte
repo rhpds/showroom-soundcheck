@@ -55,7 +55,11 @@
 	}
 
 	function isGroupActive(detail: GroupDetail): boolean {
-		return detail.group.status === 'running' || detail.runs.some((r) => r.status === 'running');
+		return (
+			detail.group.status === 'running' ||
+			detail.group.metadata_syncing ||
+			detail.runs.some((r) => r.status === 'running')
+		);
 	}
 
 	$effect(() => {
@@ -212,10 +216,15 @@
 		syncing = true;
 		error = '';
 		try {
+			// The route marks the group's metadata_syncing flag (Redis-backed)
+			// before this POST returns, so the stream's first fetch already sees
+			// active state -- same streaming-first pattern as handleRunAll /
+			// handleRunSource, replacing the old fixed 3s reload timer that could
+			// fire before the sync actually finished (or needlessly wait after it did).
 			await syncGroupMetadata(groupId);
+			startStreaming();
 			trackTimeout(() => {
 				syncing = false;
-				loadGroup();
 			}, 3000);
 		} catch (err) {
 			syncing = false;

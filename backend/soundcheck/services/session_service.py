@@ -4,6 +4,8 @@ Pure service functions for session/group DB persistence, GUID resolution,
 and status management. No framework dependencies.
 """
 
+import hashlib
+import json
 import logging
 import uuid
 from datetime import timedelta
@@ -228,6 +230,148 @@ async def load_groups_paginated(
 
     result = await db.execute(query)
     return list(result.scalars().all()), total
+
+
+def compute_content_hash(
+    *,
+    name: str,
+    guids: list[str],
+    workshop_guids: list[str],
+    resource_pools: list[str],
+    babylon_cluster: str,
+) -> str:
+    """Hash a group's defining fields so identical POST /api/groups requests
+    can be recognised as the same group.
+
+    Each source list is sorted and stripped of blanks so submission order
+    never matters; `name` and `babylon_cluster` are stripped but kept
+    case-sensitive. Any route that changes one of these fields on an existing
+    group (rename, add/remove source) must call refresh_content_hash
+    afterwards, or this group stops matching future identical requests.
+    """
+    payload = {
+        "name": name.strip(),
+        "guids": sorted({g.strip() for g in guids if g.strip()}),
+        "workshop_guids": sorted({g.strip() for g in workshop_guids if g.strip()}),
+        "resource_pools": sorted({p.strip() for p in resource_pools if p.strip()}),
+        "babylon_cluster": babylon_cluster.strip(),
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+async def create_group(
+    db: AsyncSession,
+    *,
+    name: str,
+    guids: list[str],
+    workshop_guids: list[str],
+    resource_pools: list[str],
+    babylon_cluster: str = "",
+) -> SessionGroup:
+    """Create a pending group. Returns the persisted SessionGroup."""
+    grp = SessionGroup(
+        group_id=str(uuid.uuid4()),
+        name=name,
+        content_hash=compute_content_hash(
+            name=name,
+            guids=guids,
+            workshop_guids=workshop_guids,
+            resource_pools=resource_pools,
+            babylon_cluster=babylon_cluster,
+        ),
+        babylon_cluster=babylon_cluster,
+        source_guids=guids,
+        source_workshop_guids=workshop_guids,
+        source_resource_pools=resource_pools,
+        status="pending",
+        created_at=utc_now(),
+    )
+    db.add(grp)
+    await db.commit()
+    await db.refresh(grp)
+    return grp
+
+
+def refresh_content_hash(grp: SessionGroup) -> None:
+    """Recompute and set grp.content_hash from its current fields.
+
+    Call this on grp before committing any change to name, the three source
+    lists, or babylon_cluster -- rename_group, add_source and remove_source
+    all do. Skipping it leaves a stale hash that silently stops matching
+    future identical POST /api/groups requests.
+    """
+    grp.content_hash = compute_content_hash(
+        name=grp.name,
+        guids=grp.get_guids(),
+        workshop_guids=grp.get_workshop_guids(),
+        resource_pools=grp.get_resource_pools(),
+        babylon_cluster=grp.babylon_cluster,
+    )
+
+
+async def find_group_by_content_hash(db: AsyncSession, content_hash: str) -> SessionGroup | None:
+    """Return the oldest group with this content_hash, if any.
+
+    content_hash is not unique -- pre-existing duplicates stay legal, and
+    add_source/remove_source can coincidentally drive two groups to the same
+    hash. Oldest-first so repeated identical POSTs always converge on the same
+    group instead of drifting to whichever duplicate was made most recently.
+    """
+    result = await db.execute(
+        select(SessionGroup)
+        .where(SessionGroup.content_hash == content_hash)
+        .order_by(col(SessionGroup.created_at).asc())
+        .limit(1)
+    )
+    return result.scalars().first()
+
+
+async def get_or_create_group(
+    db: AsyncSession,
+    *,
+    name: str,
+    guids: list[str],
+    workshop_guids: list[str],
+    resource_pools: list[str],
+    babylon_cluster: str = "",
+) -> tuple[SessionGroup, bool]:
+    """Idempotently resolve a group for this (name, sources, cluster) tuple.
+
+    Mirrors get_or_create_session_for_workshop_guid: takes a Postgres advisory
+    transaction lock first so concurrent callers submitting the same content
+    serialize instead of racing to create duplicates. The lock auto-releases
+    when this request's transaction commits or rolls back.
+
+    Returns (group, created); created is True only when a new group was made
+    here, so the caller knows whether to enqueue sync_metadata and which
+    status code to return. There is no uniqueness constraint backing this --
+    unlike the stable_name key it replaced, a content match is advisory, so
+    callers that must force a new group regardless of duplicates should
+    bypass this function and call create_group directly.
+    """
+    content_hash = compute_content_hash(
+        name=name,
+        guids=guids,
+        workshop_guids=workshop_guids,
+        resource_pools=resource_pools,
+        babylon_cluster=babylon_cluster,
+    )
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": content_hash})
+
+    existing = await find_group_by_content_hash(db, content_hash)
+    if existing:
+        return existing, False
+
+    grp = await create_group(
+        db,
+        name=name,
+        guids=guids,
+        workshop_guids=workshop_guids,
+        resource_pools=resource_pools,
+        babylon_cluster=babylon_cluster,
+    )
+    return grp, True
 
 
 # ---------------------------------------------------------------------------

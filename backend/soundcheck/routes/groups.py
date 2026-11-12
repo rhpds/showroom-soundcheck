@@ -2,11 +2,10 @@
 
 import asyncio
 import time
-import uuid
 from collections.abc import AsyncIterator
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlmodel import col, select
 
@@ -28,7 +27,7 @@ from ..schemas import (
     TargetPublic,
 )
 from ..services import session_service
-from ..utils import utc_now
+from ..tasks.events import is_metadata_syncing, mark_metadata_syncing
 from ..worker import queue
 from ._serializers import (
     group_to_list_item,
@@ -45,43 +44,61 @@ _sse_semaphore = asyncio.Semaphore(MAX_SSE_CONNECTIONS)
 _sse_guard = sse_capacity_guard(_sse_semaphore)
 
 
-@router.post("", response_model=GroupPublic, status_code=201)
-async def create_group(body: GroupCreate, db: DbSession):
-    """Create a new check group."""
+@router.post(
+    "",
+    response_model=GroupPublic,
+    status_code=201,
+    responses={
+        200: {"model": GroupPublic, "description": "Existing group returned: name/sources/cluster matched"},
+    },
+)
+async def create_group(body: GroupCreate, response: Response, db: DbSession):
+    """Create a new check group.
+
+    By default this is idempotent on content: a request whose name, sources and
+    babylon_cluster exactly match an existing group returns that group (200)
+    instead of creating a duplicate (201). Set force_create=true to always
+    create a new group regardless of existing matches.
+    """
     if not body.name.strip():
         raise HTTPException(status_code=422, detail="Group name is required")
     if not body.guids and not body.workshop_guids and not body.resource_pools:
         raise HTTPException(status_code=422, detail="Add at least one GUID, workshop GUID, or resource pool")
 
-    if body.stable_name.strip():
-        result = await db.execute(
-            select(SessionGroup)
-            .where(SessionGroup.name == body.stable_name.strip())
-            .order_by(col(SessionGroup.created_at).desc())
-            .limit(1)
+    cluster = body.babylon_cluster.strip() if body.babylon_cluster.strip() != "(auto)" else ""
+
+    if body.force_create:
+        grp = await session_service.create_group(
+            db,
+            name=body.name.strip(),
+            guids=body.guids,
+            workshop_guids=body.workshop_guids,
+            resource_pools=body.resource_pools,
+            babylon_cluster=cluster,
         )
-        existing = result.scalars().first()
-        if existing:
-            return group_to_public(existing)
+        created = True
+    else:
+        grp, created = await session_service.get_or_create_group(
+            db,
+            name=body.name.strip(),
+            guids=body.guids,
+            workshop_guids=body.workshop_guids,
+            resource_pools=body.resource_pools,
+            babylon_cluster=cluster,
+        )
 
-    gid = str(uuid.uuid4())
-    grp = SessionGroup(
-        group_id=gid,
-        name=body.name.strip(),
-        babylon_cluster=body.babylon_cluster.strip() if body.babylon_cluster.strip() != "(auto)" else "",
-        source_guids=body.guids,
-        source_workshop_guids=body.workshop_guids,
-        source_resource_pools=body.resource_pools,
-        status="pending",
-        created_at=utc_now(),
-    )
-    db.add(grp)
-    await db.commit()
-    await db.refresh(grp)
+    if not created:
+        response.status_code = 200
+        return group_to_public(grp)
 
-    await queue.enqueue("sync_metadata", group_id=gid)
+    # create_group redirects the caller straight to the group detail page,
+    # which opens the SSE stream on load -- mark syncing first so that
+    # stream's first fetch reflects the in-flight sync_metadata job instead
+    # of a blank source_metadata with no indication it's still loading.
+    await mark_metadata_syncing(queue.redis, grp.group_id)
+    await queue.enqueue("sync_metadata", group_id=grp.group_id)
 
-    return group_to_public(grp)
+    return group_to_public(grp, metadata_syncing=True)
 
 
 @router.get("", response_model=PaginatedResponse[GroupListItem])
@@ -107,7 +124,11 @@ async def list_groups(
 
 
 async def _fetch_group_detail(group_id: str) -> GroupDetail | None:
-    """Fetch full group detail from DB. Returns None if group not found."""
+    """Fetch full group detail from DB, merged with the live metadata-sync flag.
+
+    Returns None if group not found.
+    """
+    metadata_syncing = await is_metadata_syncing(queue.redis, group_id)
     async with async_session_factory() as db:
         grp_result = await db.execute(select(SessionGroup).where(SessionGroup.group_id == group_id))
         grp = grp_result.scalars().first()
@@ -145,7 +166,7 @@ async def _fetch_group_detail(group_id: str) -> GroupDetail | None:
                     targets_by_session.setdefault(t.session_id, []).append(target_to_public(t))
 
         return GroupDetail(
-            group=group_to_public(grp),
+            group=group_to_public(grp, metadata_syncing=metadata_syncing),
             runs=[run_to_public(r) for r in runs],
             run_sessions=run_sessions,
             targets_by_session=targets_by_session,
@@ -162,7 +183,11 @@ async def get_group(group_id: str):
 
 
 def _group_has_active(detail: GroupDetail) -> bool:
-    return detail.group.status == "running" or any(r.status == "running" for r in detail.runs)
+    return (
+        detail.group.status == "running"
+        or detail.group.metadata_syncing
+        or any(r.status == "running" for r in detail.runs)
+    )
 
 
 @router.get(
@@ -195,9 +220,7 @@ async def stream_group(group_id: str, request: Request) -> AsyncIterator[ServerS
 
         elapsed = 0
         last_yield = time.monotonic()
-        last_keepalive = time.monotonic()
         pending_refresh = False
-        KEEPALIVE_INTERVAL = 25.0
 
         while elapsed < MAX_WAIT_SECONDS:
             if await request.is_disconnected():
@@ -213,9 +236,6 @@ async def stream_group(group_id: str, request: Request) -> AsyncIterator[ServerS
                 pass
             else:
                 elapsed += 1
-                if time.monotonic() - last_keepalive >= KEEPALIVE_INTERVAL:
-                    yield ServerSentEvent(comment="keepalive")
-                    last_keepalive = time.monotonic()
                 continue
 
             pending_refresh = False
@@ -238,8 +258,19 @@ async def stream_group(group_id: str, request: Request) -> AsyncIterator[ServerS
 async def run_group(group_id: str, request: Request, db: DbSession):
     """Run checks for all sources in the group."""
     grp_result = await db.execute(select(SessionGroup).where(SessionGroup.group_id == group_id))
-    if not grp_result.scalars().first():
+    grp = grp_result.scalars().first()
+    if not grp:
         raise HTTPException(status_code=404, detail="Group not found")
+
+    # Flip status to "running" here, synchronously, rather than waiting for
+    # the run_group task to do it (inside _create_group_sessions). The
+    # frontend opens the SSE stream immediately after this POST resolves;
+    # without this, the stream's first fetch can still see the old/terminal
+    # status, decide nothing is active, and close before the worker ever
+    # publishes a group_update -- the exact bug that stale UI came from.
+    grp.status = "running"
+    db.add(grp)
+    await db.commit()
 
     await queue.enqueue("run_group", group_id=group_id, request_id=request.state.request_id, timeout=1800)
 
@@ -250,8 +281,14 @@ async def run_group(group_id: str, request: Request, db: DbSession):
 async def run_source(group_id: str, body: SourceRequest, request: Request, db: DbSession):
     """Run checks for a single source of the group."""
     grp_result = await db.execute(select(SessionGroup).where(SessionGroup.group_id == group_id))
-    if not grp_result.scalars().first():
+    grp = grp_result.scalars().first()
+    if not grp:
         raise HTTPException(status_code=404, detail="Group not found")
+
+    # See run_group above for why this is set synchronously before enqueueing.
+    grp.status = "running"
+    db.add(grp)
+    await db.commit()
 
     await queue.enqueue(
         "run_single_source",
@@ -274,6 +311,7 @@ async def rename_group(group_id: str, body: GroupRename, db: DbSession):
         raise HTTPException(status_code=404, detail="Group not found")
 
     grp.name = body.name.strip()
+    session_service.refresh_content_hash(grp)
     db.add(grp)
     await db.commit()
     return NameResponse(name=grp.name)
@@ -308,9 +346,14 @@ async def add_source(group_id: str, body: SourceRequest, db: DbSession):
     else:
         raise HTTPException(status_code=422, detail=f"Invalid source_type: {body.source_type}")
 
+    session_service.refresh_content_hash(grp)
     db.add(grp)
     await db.commit()
 
+    # The frontend reloads the group detail (and opens the SSE stream if
+    # active) right after this returns -- mark syncing first so that fetch
+    # reflects the in-flight sync_metadata job instead of racing it.
+    await mark_metadata_syncing(queue.redis, group_id)
     await queue.enqueue("sync_metadata", group_id=group_id)
 
     return StatusResponse(status="added")
@@ -341,6 +384,7 @@ async def remove_source(
     meta_map.pop(meta_key, None)
     grp.member_metadata = meta_map
 
+    session_service.refresh_content_hash(grp)
     db.add(grp)
     await db.commit()
     return StatusResponse(status="removed")
@@ -376,6 +420,10 @@ async def sync_metadata(group_id: str, db: DbSession):
     if not grp_result.scalars().first():
         raise HTTPException(status_code=404, detail="Group not found")
 
+    # Set before enqueueing (not inside the task) so a stream opened right
+    # after this POST sees active state on its very first fetch -- same
+    # reasoning as run_group/run_source above.
+    await mark_metadata_syncing(queue.redis, group_id)
     await queue.enqueue("sync_metadata", group_id=group_id)
 
     return StatusResponse(status="syncing")

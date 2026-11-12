@@ -65,6 +65,7 @@ def session_to_list_item(cs: CheckSession) -> SessionListItem:
         created_at=cs.created_at,
         completed_at=cs.completed_at,
         resource_display_name=cs.resource_display_name,
+        resource_kind=cs.resource_kind,
         source_id=_first_source_id(cs),
     )
 
@@ -114,7 +115,7 @@ def result_to_public(r: CheckResult) -> CheckResultPublic:
 # ---------------------------------------------------------------------------
 
 
-def group_to_public(g: SessionGroup) -> GroupPublic:
+def group_to_public(g: SessionGroup, *, metadata_syncing: bool = False) -> GroupPublic:
     return GroupPublic(
         id=g.id,
         group_id=g.group_id,
@@ -127,6 +128,7 @@ def group_to_public(g: SessionGroup) -> GroupPublic:
         status=g.status,
         pinned=g.pinned,
         created_at=g.created_at,
+        metadata_syncing=metadata_syncing,
     )
 
 
