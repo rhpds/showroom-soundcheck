@@ -170,7 +170,7 @@ export async function syncGroupMetadata(groupId: string): Promise<void> {
 	await fetchJson(`${BASE}/groups/${groupId}/sync-metadata`, { method: 'POST' });
 }
 
-export async function getClusters(): Promise<{ clusters: string[] }> {
+export async function getClusters(): Promise<{ clusters: string[]; default_clusters: string[] }> {
 	return fetchJson(`${BASE}/config/clusters`);
 }
 

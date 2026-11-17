@@ -44,11 +44,16 @@
 	} = $props();
 
 	// Whether the secondary "More filters" row is expanded. Seeded once from
-	// whether any secondary filter *other than Environment* is already active
-	// (e.g. a deep link like `?cluster=...`), so such links land expanded.
-	// After that, this is purely toggled by the "More filters" button — it is
-	// intentionally NOT re-derived from filter state, so the row can always be
-	// manually collapsed even while filters inside it remain active.
+	// whether any secondary filter *other than Environment or Cluster* is
+	// already active (e.g. a deep link like `?white_glove=true`), so such
+	// links land expanded. Environment and Cluster are deliberately excluded:
+	// both default to a non-empty selection on a fresh /workshops visit (see
+	// +page.ts), so including them here would force this row open on every
+	// first load instead of only when the visitor explicitly set one via the
+	// URL. After this initial seed, showSecondary is purely toggled by the
+	// "More filters" button — it is intentionally NOT re-derived from filter
+	// state, so the row can always be manually collapsed even while filters
+	// inside it remain active.
 	let showSecondary = $state(
 		untrack(
 			() =>
@@ -56,7 +61,6 @@
 				multiAssetOnly ||
 				provisionType !== 'all' ||
 				hasFailures ||
-				selectedClusters.length > 0 ||
 				minSize > WORKSHOP_SIZE_MIN ||
 				maxSize < WORKSHOP_SIZE_MAX
 		)

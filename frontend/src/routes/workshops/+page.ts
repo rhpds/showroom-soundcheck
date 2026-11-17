@@ -24,7 +24,7 @@ function parseSizeParam(raw: string | null, fallback: number): number {
 export const load: PageLoad = async ({ url }) => {
 	const hasAnyParams = url.searchParams.toString().length > 0;
 
-	const selectedClusters = url.searchParams.getAll('cluster');
+	const rawClusters = url.searchParams.getAll('cluster');
 	const whiteGlove = url.searchParams.get('white_glove') === 'true';
 	const multiAssetOnly = url.searchParams.get('multi_asset') === 'true';
 
@@ -70,6 +70,17 @@ export const load: PageLoad = async ({ url }) => {
 		? (rawTime as TimeWindowFilter)
 		: '24h';
 
+	// Cluster filter needs default_clusters before workshopParams can be built
+	// (unlike environment/status, whose defaults are static), so fetch clusters
+	// first rather than in the Promise.all below. This is an in-memory lookup
+	// on the backend, not a K8s round-trip, so the added latency is negligible.
+	const clustersResp = await getClusters().catch(() => ({
+		clusters: [] as string[],
+		default_clusters: [] as string[]
+	}));
+	const selectedClusters =
+		rawClusters.length > 0 ? rawClusters : hasAnyParams ? [] : clustersResp.default_clusters;
+
 	const timeRange = getTimeRange(timeWindow);
 	const workshopParams = {
 		cluster: selectedClusters.length > 0 ? selectedClusters : undefined,
@@ -83,10 +94,9 @@ export const load: PageLoad = async ({ url }) => {
 		...timeRange
 	};
 
-	const [clustersResp, workshopsResult] = await Promise.all([
-		getClusters(),
-		listWorkshops(workshopParams).catch((): WorkshopListResponse | null => null)
-	]);
+	const workshopsResult = await listWorkshops(workshopParams).catch(
+		(): WorkshopListResponse | null => null
+	);
 
 	return {
 		clusters: clustersResp.clusters,

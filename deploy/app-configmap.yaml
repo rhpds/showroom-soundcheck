@@ -15,8 +15,12 @@ data:
   ALLOWED_URL_PATTERNS: "*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io"
   POSTGRES_HOST: "postgres"
   POSTGRES_PORT: "5432"
-  BABYLON_CLUSTERS: '["/secrets/east.kubeconfig","/secrets/west.kubeconfig"]'
+  BABYLON_CLUSTERS: '["/secrets/east.kubeconfig","/secrets/west.kubeconfig","/secrets/integration.kubeconfig"]'
   BABYLON_CATALOG_URLS: '{"east": "https://catalog.demo.redhat.com", "west": "https://babylon-catalog.apps.ocp-us-west-2.infra.open.redhat.com"}'
+  # Clusters pre-selected on the workshop dashboard's cluster filter by default.
+  # Other configured clusters (e.g. integration) stay fully usable via the
+  # filter, just opt-in -- unset this to fall back to "all configured".
+  BABYLON_DEFAULT_CLUSTERS: '["east","west"]'
   ENABLE_DOCS: "true"
   # Browser callers (Admin Ops / catalog). Flow QA2 is server-side — no CORS needed.
   # Wildcard * is rejected by the app. Add Labagator origin if it hosts catalog embeds.

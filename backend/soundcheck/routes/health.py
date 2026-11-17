@@ -47,5 +47,14 @@ async def health(db: DbSession):
 
 @router.get("/config/clusters", response_model=ClustersResponse)
 async def get_clusters():
-    """Return the list of configured Babylon clusters."""
-    return ClustersResponse(clusters=babylon_client.get_configured_clusters())
+    """Return the list of configured Babylon clusters.
+
+    default_clusters is the subset pre-selected on the workshop dashboard's
+    cluster filter (see BABYLON_DEFAULT_CLUSTERS); clusters is always the
+    full configured list, for the filter's selectable chips and the manual
+    cluster dropdowns on /sessions/new and /groups/new.
+    """
+    return ClustersResponse(
+        clusters=babylon_client.get_configured_clusters(),
+        default_clusters=babylon_client.get_default_clusters(),
+    )
