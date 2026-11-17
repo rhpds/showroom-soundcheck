@@ -173,6 +173,19 @@ def _parse_clusters_env(raw: str) -> list[tuple[str, str]]:
     raise ValueError(f"BABYLON_CLUSTERS must be a JSON array or object, got {type(parsed).__name__}")
 
 
+def _parse_default_clusters_env(raw: str) -> list[str]:
+    """Parse BABYLON_DEFAULT_CLUSTERS into a list of cluster names.
+
+    Same format as BABYLON_CLUSTERS/BABYLON_CATALOG_URLS: a JSON array,
+    e.g. '["east","west"]'. Names are lowercased to match the names
+    get_configured_clusters() derives from kubeconfig filenames.
+    """
+    parsed = json.loads(raw)
+    if not isinstance(parsed, list):
+        raise ValueError(f"BABYLON_DEFAULT_CLUSTERS must be a JSON array, got {type(parsed).__name__}")
+    return [entry.lower() for entry in parsed if isinstance(entry, str) and entry]
+
+
 class BabylonClientManager:
     """Manages Babylon cluster httpx clients and kubeconfig parsing.
 
@@ -278,6 +291,46 @@ class BabylonClientManager:
         self._ensure_initialized()
         return list(self._cluster_configs.keys())
 
+    def get_default_clusters(self) -> list[str]:
+        """Return the subset of configured clusters selected by default.
+
+        Controlled by BABYLON_DEFAULT_CLUSTERS (JSON array of cluster
+        names, e.g. '["east","west"]' — same format as BABYLON_CLUSTERS
+        and BABYLON_CATALOG_URLS), read fresh on every call so tests can
+        monkeypatch the env var without needing to rebuild the manager.
+
+        Lets an operator add a new cluster (e.g. 'integration') to
+        BABYLON_CLUSTERS without it being pre-selected on the workshop
+        dashboard — it stays fully usable via the cluster filter, just
+        opt-in.
+
+        Unset/empty/invalid env var falls back to every configured cluster
+        (backward compatible: a deployment that never sets this var keeps
+        today's "all clusters on by default" behavior). Order follows
+        get_configured_clusters(), not the env var's order. Names in the
+        env var that aren't configured are dropped with a warning.
+        """
+        self._ensure_initialized()
+        configured = list(self._cluster_configs.keys())
+        raw = os.environ.get("BABYLON_DEFAULT_CLUSTERS", "")
+        if not raw.strip():
+            return configured
+
+        try:
+            requested = set(_parse_default_clusters_env(raw))
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.error("BABYLON_DEFAULT_CLUSTERS is not valid: %s — %s", raw[:200], exc)
+            return configured
+
+        unknown = requested - set(configured)
+        if unknown:
+            logger.warning(
+                "BABYLON_DEFAULT_CLUSTERS names unconfigured cluster(s) %s — ignoring. Configured: %s",
+                sorted(unknown),
+                configured,
+            )
+        return [name for name in configured if name in requested]
+
     def _sync_close_clients(self) -> None:
         """Synchronous shutdown hook — closes all httpx clients at interpreter exit."""
         if not self._clients:
@@ -305,6 +358,11 @@ _default_manager = BabylonClientManager()
 def get_configured_clusters() -> list[str]:
     """Return list of configured Babylon cluster names."""
     return _default_manager.get_configured_clusters()
+
+
+def get_default_clusters() -> list[str]:
+    """Return the subset of configured clusters selected by default."""
+    return _default_manager.get_default_clusters()
 
 
 # ---------------------------------------------------------------------------

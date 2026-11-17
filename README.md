@@ -86,6 +86,8 @@ Stale sessions (stuck in `running` for >30 minutes) are automatically cleaned up
 
 At `/workshops`, view a real-time timeline of Workshop, SelfPacedLab, and MultiWorkshop custom resources across every configured Babylon cluster — independent of soundcheck's own sessions/groups. Filter by cluster, status, provision type, environment, white-glove flag, presence of provisioning failures, time window, and workshop size (seat count). Multi-workshop events group their child workshops/selfpacedlabs, expandable/collapsible in the timeline.
 
+A fresh visit (no filters in the URL) only shows clusters named in `BABYLON_DEFAULT_CLUSTERS`; every other configured cluster still appears as a selectable chip in the cluster filter, and "Clear filters" reveals all of them, same as every other filter in that bar. This lets a newly-added cluster (e.g. a staging/integration Babylon instance) be onboarded without flooding the default dashboard view.
+
 Trigger a soundcheck run directly from a workshop's row; its live status streams back via SSE without leaving the dashboard. Unlike session/group pages, the workshop list itself is fetched via plain REST (it reads live from the Kubernetes API rather than SAQ/DB state) and is served from a short-lived in-memory cache that's kept warm by a background refresh loop.
 
 ---
@@ -155,6 +157,7 @@ npm run dev
 |----------|---------|-------------|
 | `BABYLON_CLUSTERS` | `[]` | JSON array of kubeconfig paths; order = search priority |
 | `BABYLON_CATALOG_URLS` | _(empty)_ | JSON object mapping cluster name to catalog UI base URL |
+| `BABYLON_DEFAULT_CLUSTERS` | `[]` → all configured | JSON array of cluster names pre-selected on the workshop dashboard's cluster filter. A cluster left out is still fully usable via the filter, just not selected by default. Unknown names are ignored with a warning |
 | `BABYLON_KUBECONFIG_DIR` | `./secrets` | Host directory mounted for kubeconfigs (compose only) |
 
 Cluster names are derived from filenames by stripping `.kubeconfig` (and any leading `NN-` prefix). The legacy JSON object format is also accepted.

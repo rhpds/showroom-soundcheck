@@ -247,6 +247,7 @@ class SessionUpdate(BaseModel):
 
 class ClustersResponse(BaseModel):
     clusters: list[str]
+    default_clusters: list[str] = []
 
 
 # ---------------------------------------------------------------------------
