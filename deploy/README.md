@@ -156,6 +156,49 @@ The serving certificate for the proxy is automatically provisioned by
 OpenShift via the `service.beta.openshift.io/serving-cert-secret-name`
 annotation on the Service.
 
+### API access with a Bearer token
+
+Browser users log in as above. API clients such as RHDP Flow QA can't follow
+the login redirect, so the proxy also accepts a Bearer token on `/api/`
+(`-openshift-delegate-urls`). It validates the token with a TokenReview, then
+checks that the caller can `get` services in this namespace.
+
+The proxy's service account needs permission to run those reviews. A cluster
+admin grants it once per namespace:
+
+```bash
+oc adm policy add-cluster-role-to-user system:auth-delegator \
+  -z showroom-soundcheck-proxy -n showroom-soundcheck-dev
+```
+
+To issue a token for a client, create a service account it can use and give it
+read access to services in the namespace:
+
+```bash
+NS=showroom-soundcheck-dev
+oc create serviceaccount soundcheck-api-client -n "$NS"
+oc create role soundcheck-api-client --verb=get --resource=services -n "$NS"
+oc create rolebinding soundcheck-api-client --role=soundcheck-api-client \
+  --serviceaccount="$NS:soundcheck-api-client" -n "$NS"
+oc create token soundcheck-api-client -n "$NS" --duration=8760h
+```
+
+The client sends it as `Authorization: Bearer <token>`. For Flow, that's the
+`SOUNDCHECK_TOKEN` secret value. A request without a valid token still gets the
+login redirect, so `/api` is never open to anonymous callers.
+
+Check it from outside the cluster:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer $TOKEN" \
+  https://showroom-soundcheck-dev.apps.ocpv-infra01.dal12.infra.demo.redhat.com/api/ping
+```
+
+`200` means the token got through. `302` means the token is missing or invalid,
+or the auth-delegator grant above hasn't been made. `403` means the token is
+valid but can't `get` services in the namespace.
+
 ## Workers
 
 The app uses [SAQ](https://github.com/tobymao/saq) (Simple Async Queue) backed

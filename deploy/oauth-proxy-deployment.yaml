@@ -29,6 +29,11 @@ spec:
           ports:
             - name: http
               containerPort: 4180
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           args:
             - -http-address=:4180
             - -https-address=
@@ -39,6 +44,11 @@ spec:
             - -cookie-secret-file=/etc/proxy/secrets/session-secret
             - -email-domain=*
             - -skip-provider-button=true
+            # Let API clients (RHDP Flow QA) call /api with a Bearer token instead
+            # of a browser login. The proxy runs a TokenReview, then checks the
+            # caller can `get` services in this namespace. Needs the one-time
+            # auth-delegator grant described in deploy/README.md.
+            - '-openshift-delegate-urls={"/api/":{"resource":"services","verb":"get","namespace":"$(POD_NAMESPACE)"}}'
           volumeMounts:
             - name: proxy-secret
               mountPath: /etc/proxy/secrets
