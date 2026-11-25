@@ -12,11 +12,15 @@ data:
   CHECK_CONCURRENCY: "20"
   ORCHESTRATION_CONCURRENCY: "10"
   VERIFY_SSL: "false"
+  # Max seconds to wait for a showroom's qa-automation healthcheck stream
+  # to finish (default 90s). Raised in dev to accommodate longer-running
+  # healthcheck playbooks.
+  QA_HEALTHCHECK_TIMEOUT: "300"
   ALLOWED_URL_PATTERNS: "*.redhat.com,*.opentlc.com,*.rhdp.net,*.redhatworkshops.io,*.aroapp-hcp.io"
   POSTGRES_HOST: "postgres"
   POSTGRES_PORT: "5432"
   BABYLON_CLUSTERS: '["/secrets/east.kubeconfig","/secrets/west.kubeconfig","/secrets/integration.kubeconfig"]'
-  BABYLON_CATALOG_URLS: '{"east": "https://catalog.demo.redhat.com", "west": "https://babylon-catalog.apps.ocp-us-west-2.infra.open.redhat.com"}'
+  BABYLON_CATALOG_URLS: '{"east": "https://catalog.demo.redhat.com", "west": "https://babylon-catalog.apps.ocp-us-west-2.infra.open.redhat.com", "integration": "https://integration.demo.redhat.com"}'
   # Clusters pre-selected on the workshop dashboard's cluster filter by default.
   # Other configured clusters (e.g. integration) stay fully usable via the
   # filter, just opt-in -- unset this to fall back to "all configured".
