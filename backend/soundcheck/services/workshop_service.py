@@ -49,6 +49,26 @@ MULTIWORKSHOP_ID_LABEL = f"{BABYLON_GROUP}/multi-workshop-id"
 # ---------------------------------------------------------------------------
 
 
+def _is_terminating(item: dict[str, Any]) -> bool:
+    """Return True if a raw K8s object has a deletionTimestamp set.
+
+    Babylon CRDs (Workshop/MultiWorkshop/SelfPacedLab) carry a
+    ``demo.redhat.com/reporting`` finalizer. When the reporting-operator/API
+    backing that finalizer is unhealthy (e.g. stuck acquiring its Redis
+    locks), deletion requests never complete: the object gets a
+    ``deletionTimestamp`` but is never actually removed from the cluster. A
+    Workshop can sit like this indefinitely (observed: weeks) even though it
+    was already deleted from the requester's point of view.
+
+    Such objects are *not* dropped at fetch time. They are surfaced as an
+    ordinary ``terminating`` status (see :func:`derive_status`), which the
+    dashboard leaves out of its default filter selection — keeping them
+    inspectable is the whole point, since a growing pile of them is the
+    symptom that the reporting finalizer is wedged.
+    """
+    return bool(item.get("metadata", {}).get("deletionTimestamp"))
+
+
 def derive_status(
     lifespan_start: str,
     lifespan_end: str,
@@ -426,26 +446,6 @@ def extract_selfpacedlab_item(spl_def: dict[str, Any], cluster: str) -> Workshop
         open_registration=spec.get("openRegistration", False),
         access_password_set=bool(spec.get("accessPassword")),
     )
-
-
-def _is_terminating(item: dict[str, Any]) -> bool:
-    """Return True if a raw K8s object has a deletionTimestamp set.
-
-    Babylon CRDs (Workshop/MultiWorkshop/SelfPacedLab) carry a
-    ``demo.redhat.com/reporting`` finalizer. When the reporting-operator/API
-    backing that finalizer is unhealthy (e.g. stuck acquiring its Redis
-    locks), deletion requests never complete: the object gets a
-    ``deletionTimestamp`` but is never actually removed from the cluster. A
-    Workshop can sit like this indefinitely (observed: weeks) even though it
-    was already deleted from the requester's point of view.
-
-    Such objects are *not* dropped at fetch time. They are surfaced as an
-    ordinary ``terminating`` status (see :func:`derive_status`), which the
-    dashboard leaves out of its default filter selection — keeping them
-    inspectable is the whole point, since a growing pile of them is the
-    symptom that the reporting finalizer is wedged.
-    """
-    return bool(item.get("metadata", {}).get("deletionTimestamp"))
 
 
 def _get_owner_rc(ws_def: dict[str, Any]) -> tuple[str, str]:

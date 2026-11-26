@@ -240,7 +240,6 @@
 				}
 			});
 		}
-
 		if (provisionType !== 'all') {
 			const labels: Record<string, string> = {
 				self_service: 'Self-service',
