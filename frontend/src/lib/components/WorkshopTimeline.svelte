@@ -379,6 +379,8 @@
 				return 'FAIL';
 			case 'completed':
 				return 'DONE';
+			case 'terminating':
+				return 'TERM';
 			default:
 				return '?';
 		}

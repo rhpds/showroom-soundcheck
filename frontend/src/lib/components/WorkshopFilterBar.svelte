@@ -93,6 +93,13 @@
 		onchange();
 	}
 
+	// Only statuses whose meaning isn't obvious from the label get a tooltip;
+	// `title` is simply undefined for the rest.
+	const STATUS_HINTS: Partial<Record<WorkshopStatus, string>> = {
+		terminating:
+			'Stuck mid-deletion: the demo.redhat.com/reporting finalizer never completed. Not shown by default.'
+	};
+
 	function toggleStatus(status: WorkshopStatus) {
 		if (selectedStatuses.includes(status)) {
 			selectedStatuses = selectedStatuses.filter((s) => s !== status);
@@ -233,6 +240,7 @@
 				}
 			});
 		}
+
 		if (provisionType !== 'all') {
 			const labels: Record<string, string> = {
 				self_service: 'Self-service',
@@ -353,6 +361,7 @@
 						class="filter-chip"
 						class:active={selectedStatuses.includes(status)}
 						aria-pressed={selectedStatuses.includes(status)}
+						title={STATUS_HINTS[status]}
 						onclick={() => toggleStatus(status)}>{workshopStatusLabel(status)}</button
 					>
 				{/each}

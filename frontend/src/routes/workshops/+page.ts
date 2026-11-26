@@ -6,6 +6,7 @@ import {
 	VALID_TIME_WINDOWS,
 	ENVIRONMENT_VALUES,
 	ALL_WORKSHOP_STATUSES,
+	DEFAULT_WORKSHOP_STATUSES,
 	WORKSHOP_SIZE_STEPS,
 	WORKSHOP_SIZE_MIN,
 	WORKSHOP_SIZE_MAX,
@@ -53,7 +54,7 @@ export const load: PageLoad = async ({ url }) => {
 				)
 			: hasAnyParams
 				? []
-				: (['scheduled', 'provisioning', 'failed', 'degraded'] as WorkshopStatus[]);
+				: DEFAULT_WORKSHOP_STATUSES;
 
 	const hasFailures = url.searchParams.get('has_failures') === 'true';
 
