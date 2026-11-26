@@ -255,8 +255,14 @@ export const ALL_WORKSHOP_STATUSES: WorkshopStatus[] = [
  * already finished or gone. It's an ordinary chip in every other respect —
  * click it to see them, and an empty selection ("Clear filters") shows
  * every status including this one.
+ *
+ * `readonly` on purpose: this array is a module-level singleton that gets
+ * handed to `$state()` in the workshops page. Svelte deep-proxies `$state`
+ * arrays, so an in-place `push`/`splice` on the selection would mutate this
+ * default for every later fresh visit in the same session. Callers copy it
+ * (`[...DEFAULT_WORKSHOP_STATUSES]`); the type stops that being optional.
  */
-export const DEFAULT_WORKSHOP_STATUSES: WorkshopStatus[] = [
+export const DEFAULT_WORKSHOP_STATUSES: readonly WorkshopStatus[] = [
 	'scheduled',
 	'provisioning',
 	'failed',

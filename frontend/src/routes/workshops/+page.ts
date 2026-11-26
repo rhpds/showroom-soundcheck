@@ -54,7 +54,7 @@ export const load: PageLoad = async ({ url }) => {
 				)
 			: hasAnyParams
 				? []
-				: DEFAULT_WORKSHOP_STATUSES;
+				: [...DEFAULT_WORKSHOP_STATUSES];
 
 	const hasFailures = url.searchParams.get('has_failures') === 'true';
 
