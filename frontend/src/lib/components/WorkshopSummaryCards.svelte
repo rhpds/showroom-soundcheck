@@ -29,6 +29,19 @@
 		<span class="summary-item__value">{summary.scheduled}</span>
 		<span class="summary-item__label">Scheduled</span>
 	</div>
+	<!-- Only rendered when non-zero. The Terminating status isn't selected by
+	     default, so this card normally appears only once the user has asked
+	     for those items via the status chip — a permanent "0 Terminating"
+	     would just be noise. -->
+	{#if summary.terminating > 0}
+		<div
+			class="summary-item summary-item--purple"
+			title="Stuck mid-deletion (reporting finalizer never completed)"
+		>
+			<span class="summary-item__value">{summary.terminating}</span>
+			<span class="summary-item__label">Terminating</span>
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -101,5 +114,13 @@
 	}
 	.summary-item--muted .summary-item__value {
 		color: var(--sc-muted-text);
+	}
+
+	.summary-item--purple {
+		border-color: var(--sc-purple-border);
+		background: var(--sc-purple-bg);
+	}
+	.summary-item--purple .summary-item__value {
+		color: var(--sc-purple-text);
 	}
 </style>

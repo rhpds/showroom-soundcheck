@@ -363,6 +363,15 @@
 		return label;
 	}
 
+	// Statuses with no reachable environment to probe: `scheduled` hasn't
+	// provisioned yet, `completed` has been reclaimed, and `terminating` is
+	// mid-deletion (already gone from the requester's point of view, even
+	// though a wedged reporting finalizer keeps the CRD around). Offering a
+	// run button on these would only produce checks that are certain to fail.
+	function canRunCheck(status: WorkshopStatus): boolean {
+		return status !== 'scheduled' && status !== 'completed' && status !== 'terminating';
+	}
+
 	function statusShortLabel(status: WorkshopStatus): string {
 		switch (status) {
 			case 'running':
@@ -379,6 +388,8 @@
 				return 'FAIL';
 			case 'completed':
 				return 'DONE';
+			case 'terminating':
+				return 'TERM';
 			default:
 				return '?';
 		}
@@ -664,7 +675,7 @@
 												aria-label="Last check: {checkStatusLabel(cs.status)}"
 											></a>
 										{/if}
-										{#if onRunCheck && child.status !== 'scheduled' && child.status !== 'completed'}
+										{#if onRunCheck && canRunCheck(child.status)}
 											<button
 												class="tl-run-btn"
 												title="Run check"
@@ -913,7 +924,7 @@
 												aria-label="Last check: {checkStatusLabel(cs.status)}"
 											></a>
 										{/if}
-										{#if onRunCheck && tItem.item.status !== 'scheduled' && tItem.item.status !== 'completed'}
+										{#if onRunCheck && canRunCheck(tItem.item.status)}
 											<button
 												class="tl-run-btn"
 												title="Run check"

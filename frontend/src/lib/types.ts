@@ -210,6 +210,7 @@ export type WorkshopStatus =
 	| 'degraded'
 	| 'failed'
 	| 'completed'
+	| 'terminating'
 	| 'unknown';
 
 export interface WorkshopDashboardItem {
@@ -261,6 +262,7 @@ export interface WorkshopSummary {
 	degraded: number;
 	failed: number;
 	completed: number;
+	terminating: number;
 }
 
 export interface MultiWorkshopAsset {

@@ -86,6 +86,14 @@ Stale sessions (stuck in `running` for >30 minutes) are automatically cleaned up
 
 At `/workshops`, view a real-time timeline of Workshop, SelfPacedLab, and MultiWorkshop custom resources across every configured Babylon cluster — independent of soundcheck's own sessions/groups. Filter by cluster, status, provision type, environment, white-glove flag, presence of provisioning failures, time window, and workshop size (seat count). Multi-workshop events group their child workshops/selfpacedlabs, expandable/collapsible in the timeline.
 
+#### Terminating workshops
+
+Babylon CRDs carry a `demo.redhat.com/reporting` finalizer. When the reporting operator/API behind it is unhealthy, deletion never completes: the object gets a `metadata.deletionTimestamp` but is never removed from the cluster, and can sit that way for weeks. Soundcheck reports these as a distinct **terminating** status instead of letting their stale provision counts flow through normal status derivation (which made them look like live workshops that "wouldn't go away").
+
+**Terminating** is an ordinary status chip in the filter bar, alongside Running, Completed and the rest. It's simply **not selected by default** — for the same reason Stopped and Completed aren't: the default view is about workshops needing attention. Click the chip (or deep-link `?status=terminating`) to see them, and a purple Terminating summary card shows the count. Clearing all filters shows every status, this one included. A growing pile of them is the signal that the reporting finalizer is wedged.
+
+For a MultiWorkshop, *terminating* reflects only the event CRD's own deletion timestamp; terminating children are excluded from the event's aggregated status so one stuck child can't hide an otherwise-healthy event.
+
 A fresh visit (no filters in the URL) only shows clusters named in `BABYLON_DEFAULT_CLUSTERS`; every other configured cluster still appears as a selectable chip in the cluster filter, and "Clear filters" reveals all of them, same as every other filter in that bar. This lets a newly-added cluster (e.g. a staging/integration Babylon instance) be onboarded without flooding the default dashboard view.
 
 Trigger a soundcheck run directly from a workshop's row; its live status streams back via SSE without leaving the dashboard. Unlike session/group pages, the workshop list itself is fetched via plain REST (it reads live from the Kubernetes API rather than SAQ/DB state) and is served from a short-lived in-memory cache that's kept warm by a background refresh loop.

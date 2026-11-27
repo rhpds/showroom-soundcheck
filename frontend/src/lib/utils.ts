@@ -109,6 +109,13 @@ const WORKSHOP_STATUS_MAP: Record<WorkshopStatus, WorkshopStatusStyle> = {
 		label: 'Completed',
 		colorName: 'grey'
 	},
+	terminating: {
+		bg: 'var(--sc-purple-bg)',
+		text: 'var(--sc-purple-text)',
+		border: 'var(--sc-purple-border)',
+		label: 'Terminating',
+		colorName: 'purple'
+	},
 	unknown: {
 		bg: 'var(--sc-grey-bg)',
 		text: 'var(--sc-grey-text)',
@@ -159,7 +166,8 @@ export function buildWorkshopSummary(items: WorkshopDashboardItem[]): WorkshopSu
 		stopped: 0,
 		degraded: 0,
 		failed: 0,
-		completed: 0
+		completed: 0,
+		terminating: 0
 	};
 	for (const item of items) {
 		switch (item.status) {
@@ -183,6 +191,9 @@ export function buildWorkshopSummary(items: WorkshopDashboardItem[]): WorkshopSu
 				break;
 			case 'completed':
 				summary.completed++;
+				break;
+			case 'terminating':
+				summary.terminating++;
 				break;
 		}
 	}
@@ -224,6 +235,7 @@ export function extractEnvironment(name: string): EnvironmentType | null {
 	return null;
 }
 
+/** Every selectable workshop status, in the order chips are rendered. */
 export const ALL_WORKSHOP_STATUSES: WorkshopStatus[] = [
 	'scheduled',
 	'provisioning',
@@ -231,7 +243,30 @@ export const ALL_WORKSHOP_STATUSES: WorkshopStatus[] = [
 	'stopped',
 	'degraded',
 	'failed',
-	'completed'
+	'completed',
+	'terminating'
+];
+
+/**
+ * Statuses selected on a fresh visit (no filters in the URL).
+ *
+ * `terminating` is omitted for the same reason `stopped` and `completed`
+ * are: the default view is about workshops needing attention, not ones
+ * already finished or gone. It's an ordinary chip in every other respect —
+ * click it to see them, and an empty selection ("Clear filters") shows
+ * every status including this one.
+ *
+ * `readonly` on purpose: this array is a module-level singleton that gets
+ * handed to `$state()` in the workshops page. Svelte deep-proxies `$state`
+ * arrays, so an in-place `push`/`splice` on the selection would mutate this
+ * default for every later fresh visit in the same session. Callers copy it
+ * (`[...DEFAULT_WORKSHOP_STATUSES]`); the type stops that being optional.
+ */
+export const DEFAULT_WORKSHOP_STATUSES: readonly WorkshopStatus[] = [
+	'scheduled',
+	'provisioning',
+	'failed',
+	'degraded'
 ];
 
 /**

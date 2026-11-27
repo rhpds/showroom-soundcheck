@@ -32,7 +32,8 @@
 			stopped: 0,
 			degraded: 0,
 			failed: 0,
-			completed: 0
+			completed: 0,
+			terminating: 0
 		},
 		cluster_errors: [],
 		fetched_at: ''

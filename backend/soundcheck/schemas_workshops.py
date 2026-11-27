@@ -5,7 +5,15 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 WorkshopStatus = Literal[
-    "scheduled", "provisioning", "running", "stopped", "degraded", "failed", "completed", "unknown"
+    "scheduled",
+    "provisioning",
+    "running",
+    "stopped",
+    "degraded",
+    "failed",
+    "completed",
+    "terminating",
+    "unknown",
 ]
 
 
@@ -58,7 +66,12 @@ class WorkshopDashboardItem(BaseModel):
 
 
 class WorkshopSummary(BaseModel):
-    """Aggregated workshop counts for summary cards."""
+    """Aggregated workshop counts for summary cards.
+
+    ``terminating`` defaults to 0 so callers constructing an empty/zero
+    summary (the routes' no-clusters short-circuit) don't have to spell it
+    out.
+    """
 
     total: int
     scheduled: int
@@ -68,6 +81,7 @@ class WorkshopSummary(BaseModel):
     degraded: int
     failed: int
     completed: int
+    terminating: int = 0
 
 
 class MultiWorkshopAsset(BaseModel):

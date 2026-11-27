@@ -49,6 +49,26 @@ MULTIWORKSHOP_ID_LABEL = f"{BABYLON_GROUP}/multi-workshop-id"
 # ---------------------------------------------------------------------------
 
 
+def _is_terminating(item: dict[str, Any]) -> bool:
+    """Return True if a raw K8s object has a deletionTimestamp set.
+
+    Babylon CRDs (Workshop/MultiWorkshop/SelfPacedLab) carry a
+    ``demo.redhat.com/reporting`` finalizer. When the reporting-operator/API
+    backing that finalizer is unhealthy (e.g. stuck acquiring its Redis
+    locks), deletion requests never complete: the object gets a
+    ``deletionTimestamp`` but is never actually removed from the cluster. A
+    Workshop can sit like this indefinitely (observed: weeks) even though it
+    was already deleted from the requester's point of view.
+
+    Such objects are *not* dropped at fetch time. They are surfaced as an
+    ordinary ``terminating`` status (see :func:`derive_status`), which the
+    dashboard leaves out of its default filter selection — keeping them
+    inspectable is the whole point, since a growing pile of them is the
+    symptom that the reporting finalizer is wedged.
+    """
+    return bool(item.get("metadata", {}).get("deletionTimestamp"))
+
+
 def derive_status(
     lifespan_start: str,
     lifespan_end: str,
@@ -57,8 +77,18 @@ def derive_status(
     provision_failed: int,
     provision_disabled: bool,
     resource_claim_state: str,
+    terminating: bool = False,
 ) -> WorkshopStatus:
-    """Derive workshop lifecycle status from provision counts, lifespan, and ResourceClaim state."""
+    """Derive workshop lifecycle status from provision counts, lifespan, and ResourceClaim state.
+
+    ``terminating`` wins over every other signal: once the API server has
+    stamped a ``deletionTimestamp`` the object is gone as far as the
+    requester is concerned, so its stale provision counts and lifespan
+    dates say nothing useful about it (see :func:`_is_terminating`).
+    """
+    if terminating:
+        return "terminating"
+
     now = datetime.now(UTC)
 
     if lifespan_end:
@@ -106,8 +136,19 @@ def _derive_multi_workshop_status(
     start_date: str,
     end_date: str,
     children: list[WorkshopDashboardItem],
+    terminating: bool = False,
 ) -> WorkshopStatus:
-    """Derive aggregated status for a MultiWorkshop from its dates and child statuses."""
+    """Derive aggregated status for a MultiWorkshop from its dates and child statuses.
+
+    A MultiWorkshop is reported as ``terminating`` only when the event CRD
+    itself carries a ``deletionTimestamp``. Children are *not* consulted for
+    this: a child can be terminating while its parent event is still live,
+    and collapsing that into a terminating event would hide the event (and
+    its remaining healthy children) from the default dashboard view.
+    """
+    if terminating:
+        return "terminating"
+
     now = datetime.now(UTC)
 
     if end_date:
@@ -129,7 +170,12 @@ def _derive_multi_workshop_status(
     if not children:
         return "unknown"
 
-    child_statuses = {c.status for c in children}
+    # Terminating children are excluded from the aggregate so a single
+    # stuck-deleting child can't drag an otherwise-running event into
+    # "unknown" (terminating is not handled by any branch below).
+    child_statuses = {c.status for c in children if c.status != "terminating"}
+    if not child_statuses:
+        return "unknown"
 
     if child_statuses == {"running"}:
         return "running"
@@ -190,6 +236,7 @@ def extract_workshop_item(
         provision_failed,
         provision_disabled,
         resource_claim_state,
+        _is_terminating(ws_def),
     )
 
     SIX_MONTHS_S = 6 * 30 * 24 * 3600
@@ -247,8 +294,12 @@ def _derive_selfpacedlab_status(
     pool_assigned: int,
     pool_provisioning: int,
     pool_ready: int,
+    terminating: bool = False,
 ) -> WorkshopStatus:
     """Derive SelfPacedLab lifecycle status from lifespan and pool counts.
+
+    ``terminating`` short-circuits ahead of everything else, exactly as in
+    :func:`derive_status` — see that function for the rationale.
 
     SelfPacedLab works like a ResourcePool: a minimum number of candidate
     ResourceClaims are kept pre-provisioned, and whenever the available count
@@ -269,6 +320,9 @@ def _derive_selfpacedlab_status(
     treats every check as a point-in-time snapshot rather than something to
     poll/retry internally.
     """
+    if terminating:
+        return "terminating"
+
     now = datetime.now(UTC)
 
     if lifespan_end:
@@ -334,6 +388,7 @@ def extract_selfpacedlab_item(spl_def: dict[str, Any], cluster: str) -> Workshop
         pool_assigned,
         pool_provisioning,
         pool_ready,
+        _is_terminating(spl_def),
     )
 
     spl_name = meta.get("name", "")
@@ -442,7 +497,7 @@ def _build_multi_workshop_item(
         for a in spec.get("assets", [])
     ]
 
-    status = _derive_multi_workshop_status(start_date, end_date, children)
+    status = _derive_multi_workshop_status(start_date, end_date, children, _is_terminating(mws_def))
 
     mws_name = meta.get("name", "")
     mws_namespace = meta.get("namespace", "")
@@ -497,6 +552,9 @@ async def fetch_workshops_from_cluster(
         logger.warning(msg)
         return [], [msg]
 
+    # Terminating objects are deliberately kept here and tagged with the
+    # `terminating` status downstream, not dropped — the dashboard just
+    # leaves that status out of its default filter selection.
     workshops = result.get("items", [])
     if not workshops:
         return [], []
@@ -849,7 +907,14 @@ def matches_filters(
     to_time: str | None,
     search: str | None = None,
 ) -> bool:
-    """Apply client-requested filters to a workshop item."""
+    """Apply client-requested filters to a workshop item.
+
+    ``terminating`` is an ordinary status here with no special handling: an
+    empty ``statuses`` means "any status", so hiding terminating items is
+    purely a matter of which statuses the caller asks for. The dashboard
+    leaves it out of its default selection (see the frontend's
+    ``DEFAULT_WORKSHOP_STATUSES``) and always sends an explicit list.
+    """
     if clusters and item.cluster not in clusters:
         return False
     if statuses and item.status not in statuses:
@@ -897,6 +962,7 @@ def build_summary(items: list[WorkshopDashboardItem]) -> WorkshopSummary:
         degraded=0,
         failed=0,
         completed=0,
+        terminating=0,
     )
     for item in items:
         if item.status == "scheduled":
@@ -913,4 +979,6 @@ def build_summary(items: list[WorkshopDashboardItem]) -> WorkshopSummary:
             summary.failed += 1
         elif item.status == "completed":
             summary.completed += 1
+        elif item.status == "terminating":
+            summary.terminating += 1
     return summary
